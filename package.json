@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"cd frontend && node ../node_modules/vite/bin/vite.js\" \"cd backend && node --watch server.mjs\""
+  }
+}
