@@ -1,0 +1,64 @@
+Meeting nodes 3-8-26 8pm
+
+Present: Aviel, Luciano, Julio, Fabian, Tim, Manny
+
+Agenda:
+ - Decide project goals
+ - Pick roles
+ - Set tasks before next meeting
+
+
+Roles:
+Project Manager: Aviel
+Database: Fabian
+Back End: Julio, Manny, Luciano
+Front End: Tim, Aviel, Luciano
+
+Project Idea: Team Collaboration App like Jira or Trello
+
+Big Features: Search, Registration, Login, Email Verification, Authentication (JWT), Projects, Message Board or Chat
+
+Features Brainstorming:
+ - Login, Authentication,
+	- Student only? .edu emails? (Can be enforced by email validation, but do we want it?)
+ - Profile page, profile pictures
+ 	- Preferred roles
+	- About me
+	- Recent Projects worked on? (Like last 5)
+ - Message board/Chat?
+	- Chat for team/subteams?
+ - Assign Roles for people and tags for tasks
+ 	- Authority/Permissions to complete tasks based on roles (PM can do all)
+	- Sign yourself up for tasks
+ - Completion bar for tasks or overall Project
+ - Branches?
+	- You can view all branches from overview, see what's done and what needs to be done
+	- Members can be assigned to branches
+	- Compartmentalizing project
+	- Division of labor
+ - Search:
+	- There should be a LFG section (people can join active projects)
+	- PM can decide if project is private or public
+	- Search project name and/or users?
+ - JWT needs to be handled by back end
+ - For mobile app:
+	- MERN stack should be able to do both easily
+	- Flutter
+- Aim at students
+	- A way to keep yourself honest by showing you did what you said you would
+
+
+-Wish List or Optional features: 
+	- Notification emails?
+	- Reports?
+	- Help Email Link at minimum
+
+Immediate Tasks:
+- Front End: Learn React.js
+- Back End: Learn Express.js and Node.js
+- Database: Learn MongoDB
+- Aviel: Will make a very rough mock up to give us some sort of guide to strive for. In the meantime, expect it to look and behave similarly to Jira. 
+
+For week after Spring Break: Hope to start building using the mock up as a guide.
+
+Next Meeting: 3/29 8pm
