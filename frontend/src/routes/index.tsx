@@ -1,14 +1,20 @@
+import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
+import reactLogo from '../assets/react.svg'
 import viteLogo from '/vite.svg'
+import { Button } from '../components/ui/button'
 
-export default function App() {
+export const Route = createFileRoute('/')({
+  component: Home,
+})
+
+export default function Home() {
   const[count, setCount] = useState(0)
 
   return (
     <div className="flex min-h-screen min-w-[320px] place-items-center justify-center bg-white text-[#213547] dark:bg-[#242424] dark:text-[rgba(255,255,255,0.87)]">
       <div className="max-w-7xl p-8 text-center">
-        
+        <Button>This is a test</Button>
         <div>
           <a href="https://vite.dev" target="_blank" rel="noreferrer">
             <img 
