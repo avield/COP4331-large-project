@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import UiSidebar from './components/sidebar'
+import Navbar from './components/navbar'
 
 export const Route = createFileRoute('/_workspace')({
   component: RouteComponent,
@@ -11,6 +12,7 @@ function RouteComponent() {
     <SidebarProvider>
       <UiSidebar />
       <main className="flex-1 w-full flex flex-col">
+        <Navbar />
         <div className="p-2 md:hidden">
           <SidebarTrigger variant="ghost" />
         </div>
