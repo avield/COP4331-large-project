@@ -27,12 +27,12 @@ jobs:
             cd "${{ vars.SERVER_PATH }}"
             git pull origin main
 
+            npm ci
+
             cd frontend
-            npm install
             npm run build
 
             cd ../backend
-            npm install
             pm2 restart taskademia-backend || pm2 start server.mjs --name taskademia-backend
             pm2 save
           EOF
