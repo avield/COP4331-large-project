@@ -1,26 +1,27 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   Card,
   CardContent,
   CardFooter,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import './index.css';
+import AuthCardHeader from './components/auth_card';
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute('/(auth)/login')({
   component: Login,
 })
 
 export default function Login() {
   return (
     <div className="flex items-center justify-center w-screen h-screen">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
+      <Card className="w-full max-w-sm py-7">
+        <AuthCardHeader>
           <CardTitle className='text-center'>Log In</CardTitle>
-        </CardHeader>
+        </AuthCardHeader>
         <CardContent>
           <form>
             <div className="flex flex-col gap-6">
@@ -55,10 +56,10 @@ export default function Login() {
         </CardContent>
         <CardFooter className="flex-col gap-2">
           <Button type="submit" className="w-full">
-            Login
+            <Link to="#">Login</Link>
           </Button>
-          <Button variant="outline" className="w-full">
-            Register
+          <Button variant="outline" className="w-full" asChild>
+            <Link to="/register">Register</Link>
           </Button>
         </CardFooter>
       </Card>

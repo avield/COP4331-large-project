@@ -1,0 +1,5 @@
+@reference "tailwindcss";
+
+@utility a {
+  @apply text-center text-4xl font-bold pb-4;
+}
