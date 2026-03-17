@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   Card,
-  CardAction,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
