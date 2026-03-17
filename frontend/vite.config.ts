@@ -8,10 +8,10 @@ import path from "path"
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    tanstackStart(),
     react(),
     tailwindcss(),
     tsConfigPaths(),
-    tanstackStart(),
   ],
   resolve: {
     alias: {
