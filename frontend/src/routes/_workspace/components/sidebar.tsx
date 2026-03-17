@@ -1,6 +1,7 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, useSidebar } from '@/components/ui/sidebar'
-import { GraduationCap } from 'lucide-react'
+import { GraduationCap, HomeIcon, PlusIcon } from 'lucide-react'
 import { useEffect } from 'react'
+import SidebarButton from './sidebar_button'
 
 export default function UiSidebar() {
   const { setOpen, isMobile } = useSidebar()
@@ -31,7 +32,17 @@ export default function UiSidebar() {
       </SidebarHeader>
       <hr />
       <SidebarContent>
-        <SidebarGroup />
+        <SidebarGroup className="p-5 w-full gap-y-2">
+          <p className="font-semibold text-xs tracking-wider px-3">
+          MAIN
+          </p>
+          <SidebarButton Icon={HomeIcon} to="/home">
+            Home
+          </SidebarButton>
+          <SidebarButton Icon={PlusIcon}>
+            New Project
+          </SidebarButton>
+        </SidebarGroup>
         <SidebarGroup />
       </SidebarContent>
       <hr />
