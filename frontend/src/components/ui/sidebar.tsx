@@ -163,6 +163,34 @@ function Sidebar({
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
+      const [touchStart, setTouchStart] = React.useState<{ x: number; y: number } | null>(null)
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+      setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY })
+    }
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      if (!touchStart) return
+
+      const touchEndX = e.changedTouches[0].clientX
+      const touchEndY = e.changedTouches[0].clientY
+
+      const distanceX = touchStart.x - touchEndX
+      const distanceY = Math.abs(touchStart.y - touchEndY)
+
+      // Ignore the gesture if the user is scrolling up/down
+      if (distanceY > Math.abs(distanceX)) return
+
+      // If sidebar is on the left: swipe LEFT to close
+      if (side === "left" && distanceX > 50) {
+        setOpenMobile(false)
+      } 
+      // If sidebar is on the right: swipe RIGHT to close
+      else if (side === "right" && distanceX < -50) {
+        setOpenMobile(false)
+      }
+    }
+
   if (collapsible === "none") {
     return (
       <div
@@ -186,13 +214,15 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) min-w-fit bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
             } as React.CSSProperties
           }
           side={side}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
