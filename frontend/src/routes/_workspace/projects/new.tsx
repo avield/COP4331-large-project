@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,8 @@ export const Route = createFileRoute('/_workspace/projects/new')({
 })
 
 function NewProject() {
+  const router = useRouter(); 
+
   const [goals, setGoals] = useState([{ title: "", description: "" }]);
   const[isSubmitting, setIsSubmitting] = useState(false);
   const [visibility, setVisibility] = useState("private");
@@ -209,7 +211,7 @@ function NewProject() {
               "Create Project"
             )}
           </Button>
-          <Button type="button" variant="outline" size="lg" className="w-full cursor-pointer" disabled={isSubmitting}>
+          <Button type="button" variant="outline" size="lg" className="w-full cursor-pointer" onClick={() => router.history.back()}>
             Cancel
           </Button>
         </div>
