@@ -1,17 +1,20 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader } from '@/components/ui/sidebar'
 import { GraduationCap, HomeIcon, PlusIcon } from 'lucide-react'
 import SidebarButton from './sidebar_button'
+import { Link } from '@tanstack/react-router'
 
 export default function UiSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
-        <div className='flex flex-row items-center gap-2 my-4 ml-5'>
-          <GraduationCap className='size-8 min-h-8 min-w-8 text-blue-600' />
-          <div className='text-xl font-semibold text-sidebar-foreground w-fit h-fit'>
-            Taskademia
+        <Link to="/home">
+          <div className='flex flex-row items-center gap-2 my-4 ml-5'>
+            <GraduationCap className='size-8 min-h-8 min-w-8 text-blue-600' />
+            <div className='text-xl font-semibold text-sidebar-foreground w-fit h-fit'>
+              Taskademia
+            </div>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
       <hr />
       <SidebarContent>
