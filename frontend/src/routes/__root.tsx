@@ -1,15 +1,13 @@
-/// <reference types="vite/client" />
-import { Outlet, createRootRoute } from '@tanstack/react-router'
-import '../index.css';
-
-export const Route = createRootRoute({
-  component: RootComponent,
-})
-
-function RootComponent() {
+export default function Root() {
   return (
-    <div className="dark min-h-screen">
-      <Outlet />
+    <div style={{ 
+      background: "#0f172a",
+      color: "white",
+      minHeight: "100vh",
+      padding: "40px"
+    }}>
+      <h1>🚀 COP4331 Mission Control</h1>
+      <p>Dashboard is now live.</p>
     </div>
-  )
+  );
 }
