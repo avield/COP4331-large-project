@@ -7,7 +7,7 @@ export default function UiSidebar() {
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <div className='flex flex-row items-center gap-2 my-4 ml-5'>
-          <GraduationCap className='size-8 min-h-8 min-w-8' />
+          <GraduationCap className='size-8 min-h-8 min-w-8 text-blue-600' />
           <div className='text-xl font-semibold text-sidebar-foreground w-fit h-fit'>
             Taskademia
           </div>
