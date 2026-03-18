@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { FolderPlus, Plus } from 'lucide-react'
 
 export const Route = createFileRoute('/_workspace/home')({
@@ -16,9 +16,11 @@ function Home() {
       <p className="text-muted-foreground max-w-sm">
         You don't have any active projects yet. Create your first workspace to start managing your tasks.
       </p>
-      <Button className="mt-4 cursor-pointer gap-1">
-        <Plus /> 
-        Create First Project
+      <Button className="mt-4 cursor-pointer gap-1" asChild>
+        <Link to="/projects/new">
+          <Plus /> 
+          Create First Project
+        </Link>
       </Button>
     </div>
   )

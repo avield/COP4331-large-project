@@ -22,7 +22,7 @@ export default function UiSidebar() {
           <SidebarButton Icon={HomeIcon} to="/home">
             Home
           </SidebarButton>
-          <SidebarButton Icon={PlusIcon}>
+          <SidebarButton Icon={PlusIcon} to="/projects/new">
             New Project
           </SidebarButton>
         </SidebarGroup>
