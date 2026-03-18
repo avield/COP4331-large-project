@@ -33,6 +33,26 @@ const initialData: BoardData = {
 function ProjectBoard() {
   const [data, setData] = useState(initialData);
 
+  const handleDeleteTask = (columnId: string, taskId: string) => {
+    // Deep clone the specific column and the tasks dictionary so React triggers a re-render
+    const newColumnTaskIds = data.columns[columnId as keyof typeof data.columns].taskIds.filter(id => id !== taskId);
+    
+    const newTasks = { ...data.tasks };
+    delete newTasks[taskId as keyof typeof data.tasks]; // Remove from master dictionary
+
+    setData({
+        ...data,
+        tasks: newTasks,
+        columns: {
+        ...data.columns,
+        [columnId]: {
+            ...data.columns[columnId as keyof typeof data.columns],
+            taskIds: newColumnTaskIds
+        }
+        }
+    });
+  };
+
   const handleAddTask = (columnId: string, content: string) => {
     const newTaskId = `task-${Date.now()}`; 
     
@@ -118,6 +138,7 @@ function ProjectBoard() {
                 column={column}
                 tasks={tasks}
                 onAddTask={handleAddTask}
+                onDeleteTask={handleDeleteTask} 
             />;
           })}
         </div>

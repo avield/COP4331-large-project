@@ -1,8 +1,9 @@
 import { Draggable } from "@hello-pangea/dnd";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MoreHorizontal, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export type Task = {
   id: string;
@@ -13,9 +14,10 @@ export type Task = {
 interface KanbanTaskProps {
   task: Task;
   index: number;
+  onDelete: () => void;
 }
 
-export function KanbanTask({ task, index }: KanbanTaskProps) {
+export function KanbanTask({ task, index, onDelete }: KanbanTaskProps) {
   return (
     <Draggable draggableId={task.id} index={index}>
       {(provided, snapshot) => (
@@ -27,14 +29,36 @@ export function KanbanTask({ task, index }: KanbanTaskProps) {
           style={{ ...provided.draggableProps.style }}
         >
           <Card 
-            className={`cursor-grab active:cursor-grabbing border-muted-foreground/20 hover:border-primary/50 transition-colors ${
+            className={`cursor-grab active:cursor-grabbing border-muted-foreground/20 hover:border-primary/50 transition-colors pt-6 pb-4 ${
               snapshot.isDragging ? "shadow-lg border-primary/50 ring-1 ring-primary/20" : ""
             }`}
           >
-            <CardContent className="p-4 flex flex-col gap-3">
+            <CardContent className="flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium leading-snug">{task.content}</p>
-                <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 cursor-grab" />
+
+                <div className="flex items-center shrink-0 -mr-1 -mt-1">
+                  {/* The 3 Dots Dropdown */}
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors cursor-pointer outline-none">
+                      <MoreHorizontal className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      {/* Delete Option */}
+                      <DropdownMenuItem 
+                        onClick={onDelete}
+                        className="text-destructive focus:text-destructive cursor-pointer"
+                      >
+                        <Trash2 className="size-4 mr-2" />
+                        Delete Task
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>     
+                </div>
+              </div>
+
+              <div className="flex items-start justify-end gap-2">
+                <GripVertical className="size-4 text-muted-foreground shrink-0 mt-0.5 cursor-grab -mr-1" />
               </div>
               <div className="flex items-center justify-between">
                 <Badge 

@@ -16,9 +16,10 @@ interface KanbanColumnProps {
   column: Column;
   tasks: Task[];
   onAddTask: (columnId: string, content: string) => void;
+  onDeleteTask: (columnId: string, taskId: string) => void;
 }
 
-export function KanbanColumn({ column, tasks, onAddTask }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, onAddTask, onDeleteTask }: KanbanColumnProps) {
     const[isAdding, setIsAdding] = useState(false);
     const [newTaskText, setNewTaskText] = useState("");
 
@@ -53,7 +54,12 @@ export function KanbanColumn({ column, tasks, onAddTask }: KanbanColumnProps) {
             }`}
           >
             {tasks.map((task, index) => (
-              <KanbanTask key={task.id} task={task} index={index} />
+              <KanbanTask
+                key={task.id}
+                task={task}
+                index={index}
+                onDelete={() => onDeleteTask(column.id, task.id)}
+              />
             ))}
             {provided.placeholder}
 
