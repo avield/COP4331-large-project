@@ -1,14 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react';
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { KanbanColumn } from './components/column';
+import { KanbanColumn, type Column } from './components/column';
+import type { Task } from './components/task';
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   component: ProjectBoard,
 })
 
+export type BoardData = {
+  tasks: Record<string, Task>;
+  columns: Record<string, Column>;
+  columnOrder: string[];
+};
+
 // MOCK DATA
-const initialData = {
+const initialData: BoardData = {
   tasks: {
     "task-1": { id: "task-1", content: "Design the Login screen", priority: "High" as const },
     "task-2": { id: "task-2", content: "Set up MongoDB schemas", priority: "High" as const },
@@ -25,6 +32,24 @@ const initialData = {
 
 function ProjectBoard() {
   const [data, setData] = useState(initialData);
+
+  const handleAddTask = (columnId: string, content: string) => {
+    const newTaskId = `task-${Date.now()}`; 
+    
+    const newTask: Task = {
+        id: newTaskId,
+        content: content,
+        priority: "Medium",
+    };
+
+    const newData = { ...data };
+
+    newData.tasks[newTaskId] = newTask;
+
+    newData.columns[columnId as keyof typeof data.columns].taskIds.push(newTaskId);
+
+    setData(newData);
+    };
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -88,7 +113,12 @@ function ProjectBoard() {
                 .map((taskId) => data.tasks[taskId as keyof typeof data.tasks])
                 .filter((task) => task !== undefined);
             
-            return <KanbanColumn key={column.id} column={column} tasks={tasks} />;
+            return <KanbanColumn
+                key={column.id}
+                column={column}
+                tasks={tasks}
+                onAddTask={handleAddTask}
+            />;
           })}
         </div>
       </DragDropContext>

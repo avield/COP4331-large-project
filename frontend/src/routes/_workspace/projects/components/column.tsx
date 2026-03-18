@@ -2,17 +2,26 @@ import { Droppable } from "@hello-pangea/dnd";
 import { KanbanTask, type Task } from "./task";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
 
-interface KanbanColumnProps {
-  column: {
+export type Column = {
     id: string;
     title: string;
     taskIds: string[];
-  };
+};
+
+
+interface KanbanColumnProps {
+  column: Column;
   tasks: Task[];
+  onAddTask: (columnId: string, content: string) => void;
 }
 
-export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, onAddTask }: KanbanColumnProps) {
+    const[isAdding, setIsAdding] = useState(false);
+    const [newTaskText, setNewTaskText] = useState("");
+
   return (
     <div className="flex flex-col w-80 shrink-0">
       {/* Column Header */}
@@ -23,8 +32,13 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
             {tasks.length}
           </span>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-          <Plus className="h-4 w-4" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
+          onClick={() => setIsAdding(true)}
+        >
+          <Plus className="size-4" />
         </Button>
       </div>
 
@@ -42,6 +56,36 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
               <KanbanTask key={task.id} task={task} index={index} />
             ))}
             {provided.placeholder}
+
+            {isAdding && (
+              <div className="mt-2">
+                <Textarea
+                  autoFocus
+                  placeholder="What needs to be done?"
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  onBlur={() => {
+                    if (newTaskText.trim() !== "") {
+                      onAddTask(column.id, newTaskText);
+                    }
+                    setNewTaskText("");
+                    setIsAdding(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      e.currentTarget.blur(); 
+                    }
+
+                    if (e.key === "Escape") {
+                      setNewTaskText("");
+                      setIsAdding(false);
+                    }
+                  }}
+                  className="bg-background border-primary/50 min-h-25 resize-none"
+                />
+              </div>
+            )}
           </div>
         )}
       </Droppable>
