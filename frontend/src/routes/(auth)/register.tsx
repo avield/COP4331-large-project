@@ -1,71 +1,87 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import './index.css';
-import AuthCardHeader from './components/auth_card';
+import { createFileRoute } from '@tanstack/react-router'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import AuthLayout from "./components/auth_layout"
 
 export const Route = createFileRoute('/(auth)/register')({
   component: Register,
 })
 
 export default function Register() {
+  const handleRegister = async (formData: FormData) => {
+    const name = formData.get("name");
+    const email = formData.get("email");
+    const password = formData.get("password");
+    const confirmPassword = formData.get("confirmPassword");
+
+    if (password != confirmPassword) {
+      // Place logic here
+    }
+    
+    console.log("Registering in with:", name, email, password);
+    // API logic goes here later
+  };
+
   return (
-    <div className="flex items-center justify-center w-screen h-screen">
-      <Card className="w-full max-w-sm py-7">
-        <AuthCardHeader>
-          <CardTitle className='text-center'>Register</CardTitle>
-        </AuthCardHeader>
-        <CardContent>
-          <form>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="user@example.com"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  placeholder="********"
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Confirm Password</Label>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  placeholder="********"
-                />
-              </div>
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter className="flex-col gap-2">
-          <Button className="w-full" asChild>
-            <Link to="#">Register</Link>
-          </Button>
-          <Link to="/login">already have an account?</Link>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+    <AuthLayout
+      title="Create an account"
+      description="Enter your details below to create your account"
+      footerText="Already have an account?"
+      footerLinkText="Sign in"
+      footerLinkTo="/login"
+    >
+      <form action={handleRegister} className="space-y-4">
+        
+        <div className="space-y-2">
+          <Label htmlFor="name">Full Name</Label>
+          <Input 
+            id="name" 
+            type="text" 
+            placeholder="John Doe" 
+            className="bg-background"
+            required 
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input 
+            id="email" 
+            type="email" 
+            placeholder="user@example.com" 
+            className="bg-background"
+            required 
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input 
+            id="password" 
+            type="password" 
+            placeholder="********"
+            className="bg-background"
+            required 
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Input 
+            id="confirmPassword" 
+            type="password" 
+            placeholder="********"
+            className="bg-background"
+            required 
+          />
+        </div>
+
+        <Button type="submit" className="w-full cursor-pointer">
+          Create Account
+        </Button>
+
+      </form>
+    </AuthLayout>
+  )
 }
