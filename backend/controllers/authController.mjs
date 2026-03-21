@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.mjs';
+import emojiRegex from 'emohi-regex';
 
 //Generate a JWT token
 const generateToken = (id) => {
@@ -262,9 +263,10 @@ function isNumber(char){
   return /^\p{Nd}$/u.test(char)
 }
 
+const emojiRe = emojiRegex();
+
 function isSymbol(char) {
-  // punctuation or symbol, but not emoji-related chars
-  return /^[[\p{P}\p{S}]--[\p{EPres}\p{ExtPict}]]$/v.test(char);
+  return /[\p{P}\p{S}]/u.test(char) && !emojiRe.test(char)
 }
 
 const generateEmailVerificationToken = () => {
