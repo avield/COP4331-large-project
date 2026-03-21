@@ -4,8 +4,9 @@ import {
   registerUser,
   loginUser,
   verifyEmail,
-  resendVerificationEmail
+  resendVerificationEmail,
 } from '../controllers/authController.mjs';
+import protect from '../middleware/authMiddleware.mjs'
 
 const router = express.Router();
 
@@ -33,9 +34,13 @@ const verifyEmailLimiter = rateLimit({
   message: { message: 'Too many verification attempts. Please try again later.' }
 });
 
+//Login and Register
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.get('/verify-email/:token', verifyEmail);
 router.post('/resend-verification', resendVerificationEmail);
+
+//Using JWT:
+
 
 export default router;

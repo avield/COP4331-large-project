@@ -92,6 +92,8 @@ export const registerUser = async (req, res) => {
     //Once email is set up, we will send this url in the email
     const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawEmailVerificationToken}`;
 
+    //TODO: implement sending an email with verification url
+
     //Once email is set up, remove verificationUrl from this return message
     return res.status(201).json({
       message: 'User registered successfully',
@@ -143,6 +145,7 @@ export const verifyEmail = async (req, res) => {
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
 
+    //Save changes to database
     await user.save();
 
     return res.status(200).json({
@@ -156,6 +159,7 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
+//To resend a verification email (like if it expired)
 export const resendVerificationEmail = async (req, res) => {
   try {
     const { email } = req.body;
@@ -168,9 +172,8 @@ export const resendVerificationEmail = async (req, res) => {
 
     const user = await User.findOne({ email: normalizedEmail });
 
-    // Always return the same response to avoid email enumeration
-    const genericMessage =
-      'If that email exists and still needs verification, a verification link has been sent.';
+    // Always return the same response to avoid giving away user identities
+    const genericMessage = 'If that email exists and still needs verification, a verification link has been sent.';
 
     if (!user || user.isEmailVerified) {
       return res.status(200).json({ message: genericMessage });
@@ -182,14 +185,15 @@ export const resendVerificationEmail = async (req, res) => {
     user.emailVerificationToken = hashedToken;
     user.emailVerificationExpires = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
+    //Save changes to database
     await user.save();
 
-    const verificationUrl =
-      `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
 
     // TODO: send verificationUrl by email here
 
     return res.status(200).json({ message: genericMessage });
+
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -198,6 +202,8 @@ export const resendVerificationEmail = async (req, res) => {
   }
 };
 
+
+//Login for existing user
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -206,17 +212,21 @@ export const loginUser = async (req, res) => {
       return (res.status(400).json({message: 'Please enter an email and/or password.'}));
     }
 
+    //Search for user's email
     const normalizedEmail = email?.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
+    //If user is not found
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
 
+    //If user is not yet verified
     if (!user.isEmailVerified) {
       return res.status(403).json({ message: "Please verify your email before logging in." });
     }
 
+    //Does the stored hashed password match the password sent from frontend
     const isMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!isMatch) {
@@ -252,9 +262,9 @@ function isNumber(char){
   return /^\p{Nd}$/u.test(char)
 }
 
-function isSymbol(char){
-  //Is Punctuation or Symbol but not an emoji
-  return /^[\p{P}\p{S}--\p{EPres}\p{ExtPict}]$/v.test(char)
+function isSymbol(char) {
+  // punctuation or symbol, but not emoji-related chars
+  return /^[[\p{P}\p{S}]--[\p{EPres}\p{ExtPict}]]$/v.test(char);
 }
 
 const generateEmailVerificationToken = () => {
