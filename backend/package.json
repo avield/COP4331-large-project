@@ -4,11 +4,12 @@
   "type": "module",
   "main": "server.mjs",
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.7.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.7.1"
   },
   "scripts": {
     "dev": "node --watch server.mjs"
