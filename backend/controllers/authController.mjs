@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.mjs';
-import emojiRegex from 'emohi-regex';
+import emojiRegex from 'emoji-regex';
 
 //Generate a JWT token
 const generateToken = (id) => {
