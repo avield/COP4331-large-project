@@ -12,6 +12,34 @@ const generateToken = (id) => {
   });
 };
 
+const generateEmailVerificationToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+const hashVerificationToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+//Helper functions for validation
+
+function isLowerCaseUnicode(char) {
+  return /^\p{Ll}$/u.test(char);
+}
+
+function isUpperCaseUnicode(char) {
+  return /^\p{Lu}$/u.test(char)
+}
+
+function isNumber(char){
+  return /^\p{Nd}$/u.test(char)
+}
+
+const emojiRe = emojiRegex();
+
+function isSymbol(char) {
+  return /[\p{P}\p{S}]/u.test(char) && !emojiRe.test(char)
+}
+
 //Register a new user
 export const registerUser = async (req, res) => {
   try {
@@ -105,13 +133,13 @@ export const registerUser = async (req, res) => {
       <div style="font-family: Arial, sans-serif; text-align: center;">
         <h2>Welcome to Taskademia!</h2>
         <p>Click the button below to verify your account:</p>
-        <a href="${emailVerificationURL}" 
+        <a href="${verificationUrl}" 
            style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
            Verify My Account
         </a>
         <p style="margin-top: 20px; font-size: 12px; color: #666;">
           If the button doesn't work, copy this link: <br>
-          ${emailVerificationURL}
+          ${verificationUrl}
         </p>
       </div>
     `
@@ -120,27 +148,24 @@ export const registerUser = async (req, res) => {
     // Send the email after generating it
     try {
       await transporter.sendMail(mailOptions);
-      // Return success response to the client
-      return res.status(200).json({ message: "Verification email sent!" });
+
+      // Send the final success response here
+      return res.status(201).json({
+        message: 'User registered successfully. Please check your email to verify your account.',
+        user: {
+          id: user._id,
+          email: user.email,
+          displayName: user.profile.displayName,
+          isEmailVerified: user.isEmailVerified
+        }
+      });
+
     } catch (error) {
       console.error('Email delivery failed:', error);
-      // Optionally delete the created user or allow them to "resend"
-      return res.status(500).json({ error: "Could not send verification email." });
+      // Optional: Delete the user so they can try registering again
+      // await User.findByIdAndDelete(user._id);
+      return res.status(500).json({ message: 'User created, but verification email failed to send.' });
     }
-
-    // THE FOLLOWING CODE SHOULD NOT TAKE PLACE UNTIL USER HAS VERIFIED EMAIL (unreachable at this point)
-    //Once email is set up, remove verificationUrl from this return message
-    return res.status(201).json({
-      message: 'User registered successfully',
-      verificationUrl,
-      user: {
-        id: user._id,
-        email: user.email,
-        displayName: user.profile.displayName,
-        isEmailVerified: user.isEmailVerified,
-        status: 'active'
-      }
-    });
   } catch (error) {
     console.error(error)
 
@@ -168,7 +193,7 @@ export const verifyEmail = async (req, res) => {
     //Check hashed token against the hashed tokens in the database
     const user = await User.findOne({
       emailVerificationToken: hashedToken,
-      emailVerificationExpires: {$gt: new Date()}
+      emailVerificationExpires: {$gt: Date.now()}
     });
 
     if (!user){
@@ -177,6 +202,7 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
+    // update user status
     user.isEmailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
@@ -191,7 +217,7 @@ export const verifyEmail = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      message: 'Internal server error. Please try again.'
+      message: 'Internal server error during verification.'
     });
   }
 };
@@ -283,32 +309,4 @@ export const loginUser = async (req, res) => {
     console.error(error)
     return res.status(500).json({ message: 'Internal server error' });
   }
-};
-
-//Helper functions for validation
-
-function isLowerCaseUnicode(char) {
-  return /^\p{Ll}$/u.test(char);
-}
-
-function isUpperCaseUnicode(char) {
-  return /^\p{Lu}$/u.test(char)
-}
-
-function isNumber(char){
-  return /^\p{Nd}$/u.test(char)
-}
-
-const emojiRe = emojiRegex();
-
-function isSymbol(char) {
-  return /[\p{P}\p{S}]/u.test(char) && !emojiRe.test(char)
-}
-
-const generateEmailVerificationToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
-
-const hashVerificationToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
 };
