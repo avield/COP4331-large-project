@@ -50,8 +50,8 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'suspended', 'deleted'],
-      default: 'active'
+      enum: ['created', 'active', 'suspended', 'deleted'],
+      default: 'created'
     }
   },
   { timestamps: true } // createdAt, updatedAt

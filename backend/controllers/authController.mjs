@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.mjs';
 import emojiRegex from 'emoji-regex';
+import transporter from '../utils/mailer.mjs';
 
 //Generate a JWT token
 const generateToken = (id) => {
@@ -87,14 +88,47 @@ export const registerUser = async (req, res) => {
       emailVerificationExpires: emailVerificationExpires,
       profile: {
         displayName: trimmedName
-      }
+      },
     });
 
     //Once email is set up, we will send this url in the email
     const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawEmailVerificationToken}`;
 
-    //TODO: implement sending an email with verification url
+    //TODO: implement sending an email with verification url !!CHECK ON THIS IMPLEMENTATION!!
 
+    // Generate the verification email
+    const mailOptions = {
+      from: process.env.EMAIL_USERNAME,
+      to: normalizedEmail,
+      subject: "Taskademia Account Email Verification",
+      html: `
+      <div style="font-family: Arial, sans-serif; text-align: center;">
+        <h2>Welcome to Taskademia!</h2>
+        <p>Click the button below to verify your account:</p>
+        <a href="${emailVerificationURL}" 
+           style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+           Verify My Account
+        </a>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">
+          If the button doesn't work, copy this link: <br>
+          ${emailVerificationURL}
+        </p>
+      </div>
+    `
+    };
+
+    // Send the email after generating it
+    try {
+      await transporter.sendMail(mailOptions);
+      // Return success response to the client
+      return res.status(200).json({ message: "Verification email sent!" });
+    } catch (error) {
+      console.error('Email delivery failed:', error);
+      // Optionally delete the created user or allow them to "resend"
+      return res.status(500).json({ error: "Could not send verification email." });
+    }
+
+    // THE FOLLOWING CODE SHOULD NOT TAKE PLACE UNTIL USER HAS VERIFIED EMAIL (unreachable at this point)
     //Once email is set up, remove verificationUrl from this return message
     return res.status(201).json({
       message: 'User registered successfully',
@@ -103,7 +137,8 @@ export const registerUser = async (req, res) => {
         id: user._id,
         email: user.email,
         displayName: user.profile.displayName,
-        isEmailVerified: user.isEmailVerified
+        isEmailVerified: user.isEmailVerified,
+        status: 'active'
       }
     });
   } catch (error) {
@@ -145,6 +180,7 @@ export const verifyEmail = async (req, res) => {
     user.isEmailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
+    user.status = 'active';
 
     //Save changes to database
     await user.save();
