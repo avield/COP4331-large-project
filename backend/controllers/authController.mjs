@@ -169,7 +169,7 @@ export const registerUser = async (req, res) => {
 
     // Generate the verification email
     const mailOptions = {
-      from: process.env.EMAIL_USERNAME,
+      from: process.env.EMAIL_FROM,
       to: normalizedEmail,
       subject: "Taskademia Account Email Verification",
       html: `
@@ -298,7 +298,7 @@ export const resendVerificationEmail = async (req, res) => {
 
     // send verificationUrl by email here
     const mailOptions = {
-      from: process.env.EMAIL_USERNAME,
+      from: process.env.EMAIL_FROM,
       to: user.email,
       subject: "Taskademia Account Email Verification (Resend)",
       html: `
