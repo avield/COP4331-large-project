@@ -35,7 +35,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json()); // this middleware will parse JSON bodies: req.body
 app.use(cookieParser());
 
 // Routes
