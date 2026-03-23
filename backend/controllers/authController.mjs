@@ -165,9 +165,7 @@ export const registerUser = async (req, res) => {
     });
 
     //Once email is set up, we will send this url in the email
-    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawEmailVerificationToken}`;
-
-    //TODO: implement sending an email with verification url !!CHECK ON THIS IMPLEMENTATION!!
+    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawEmailVerificationToken}`;
 
     // Generate the verification email
     const mailOptions = {
@@ -296,7 +294,7 @@ export const resendVerificationEmail = async (req, res) => {
     //Save changes to database
     await user.save();
 
-    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
 
     // send verificationUrl by email here
     const mailOptions = {
@@ -311,14 +309,6 @@ export const resendVerificationEmail = async (req, res) => {
         </div>
       `
     };
-
-
-    try {
-      await transporter.sendMail(mailOptions);
-    } catch (error) {
-      console.error('Resend email failed:', error);
-      // return 200 for security, or 500 to be explicit
-    }
 
     // Send the email after generating it
     try {
