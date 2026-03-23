@@ -243,7 +243,7 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     const rawToken = generateEmailVerificationToken();
-    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const hashedToken = hashVerificationToken(rawToken);
 
     user.emailVerificationToken = hashedToken;
     user.emailVerificationExpires = new Date(Date.now() + 1000 * 60 * 60 * 24);
@@ -253,15 +253,33 @@ export const resendVerificationEmail = async (req, res) => {
 
     const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
 
-    // TODO: send verificationUrl by email here
+    // send verificationUrl by email here
+    const mailOptions = {
+      from: process.env.EMAIL_USERNAME,
+      to: user.email,
+      subject: "Taskademia Account Email Verification (Resend)",
+      html: `
+        <div style="font-family: Arial, sans-serif; text-align: center;">
+          <h2>Verify your account</h2>
+          <p>You requested a new verification link. Click below:</p>
+          <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify My Account</a>
+        </div>
+      `
+    };
+
+
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (error) {
+      console.error('Resend email failed:', error);
+      // return 200 for security, or 500 to be explicit
+    }
 
     return res.status(200).json({ message: genericMessage });
 
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      message: 'Internal server error. Please try again.'
-    });
+    return res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
