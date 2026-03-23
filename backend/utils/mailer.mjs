@@ -1,12 +1,20 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { SESClient } from '@aws-sdk/client-ses';
+import { SendRawEmailCommand } from '@aws-sdk/client-ses';
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail', // use an email service
-    auth: {
-        user: process.env.EMAIL_USER, // username for gmail (website's gmail account)
-        pass: process.env.EMAIL_PASS // obviously the password for the gmail account
-    }
+dotenv.config();
+
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
 });
 
-module.exports = transporter;
+const transporter = nodemailer.createTransport({
+  SES: { ses: sesClient, aws: { SendRawEmailCommand } }
+});
+
+export default transporter;
