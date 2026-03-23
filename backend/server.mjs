@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import connectDB from './config/db.mjs';
 import authRoutes from "./routes/authRoutes.mjs";
 import rateLimit from 'express-rate-limit';
@@ -16,7 +17,8 @@ connectDB();
 //Checking that requests come from front end or a tool we use
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  `http://localhost:8080`
+  `http://localhost:5000`,
+  `http://localhost:8080`,
 ].filter(Boolean);
 
 app.use(cors({
@@ -34,6 +36,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use("/api/auth", authRoutes);

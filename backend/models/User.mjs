@@ -25,6 +25,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    refreshTokenHash: {
+      type: String,
+      default: null
+    },
+    refreshTokenExpires: {
+      type: Date,
+      default: null
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0
+    },
     profile: {
       displayName: {
         type: String,

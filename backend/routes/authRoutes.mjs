@@ -5,6 +5,9 @@ import {
   loginUser,
   verifyEmail,
   resendVerificationEmail,
+  refreshAccessToken,
+  logoutUser,
+  getCurrentUser
 } from '../controllers/authController.mjs';
 import protect from '../middleware/authMiddleware.mjs'
 
@@ -34,13 +37,22 @@ const verifyEmailLimiter = rateLimit({
   message: { message: 'Too many verification attempts. Please try again later.' }
 });
 
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {message: 'Too many refresh attempts. Please try again later.'}
+});
+
 //Login and Register
-router.post('/register', registerUser);
-router.post('/login', loginUser);
-router.get('/verify-email/:token', verifyEmail);
-router.post('/resend-verification', resendVerificationEmail);
+router.post('/register', registerLimiter, registerUser);
+router.post('/login', loginLimiter, loginUser);
+router.get('/verify-email/:token', verifyEmailLimiter, verifyEmail);
+router.post('/resend-verification', resendVerificationLimiter, resendVerificationEmail);
 
 //Using JWT:
+router.post('/refresh', refreshLimiter, refreshAccessToken);
+router.post('/logout', logoutUser);
 
+router.get('/me', protect, getCurrentUser);
 
 export default router;

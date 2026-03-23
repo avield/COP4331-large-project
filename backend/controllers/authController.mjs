@@ -5,10 +5,52 @@ import User from '../models/User.mjs';
 import emojiRegex from 'emoji-regex';
 import transporter from '../utils/mailer.mjs';
 
-//Generate a JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+
+//JWT Tokens
+const generateAccessToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id.toString(),
+      type: 'access',
+      tokenVersion: user.tokenVersion ?? 0
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '5m'}
+  );
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id.toString(),
+      type: 'refresh',
+      tokenVersion: user.tokenVersion ?? 0
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d'}
+  );
+};
+
+const getRefreshCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/api/auth/refresh',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+};
+
+const setRefreshTokenCookie = (res, token) => {
+  res.cookie('refreshToken', token, getRefreshCookieOptions());
+};
+
+const clearRefreshTokenCookie = (res) => {
+  res.clearCookie('refreshToken', {
+    ...getRefreshCookieOptions(),
+    maxAge: undefined
   });
 };
 
@@ -76,23 +118,26 @@ export const registerUser = async (req, res) => {
     //Hashing password and email verification token
     const passwordHash = await bcrypt.hash(password, 10);
     const rawEmailVerificationToken = generateEmailVerificationToken();
-    const hashedEmailVerificationToken = hashVerificationToken(rawEmailVerificationToken);
+    const hashedEmailVerificationToken = hashToken(rawEmailVerificationToken);
     const emailVerificationExpires = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
     //Creating the new user
     const user = await User.create({
       email: normalizedEmail,
       passwordHash,
-      isEmailVerified: false,
       emailVerificationToken: hashedEmailVerificationToken,
       emailVerificationExpires: emailVerificationExpires,
+      isEmailVerified: false,
+      refreshTokenHash: null,
+      refreshTokenExpires: null,
+      tokenVersion: 0,
       profile: {
         displayName: trimmedName
-      },
+      }
     });
 
     //Once email is set up, we will send this url in the email
-    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawEmailVerificationToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawEmailVerificationToken}`;
 
     //TODO: implement sending an email with verification url !!CHECK ON THIS IMPLEMENTATION!!
 
@@ -105,13 +150,13 @@ export const registerUser = async (req, res) => {
       <div style="font-family: Arial, sans-serif; text-align: center;">
         <h2>Welcome to Taskademia!</h2>
         <p>Click the button below to verify your account:</p>
-        <a href="${emailVerificationURL}" 
+        <a href="${verificationUrl}" 
            style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
            Verify My Account
         </a>
         <p style="margin-top: 20px; font-size: 12px; color: #666;">
           If the button doesn't work, copy this link: <br>
-          ${emailVerificationURL}
+          ${verificationUrl}
         </p>
       </div>
     `
@@ -163,7 +208,7 @@ export const verifyEmail = async (req, res) => {
     }
 
     //hash it
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const hashedToken = hashToken(token);
 
     //Check hashed token against the hashed tokens in the database
     const user = await User.findOne({
@@ -217,7 +262,7 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     const rawToken = generateEmailVerificationToken();
-    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const hashedToken = hashToken(rawToken);
 
     user.emailVerificationToken = hashedToken;
     user.emailVerificationExpires = new Date(Date.now() + 1000 * 60 * 60 * 24);
@@ -225,11 +270,39 @@ export const resendVerificationEmail = async (req, res) => {
     //Save changes to database
     await user.save();
 
-    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawToken}`;
 
     // TODO: send verificationUrl by email here
+    const mailOptions = {
+      from: process.env.EMAIL_USERNAME,
+      to: normalizedEmail,
+      subject: "Taskademia Account Email Verification",
+      html: `
+      <div style="font-family: Arial, sans-serif; text-align: center;">
+        <h2>Welcome to Taskademia!</h2>
+        <p>Click the button below to verify your account:</p>
+        <a href="${verificationUrl}" 
+           style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+           Verify My Account
+        </a>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">
+          If the button doesn't work, copy this link: <br>
+          ${verificationUrl}
+        </p>
+      </div>
+    `
+    };
 
-    return res.status(200).json({ message: genericMessage });
+    // Send the email after generating it
+    try {
+      await transporter.sendMail(mailOptions);
+      // Return success response to the client
+      return res.status(200).json({ message: genericMessage });
+    } catch (error) {
+      console.error('Email delivery failed:', error);
+      // Optionally delete the created user or allow them to "resend"
+      return res.status(500).json({ error: "Could not send verification email." });
+    }
 
   } catch (error) {
     console.error(error);
@@ -270,6 +343,15 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
 
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    user.refreshTokenHash = hashToken(refreshToken);
+    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await user.save();
+
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.json({
       message: 'Login successful',
       user: {
@@ -277,12 +359,111 @@ export const loginUser = async (req, res) => {
         email: user.email,
         displayName: user.profile.displayName
       },
-      token: generateToken(user._id)
+      accessToken
     });
   } catch (error) {
     console.error(error)
     return res.status(500).json({ message: 'Internal server error' });
   }
+};
+
+export const refreshAccessToken = async (req, res) =>{
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({message: 'Refresh token missing.'});
+    }
+
+    let decoded;
+
+    try{
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch {
+      return res.status(401).json({message: 'Invalid or expired refresh token.'});
+    }
+
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({message: 'Invalid token type.'});
+    }
+
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({message: 'User not found.'});
+    }
+
+    if ((user.tokenVersion ?? 0) !== decoded.tokenVersion) {
+      return res.status(401).json({message: 'Refresh token revoked.'});
+    }
+
+    if (!user.refreshTokenHash || !user.refreshTokenExpires) {
+      return res.status(401).json({message: 'Refresh token not recognized.'});
+    }
+
+    if (user.refreshTokenExpires <= new Date()) {
+      return res.status(401).json({ message: 'Stored refresh token expired' });
+    }
+
+    const incomingHash = hashToken(refreshToken);
+    if (incomingHash !== user.refreshTokenHash) {
+      return res.status(401).json({ message: 'Refresh token mismatch' });
+    }
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    user.refreshTokenHash = hashToken(newRefreshToken);
+    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await user.save();
+    setRefreshTokenCookie(res, newRefreshToken);
+
+    return res.status(200).json({
+      accessToken: newAccessToken
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({message: 'Internal server error.'});
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (user) {
+          user.refreshTokenHash = null;
+          user.refreshTokenExpires = null;
+          await user.save();
+        }
+      } catch {
+        // ignore invalid cookie on logout
+      }
+    }
+
+    clearRefreshTokenCookie(res);
+
+    return res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Optional: current user
+export const getCurrentUser = async (req, res) => {
+  return res.status(200).json({
+    user: {
+      id: req.user._id,
+      email: req.user.email,
+      displayName: req.user.profile?.displayName
+    }
+  });
 };
 
 //Helper functions for validation
@@ -310,5 +491,9 @@ const generateEmailVerificationToken = () => {
 };
 
 const hashVerificationToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+const hashToken = (token) => {
   return crypto.createHash('sha256').update(token).digest('hex');
 };

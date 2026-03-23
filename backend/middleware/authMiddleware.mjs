@@ -21,16 +21,22 @@ const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Not authorized, no token' });
+    return res.status(401).json({ message: 'Not authorized, no access token' });
   }
 
   try {
     // Extract token from "Bearer <token>"
-    const token = authHeader.split(' ')[1];
+    const accessToken = authHeader.split(' ')[1];
 
     // Verify token signature and decode payload
     // Throws error if token is invalid or expired
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(
+      accessToken, 
+      process.env.ACCESS_TOKEN_SECRET);
+
+    if (decoded.type !== 'access'){
+      return res.status(401).json({message: 'Invalid token type.'});
+    }
 
     // Retrieve the authenticated user from database
     // Exclude password hash from the returned document
