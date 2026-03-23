@@ -5,6 +5,7 @@
   "main": "server.mjs",
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1014.0",
+    "@aws-sdk/client-sesv2": "^3.1014.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
