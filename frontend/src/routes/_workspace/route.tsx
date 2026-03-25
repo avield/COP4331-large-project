@@ -14,9 +14,12 @@ export const Route = createFileRoute('/_workspace')({
     if (!isTokenValid(token)) {
       try {
         const response = await axios.post(
-          `${env.BACKEND_URL}/auth/refresh`, 
+          `/auth/refresh`, 
           {}, 
-          { withCredentials: true }
+          { 
+            baseURL: env.BACKEND_URL,
+            withCredentials: true 
+          }
         );
 
         token = response.data.accessToken;

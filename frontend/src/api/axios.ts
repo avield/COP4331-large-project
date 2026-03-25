@@ -27,7 +27,14 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const response = await axios.post(`${env.BACKEND_URL}/auth/refresh`, {}, { withCredentials: true });
+                const response = await axios.post(
+                    `/auth/refresh`,
+                    {},
+                    { 
+                        baseURL: env.BACKEND_URL,
+                        withCredentials: true,
+                    }
+                );
 
                 useAuthStore.getState().setAccessToken(response.data.accessToken);
 
