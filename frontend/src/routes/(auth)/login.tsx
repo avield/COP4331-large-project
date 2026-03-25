@@ -3,20 +3,32 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import AuthLayout from "./components/auth_layout"
+import api from '@/api/axios'
+import { useAuthStore } from '@/api/authStore'
+import { useNavigate } from '@tanstack/react-router';
+import { useMutation } from '@tanstack/react-query';
+import { isAxiosError } from 'axios'
 
 export const Route = createFileRoute('/(auth)/login')({
   component: Login,
 })
 
 export default function Login() {
+  const navigate = useNavigate();
 
-  const handleLogin = async (formData: FormData) => {
-    const email = formData.get("email");
-    const password = formData.get("password");
-    
-    console.log("Logging in with:", email, password);
-    // API logic goes here later
-  };
+  const loginMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const email = formData.get("email");
+      const password = formData.get("password");
+      
+      const response = await api.post("/login", { email, password });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      useAuthStore.getState().setAccessToken(data.accessToken);
+      navigate({ to: "/home" });
+    },
+  });
 
   return (
     <AuthLayout
@@ -26,12 +38,11 @@ export default function Login() {
       footerLinkText="Sign up"
       footerLinkTo="/register"
     >
-      <form action={handleLogin} className="space-y-4">
+      <form action={loginMutation.mutate} className="space-y-4">
         
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input 
-            id="email" 
             name="email"
             type="email" 
             placeholder="user@example.com" 
@@ -51,7 +62,6 @@ export default function Login() {
             </Link>
           </div>
           <Input 
-            id="password" 
             name="password"
             type="password" 
             placeholder="********"
@@ -60,11 +70,20 @@ export default function Login() {
           />
         </div>
 
-        <Button type="submit" className="w-full mt-2 cursor-pointer">
+        <Button type="submit" className="w-full mt-2 cursor-pointer" disabled={loginMutation.isPending} > 
           Sign In
         </Button>
 
       </form>
+      { loginMutation.isError ? 
+      <p className="text-red-500 text-center">
+        {isAxiosError(loginMutation.error) 
+          // If it's an Axios error, try to get the backend's custom message first
+          ? loginMutation.error.response?.data?.message || loginMutation.error.message
+          // If it's a normal JS error, just show the message
+          : loginMutation.error.message
+        }
+      </p> : null }
     </AuthLayout>
   )
 }

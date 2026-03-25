@@ -22,7 +22,7 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // We use _retry in here to not retry if we get an error even after the refresh token was successfully refreshed
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
             try {
