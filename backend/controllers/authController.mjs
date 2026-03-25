@@ -468,6 +468,76 @@ export const logoutUser = async (req, res) => {
   }
 };
 
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+    if (!user) {
+      // Return 200 even if user doesn't exist to prevent email enumeration
+      return res.status(200).json({ message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    // Generate a token and hash it (similar to our email verification)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = hashToken(resetToken);
+    user.passwordResetExpires = Date.now() + 3600000; // 1 hour expiry, we shouldn't have it last long for passwords
+    await user.save();
+
+    // Create Reset URL pointing to your FRONTEND
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    // Send Email using the existing transporter
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: 'Password Reset Request',
+      html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to reset it.</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Password reset link sent to email.' });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const hashedToken = hashToken(token);
+
+    // Find user with valid token and not expired
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Token is invalid or has expired.' });
+    }
+
+    // Hash their new password and clear reset fields
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+
+    // Increment tokenVersion to invalidate any current active sessions
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+
+    await user.save();
+
+    res.status(200).json({ message: 'Password updated successfully. Try logging in now.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 // Optional: current user
 export const getCurrentUser = async (req, res) => {
   return res.status(200).json({
