@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { useAuthStore } from './authStore';
+import { env } from './env';
 
 const api = axios.create({
-    baseURL: `${import.meta.env.BACKEND_URL}`,
+    baseURL: `${env.BACKEND_URL}`,
     withCredentials: true
 });
 
@@ -26,7 +27,7 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const response = await axios.post(`${import.meta.env.BACKEND_URL}/refresh`, {}, { withCredentials: true });
+                const response = await axios.post(`${env.BACKEND_URL}/refresh`, {}, { withCredentials: true });
 
                 useAuthStore.getState().setAccessToken(response.data.accessToken);
 
