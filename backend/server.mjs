@@ -27,8 +27,6 @@ connectDB();
 // Checking that requests come from front end or a tool we use
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  `http://localhost:5000`,
-  `http://localhost:8080`,
 ].filter(Boolean);
 
 app.use(cors({
@@ -36,7 +34,9 @@ app.use(cors({
     //allow tools like Postman or curl with no origin
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+
+    if (allowedOrigins.includes(origin) || isLocalhost) {
       return callback(null, true);
     }
 
