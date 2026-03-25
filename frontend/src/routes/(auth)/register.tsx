@@ -27,7 +27,7 @@ export default function Register() {
           throw new Error("Password fields don't match.");
         }
         
-        const response = await api.post("/register", { email, password, "displayName": name });
+        const response = await api.post("/auth/register", { email, password, "displayName": name });
         return response.data;
     },
   });

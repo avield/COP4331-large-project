@@ -21,7 +21,7 @@ export default function Login() {
       const email = formData.get("email");
       const password = formData.get("password");
       
-      const response = await api.post("/login", { email, password });
+      const response = await api.post("/auth/login", { email, password });
       return response.data;
     },
     onSuccess: (data) => {
