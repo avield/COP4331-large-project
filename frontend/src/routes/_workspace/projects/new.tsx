@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Plus, Trash2, Globe, Lock, Loader2, ArrowLeft, Target } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/api/axios';
+import { isAxiosError } from 'axios';
 
 export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
@@ -14,11 +17,12 @@ export const Route = createFileRoute('/_workspace/projects/new')({
 
 function NewProject() {
   const router = useRouter();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [goals, setGoals] = useState([{ title: "", description: "" }]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibility, setVisibility] = useState("private");
 
   const addGoal = () => setGoals([...goals, { title: "", description: "" }]);
@@ -27,19 +31,12 @@ function NewProject() {
     const newGoals = [...goals]; newGoals[index][field] = value; setGoals(newGoals);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!name.trim()) {
-      alert('Project name is required.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const token = localStorage.getItem('accessToken');
-
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) {
+        throw new Error('Project name is required.');
+      }
+      
       const payload = {
         name: name.trim(),
         description: description.trim(),
@@ -48,32 +45,21 @@ function NewProject() {
         goals
       };
 
-      const response = await fetch('/api/projects/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
+      const response = await api.post('/projects/create', payload);
+      return response.data;
+    },
+    
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      
+      navigate({ to: `/projects/${data.project._id}` });
+    },
+  });
 
-      const data = await response.json();
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to create project.');
-      }
-
-      console.log('Created project:', data.project);
-
-      router.navigate({
-        to: `/projects/${data.project._id}`
-      });
-    } catch (error) {
-      console.error('Create project error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to create project.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    createProjectMutation.mutate();
   };
 
   return (
@@ -176,11 +162,20 @@ function NewProject() {
             </Button>
           </CardContent>
         </Card>
+        
+        <p className="text-red-500 text-center">
+          { createProjectMutation.isError ?
+              isAxiosError(createProjectMutation.error) 
+              ? createProjectMutation.error.response?.data?.message || createProjectMutation.error.message 
+              : "Failed to create project."
+              : null 
+          }
+        </p>
 
         <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
           <Button type="button" variant="outline" className="cursor-pointer border-border/60" onClick={() => router.history.back()}>Cancel</Button>
-          <Button type="submit" className="flex-1 sm:flex-none sm:px-8 cursor-pointer bg-brand hover:bg-brand/90 text-brand-foreground" disabled={isSubmitting}>
-            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : "Create Project"}
+          <Button type="submit" className="flex-1 sm:flex-none sm:px-8 cursor-pointer bg-brand hover:bg-brand/90 text-brand-foreground" disabled={createProjectMutation.isPending}>
+            {createProjectMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : "Create Project"}
           </Button>
         </div>
       </form>
