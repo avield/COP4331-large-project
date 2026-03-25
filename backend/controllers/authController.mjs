@@ -165,7 +165,7 @@ export const registerUser = async (req, res) => {
     });
 
     //Once email is set up, we will send this url in the email
-    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawEmailVerificationToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawEmailVerificationToken}`;
 
     // Generate the verification email
     const mailOptions = {
@@ -240,9 +240,8 @@ export const verifyEmail = async (req, res) => {
     });
 
     if (!user){
-      return res.status(400).json({
-        message: 'Invalid or expired verification token.'
-      });
+      // Redirect to a frontend page with an error state
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=invalid-token`);
     }
 
     // update user status
@@ -254,14 +253,13 @@ export const verifyEmail = async (req, res) => {
     //Save changes to database
     await user.save();
 
-    return res.status(200).json({
-      message: 'Email verified successfully. You can now log in.'
-    });    
+    // SUCCESS: Redirect the browser to your React login page
+    // We add ?verified=true so React can show a success message
+    return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
+
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      message: 'Internal server error during verification.'
-    });
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=server-error`);
   }
 };
 
@@ -294,7 +292,7 @@ export const resendVerificationEmail = async (req, res) => {
     //Save changes to database
     await user.save();
 
-    const verificationUrl = `${process.env.BACKEND_URL}/api/auth/verify-email/${rawToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawToken}`;
 
     // send verificationUrl by email here
     const mailOptions = {
