@@ -30,6 +30,11 @@ export default function Login() {
     },
   });
 
+  const handleSubmit = (event: React.SubmitEvent) => {
+    event.preventDefault(); // Stops auto-clear
+    loginMutation.mutate(new FormData(event.target));
+  };
+
   return (
     <AuthLayout
       title="Welcome back"
@@ -38,7 +43,7 @@ export default function Login() {
       footerLinkText="Sign up"
       footerLinkTo="/register"
     >
-      <form action={loginMutation.mutate} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>

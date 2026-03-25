@@ -14,14 +14,10 @@ export const Route = createFileRoute('/(auth)/register')({
 export default function Register() {
     const registerMutation = useMutation({
       mutationFn: async (formData: FormData) => {
-        console.log(Object.fromEntries(formData));
         const name = formData.get("name");
         const email = formData.get("email");
         const password = formData.get("password");
         const confirmPassword = formData.get("confirmPassword");
-
-        console.log(password)
-        console.log(confirmPassword)
 
         if (password != confirmPassword) {
           throw new Error("Password fields don't match.");
@@ -32,6 +28,11 @@ export default function Register() {
     },
   });
 
+  const handleSubmit = (event: React.SubmitEvent) => {
+    event.preventDefault(); // Stops auto-clear
+    registerMutation.mutate(new FormData(event.target));
+  };
+
   return (
     <AuthLayout
       title="Create an account"
@@ -40,7 +41,7 @@ export default function Register() {
       footerLinkText="Sign in"
       footerLinkTo="/login"
     >
-      <form action={registerMutation.mutate} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         
         <div className="space-y-2">
           <Label htmlFor="name">Full Name</Label>
