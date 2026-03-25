@@ -9,6 +9,7 @@ const projectSchema = new mongoose.Schema(
     },
     description: {
       type: String,
+      required: true,
       default: ''
     },
     createdBy: {
@@ -20,6 +21,10 @@ const projectSchema = new mongoose.Schema(
       type: String,
       enum: ['public', 'private'],
       default: 'public'
+    },
+    dueDate: {
+      type: Date,
+      default: null
     },
     recruitingStatus: {
       type: String,

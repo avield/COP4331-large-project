@@ -14,6 +14,9 @@ export const Route = createFileRoute('/_workspace/projects/new')({
 
 function NewProject() {
   const router = useRouter();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [goals, setGoals] = useState([{ title: "", description: "" }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibility, setVisibility] = useState("private");
@@ -26,10 +29,51 @@ function NewProject() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!name.trim()) {
+      alert('Project name is required.');
+      return;
+    }
+
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log("Submitting:", { visibility, goals });
-    setIsSubmitting(false);
+
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        visibility,
+        dueDate: dueDate || null,
+        goals
+      };
+
+      const response = await fetch('/api/projects/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create project.');
+      }
+
+      console.log('Created project:', data.project);
+
+      router.navigate({
+        to: `/projects/${data.project._id}`
+      });
+    } catch (error) {
+      console.error('Create project error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create project.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,11 +98,11 @@ function NewProject() {
           <CardContent className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="name" className="text-sm font-medium">Project Name <span className="text-destructive">*</span></Label>
-              <Input id="name" autoFocus placeholder="e.g., Mobile App Design Project" required className="border-border/60 focus:border-brand/50" />
+              <Input id="name" autoFocus placeholder="e.g., Mobile App Design Project" required value={name} onChange={(e) => setName(e.target.value)} className="border-border/60 focus:border-brand/50" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="description" className="text-sm font-medium">Description <span className="text-destructive">*</span></Label>
-              <Textarea id="description" placeholder="Describe the project objectives and scope..." className="min-h-24 resize-none border-border/60" required />
+              <Textarea id="description" placeholder="Describe the project objectives and scope..." className="min-h-24 resize-none border-border/60" required value={description} onChange={(e) => setDescription(e.target.value)}/>
             </div>
 
             <div className="space-y-2.5">
@@ -86,7 +130,7 @@ function NewProject() {
               <Label htmlFor="dueDate" className="text-sm font-medium">
                 Due Date <span className="text-xs text-muted-foreground font-normal">(optional)</span>
               </Label>
-              <Input id="dueDate" type="date" className="w-full sm:w-52 text-muted-foreground cursor-pointer border-border/60" />
+              <Input id="dueDate" type="date" className="w-full sm:w-52 text-muted-foreground cursor-pointer border-border/60" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </CardContent>
         </Card>
