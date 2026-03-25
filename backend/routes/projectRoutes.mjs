@@ -1,7 +1,13 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { createProject } from '../controllers/projectController.mjs';
 import protect from '../middleware/authMiddleware.mjs';
+import { 
+    createProject,
+    getMyProjects,
+    getProjectById,
+    updateProject,
+    deleteProject
+ } from '../controllers/projectController.mjs';
 
 const router = express.Router();
 
@@ -12,5 +18,9 @@ const projectCreateLimiter = rateLimit({
 });
 
 router.post('/create', protect, projectCreateLimiter, createProject);
+router.get('/', protect, getMyProjects);
+router.get('/:projectId', protect, getProjectById);
+router.put('/:projectId', protect, updateProject);
+router.delete('/:projectId', protect, deleteProject);
 
 export default router;

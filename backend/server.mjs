@@ -24,7 +24,7 @@ const app = express();
 connectDB();
 
 // Middleware
-//Checking that requests come from front end or a tool we use
+// Checking that requests come from front end or a tool we use
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   `http://localhost:5000`,
