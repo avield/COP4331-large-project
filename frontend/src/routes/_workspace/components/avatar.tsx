@@ -1,9 +1,35 @@
+import { useAuthStore } from "@/api/authStore";
+import axios from "@/api/axios";
+import { env } from "@/api/env";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Settings, UserCircle } from "lucide-react";
 
 export default function NavbarAvatar() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const handleLogout = async () => {
+    try {
+      await axios.post(
+        '/auth/logout', 
+        {}, 
+        { 
+          baseURL: env.BACKEND_URL,
+          withCredentials: true 
+        }
+      );
+    } finally {
+      useAuthStore.getState().clearAuth();
+      queryClient.clear();
+
+      navigate({ to: '/home' });
+    }
+  };
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -30,7 +56,11 @@ export default function NavbarAvatar() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem className="cursor-pointer gap-2 text-sm text-destructive focus:text-destructive" onSelect={(e) => e.preventDefault()}>
+          <DropdownMenuItem className="cursor-pointer gap-2 text-sm text-destructive focus:text-destructive" 
+            onSelect={(e) => {
+              e.preventDefault();
+              handleLogout();
+            }}>
             <LogOut className="size-3.5" /> Log out
           </DropdownMenuItem>
         </DropdownMenuGroup>
