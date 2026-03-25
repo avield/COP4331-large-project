@@ -5,8 +5,17 @@ import cookieParser from 'cookie-parser';
 import connectDB from './config/db.mjs';
 import authRoutes from "./routes/authRoutes.mjs";
 import rateLimit from 'express-rate-limit';
+import styleText from "node:util"
+import { exit } from 'node:process';
 
-dotenv.config();
+const result = dotenv.config({ path: ["./.env", "../.env"] });
+
+if (result.error) {
+  console.error(styleText.styleText('red', `Error loading .env file: ${result.error.message}`));
+  exit(1)
+} else {
+  console.log(styleText.styleText('green', ".env file loaded successfully!"));
+}
 
 const app = express();
 
