@@ -2,6 +2,8 @@ import axios from 'axios';
 import { useAuthStore } from './authStore';
 import { env } from './env';
 
+axios.defaults.withCredentials = true;
+
 const api = axios.create({
     baseURL: `${env.BACKEND_URL}`,
     withCredentials: true
