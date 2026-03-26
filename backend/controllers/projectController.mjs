@@ -130,24 +130,48 @@ export const createProject = async (req, res) => {
 // Retrieve Projects by userID
 // GET /api/projects
 export const getMyProjects = async (req, res) => {
-    try {
-        const memberships = await ProjectMember.find({
-            userId: req.user._id,
-            membershipStatus: 'active'
-        }).select('projectId');
+  try {
+    const memberships = await ProjectMember.find({
+      userId: req.user._id,
+      membershipStatus: 'active'
+    }).select('projectId');
 
-        const projectIds = memberships.map((m) => m.projectId);
+    const projectIds = memberships.map((m) => m.projectId);
 
-        const projects = await Project.find({
-            _id: {$in: projectIds}
-        }).populate('createdBy', 'displayName email').sort({createdAt: -1});
-        
-        return res.status(200).json(projects); 
+    const projects = await Project.find({
+      _id: { $in: projectIds }
+    })
+      .populate('createdBy', 'displayName email username')
+      .sort({ updatedAt: -1 });
 
-    } catch (error) {
-        console.error('getMyProjects error :', error);
-        return res.status(500).json({message: "Internal server error."});
-    }
+    const enrichedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const members = await ProjectMember.countDocuments({
+          projectId: project._id,
+          membershipStatus: 'active'
+        });
+
+        const tasks = await Task.find({ projectId: project._id }).select('status');
+
+        return {
+          ...project.toObject(),
+          memberCount: members,
+          taskCounts: {
+            total: tasks.length,
+            todo: tasks.filter((t) => t.status === 'todo').length,
+            in_progress: tasks.filter((t) => t.status === 'in_progress').length,
+            blocked: tasks.filter((t) => t.status === 'blocked').length,
+            done: tasks.filter((t) => t.status === 'done').length
+          }
+        };
+      })
+    );
+
+    return res.status(200).json(enrichedProjects);
+  } catch (error) {
+    console.error('getMyProjects error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
 };
 
 // Retrieve Projects by ProjectID
@@ -271,22 +295,23 @@ export const deleteProject = async (req, res) => {
 
 // Get Project Details gives front end a simple route to get all details on a project.
 // so
+// GET /api/projects/:projectId/details
 export const getProjectDetails = async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const membership = await ProjectMember.findOne({
+    const requesterMembership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
       membershipStatus: 'active'
     });
 
-    if (!membership) {
+    if (!requesterMembership) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
     const project = await Project.findById(projectId)
-      .populate('createdBy', 'displayName email');
+      .populate('createdBy', 'displayName email username');
 
     if (!project) {
       return res.status(404).json({ message: 'Project not found.' });
@@ -295,12 +320,15 @@ export const getProjectDetails = async (req, res) => {
     const members = await ProjectMember.find({
       projectId,
       membershipStatus: 'active'
-    }).populate('userId', 'displayName email');
+    })
+      .populate('userId', 'displayName email username')
+      .populate('joinedBy', 'displayName email username')
+      .sort({ createdAt: 1 });
 
     const tasks = await Task.find({ projectId })
-      .populate('createdBy', 'displayName email')
-      .populate('assignedToUserIds', 'displayName email')
-      .populate('completedBy', 'displayName email')
+      .populate('createdBy', 'displayName email username')
+      .populate('assignedToUserIds', 'displayName email username')
+      .populate('completedBy', 'displayName email username')
       .sort({ createdAt: -1 });
 
     const stats = {

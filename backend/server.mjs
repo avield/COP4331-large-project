@@ -6,6 +6,7 @@ import connectDB from './config/db.mjs';
 import authRoutes from "./routes/authRoutes.mjs";
 import projectRoutes from "./routes/projectRoutes.mjs";
 import taskRoutes from "./routes/taskRoutes.mjs";
+import projectMemberRoutes from './routes/projectMemberRoutes.mjs';
 import rateLimit from 'express-rate-limit';
 import styleText from "node:util";
 import { exit } from 'node:process';
@@ -53,6 +54,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use('/api/project-members', projectMemberRoutes);
 
 const PORT = process.env.PORT || 5000;
 
