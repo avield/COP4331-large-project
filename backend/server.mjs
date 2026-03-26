@@ -4,9 +4,10 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.mjs';
 import authRoutes from "./routes/authRoutes.mjs";
-import projectRoutes from "./routes/projectRoutes.mjs"
+import projectRoutes from "./routes/projectRoutes.mjs";
+import taskRoutes from "./routes/taskRoutes.mjs";
 import rateLimit from 'express-rate-limit';
-import styleText from "node:util"
+import styleText from "node:util";
 import { exit } from 'node:process';
 
 const result = dotenv.config({ path: ["./.env", "../.env"] });
@@ -51,6 +52,7 @@ app.use(cookieParser());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
+app.use("/api/tasks", taskRoutes);
 
 const PORT = process.env.PORT || 5000;
 

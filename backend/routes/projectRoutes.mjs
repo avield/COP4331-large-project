@@ -6,7 +6,8 @@ import {
     getMyProjects,
     getProjectById,
     updateProject,
-    deleteProject
+    deleteProject,
+    getProjectDetails
  } from '../controllers/projectController.mjs';
 
 const router = express.Router();
@@ -19,6 +20,7 @@ const projectCreateLimiter = rateLimit({
 
 router.post('/create', protect, projectCreateLimiter, createProject);
 router.get('/', protect, getMyProjects);
+router.get('/:projectId/details', protect, getProjectDetails);
 router.get('/:projectId', protect, getProjectById);
 router.put('/:projectId', protect, updateProject);
 router.delete('/:projectId', protect, deleteProject);

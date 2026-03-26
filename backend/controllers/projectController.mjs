@@ -111,7 +111,7 @@ export const createProject = async (req, res) => {
         });
 
         const projectWithCreator = await Project.findById(createdProject._id)
-        .populate('createdBy', 'username email');
+        .populate('createdBy', 'displayName email');
 
         return res.status(201).json({
         message: 'Project created successfully.',
@@ -140,7 +140,7 @@ export const getMyProjects = async (req, res) => {
 
         const projects = await Project.find({
             _id: {$in: projectIds}
-        }).populate('createdBy', 'username email').sort({createdAt: -1});
+        }).populate('createdBy', 'displayName email').sort({createdAt: -1});
         
         return res.status(200).json(projects); 
 
@@ -166,7 +166,7 @@ export const getProjectById = async (req, res) => {
             return res.status(403).json({message: "Access denied."});
         }
 
-        const project = await Project.findById(projectId).populate('createdBy', 'username email');
+        const project = await Project.findById(projectId).populate('createdBy', 'displayName email');
 
         if (!project) {
             return res.status(404).json({message: "Project not found."});
@@ -267,4 +267,58 @@ export const deleteProject = async (req, res) => {
         console.error("deleteProject error: ", error);
         return res.status(500).json({message: "Internal server error."});
     }
+};
+
+// Get Project Details gives front end a simple route to get all details on a project.
+// so
+export const getProjectDetails = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active'
+    });
+
+    if (!membership) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    const project = await Project.findById(projectId)
+      .populate('createdBy', 'displayName email');
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found.' });
+    }
+
+    const members = await ProjectMember.find({
+      projectId,
+      membershipStatus: 'active'
+    }).populate('userId', 'displayName email');
+
+    const tasks = await Task.find({ projectId })
+      .populate('createdBy', 'displayName email')
+      .populate('assignedToUserIds', 'displayName email')
+      .populate('completedBy', 'displayName email')
+      .sort({ createdAt: -1 });
+
+    const stats = {
+      totalTasks: tasks.length,
+      todo: tasks.filter((t) => t.status === 'todo').length,
+      in_progress: tasks.filter((t) => t.status === 'in_progress').length,
+      blocked: tasks.filter((t) => t.status === 'blocked').length,
+      done: tasks.filter((t) => t.status === 'done').length
+    };
+
+    return res.status(200).json({
+      project,
+      members,
+      tasks,
+      stats
+    });
+  } catch (error) {
+    console.error('getProjectDetails error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
 };
