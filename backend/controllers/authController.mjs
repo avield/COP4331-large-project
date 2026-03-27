@@ -165,7 +165,7 @@ export const registerUser = async (req, res) => {
     });
 
     //Once email is set up, we will send this url in the email
-    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawEmailVerificationToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawEmailVerificationToken}`;
 
     // Generate the verification email
     const mailOptions = {
