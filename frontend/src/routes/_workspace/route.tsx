@@ -42,7 +42,7 @@ export const Route = createFileRoute('/_workspace')({
 
 function RouteComponent() {
   return (
-    <div className="dark min-h-screen bg-background">
+    <div className="dark min-h-screen bg-background overflow-x-hidden">
       <SidebarProvider>
         <UiSidebar />
         <main className="flex-1 w-full flex flex-col">
