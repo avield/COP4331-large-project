@@ -8,6 +8,7 @@ import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import projectMemberRoutes from './routes/projectMemberRoutes.js';
 import profileRoute from './routes/profileRoutes.js';
+import searchRoute from './routes/searchRoute.js';
 import rateLimit from 'express-rate-limit';
 import { styleText } from "node:util";
 import { exit } from 'node:process';
@@ -65,6 +66,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/users', profileRoute);
+app.use("api/search", searchRoute);
 
 const PORT: number = Number(process.env.PORT) || 5000;
 
