@@ -21,6 +21,10 @@ const projectSchema = new mongoose.Schema(
       enum: ['public', 'private'],
       default: 'public'
     },
+    dueDate: {
+      type: Date,
+      default: null
+    },
     recruitingStatus: {
       type: String,
       enum: ['open', 'closed'],

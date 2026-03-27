@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+<<<<<<< HEAD
 import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react';
+=======
+import { Plus, Trash2, Globe, Lock, Loader2, ArrowLeft, Target } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/api/axios';
+import { isAxiosError } from 'axios';
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
 
 export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
@@ -20,6 +27,7 @@ export const Route = createFileRoute('/_workspace/projects/new')({
 
 function NewProject() {
   const router = useRouter();
+<<<<<<< HEAD
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -27,6 +35,14 @@ function NewProject() {
   const [goals, setGoals] = useState([{ title: "", description: "" }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+=======
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [goals, setGoals] = useState([{ title: "", description: "" }]);
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
   const [visibility, setVisibility] = useState("private");
 
   const addGoal = () => {
@@ -43,6 +59,7 @@ function NewProject() {
     setGoals(newGoals);
   };
 
+<<<<<<< HEAD
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -77,6 +94,37 @@ function NewProject() {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setIsSubmitting(false);
     }
+=======
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) {
+        throw new Error('Project name is required.');
+      }
+      
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        visibility,
+        dueDate: dueDate || null,
+        goals
+      };
+
+      const response = await api.post('/projects/create', payload);
+      return response.data;
+    },
+    
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      
+      navigate({ to: `/projects/${data.project._id}` });
+    },
+  });
+
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
+
+    createProjectMutation.mutate();
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
   };
 
   return (
@@ -95,6 +143,7 @@ function NewProject() {
             <CardTitle>Project Details</CardTitle>
             <CardDescription>Provide basic information about your project</CardDescription>
           </CardHeader>
+<<<<<<< HEAD
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">
@@ -108,6 +157,16 @@ function NewProject() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+=======
+          <CardContent className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="text-sm font-medium">Project Name <span className="text-destructive">*</span></Label>
+              <Input id="name" autoFocus placeholder="e.g., Mobile App Design Project" required value={name} onChange={(e) => setName(e.target.value)} className="border-border/60 focus:border-brand/50" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="text-sm font-medium">Description <span className="text-destructive">*</span></Label>
+              <Textarea id="description" placeholder="Describe the project objectives and scope..." className="min-h-24 resize-none border-border/60" required value={description} onChange={(e) => setDescription(e.target.value)}/>
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
             </div>
 
             <div className="space-y-2">
@@ -169,6 +228,7 @@ function NewProject() {
                   (You can change this later)
                 </span>
               </Label>
+<<<<<<< HEAD
               <Input
                 id="dueDate"
                 type="date"
@@ -176,6 +236,9 @@ function NewProject() {
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />
+=======
+              <Input id="dueDate" type="date" className="w-full sm:w-52 text-muted-foreground cursor-pointer border-border/60" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
             </div>
           </CardContent>
         </Card>
@@ -234,7 +297,17 @@ function NewProject() {
             </Button>
           </CardContent>
         </Card>
+        
+        <p className="text-red-500 text-center">
+          { createProjectMutation.isError ?
+              isAxiosError(createProjectMutation.error) 
+              ? createProjectMutation.error.response?.data?.message || createProjectMutation.error.message 
+              : "Failed to create project."
+              : null 
+          }
+        </p>
 
+<<<<<<< HEAD
         {/* Error */}
         {error && (
           <p className="text-sm text-destructive">{error}</p>
@@ -260,6 +333,12 @@ function NewProject() {
             onClick={() => router.history.back()}
           >
             Cancel
+=======
+        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
+          <Button type="button" variant="outline" className="cursor-pointer border-border/60" onClick={() => router.history.back()}>Cancel</Button>
+          <Button type="submit" className="flex-1 sm:flex-none sm:px-8 cursor-pointer bg-brand hover:bg-brand/90 text-brand-foreground" disabled={createProjectMutation.isPending}>
+            {createProjectMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : "Create Project"}
+>>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
           </Button>
         </div>
       </form>

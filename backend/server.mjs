@@ -4,8 +4,12 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.mjs';
 import authRoutes from "./routes/authRoutes.mjs";
+import projectRoutes from "./routes/projectRoutes.mjs";
+import taskRoutes from "./routes/taskRoutes.mjs";
+import projectMemberRoutes from './routes/projectMemberRoutes.mjs';
+import profileRoute from './routes/profileRoutes.mjs';
 import rateLimit from 'express-rate-limit';
-import styleText from "node:util"
+import styleText from "node:util";
 import { exit } from 'node:process';
 
 const result = dotenv.config({ path: ["./.env", "../.env"] });
@@ -23,11 +27,9 @@ const app = express();
 connectDB();
 
 // Middleware
-//Checking that requests come from front end or a tool we use
+// Checking that requests come from front end or a tool we use
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  `http://localhost:5000`,
-  `http://localhost:8080`,
 ].filter(Boolean);
 
 app.use(cors({
@@ -35,7 +37,9 @@ app.use(cors({
     //allow tools like Postman or curl with no origin
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+
+    if (allowedOrigins.includes(origin) || isLocalhost) {
       return callback(null, true);
     }
 
@@ -49,7 +53,10 @@ app.use(cookieParser());
 
 // Routes
 app.use("/api/auth", authRoutes);
-
+app.use("/api/projects", projectRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use('/api/project-members', projectMemberRoutes);
+app.use('/api/users', profileRoute);
 
 const PORT = process.env.PORT || 5000;
 

@@ -165,7 +165,7 @@ export const registerUser = async (req, res) => {
     });
 
     //Once email is set up, we will send this url in the email
-    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawEmailVerificationToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawEmailVerificationToken}`;
 
     // Generate the verification email
     const mailOptions = {
@@ -292,7 +292,7 @@ export const resendVerificationEmail = async (req, res) => {
     //Save changes to database
     await user.save();
 
-    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawToken}`;
 
     // send verificationUrl by email here
     const mailOptions = {
@@ -304,6 +304,10 @@ export const resendVerificationEmail = async (req, res) => {
           <h2>Verify your account</h2>
           <p>You requested a new verification link. Click below:</p>
           <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify My Account</a>
+          <p style="margin-top: 20px; font-size: 12px; color: #666;">
+          If the button doesn't work, copy this link: <br>
+          ${verificationUrl}
+        </p>
         </div>
       `
     };

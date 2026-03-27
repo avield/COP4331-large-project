@@ -603,7 +603,7 @@ export default function LandingPage() {
                 Taskademia
               </span>
             </div>
-            <p className="text-xs text-white/25">COP4331 · Spring 2025 · Built with React + TypeScript + Vite</p>
+            <p className="text-xs text-white/25">COP4331 · Spring 2026 · Built with React + TypeScript + Vite</p>
             <div className="flex items-center gap-5">
               {['Terms', 'Privacy', 'GitHub'].map(l => (
                 <a key={l} href="#"
