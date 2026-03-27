@@ -1,4 +1,4 @@
-import User from '../models/user.mjs';
+import User from '../models/User.mjs';
 
 // GET profile info
 export const getProfile = async (req, res) => {
@@ -38,7 +38,7 @@ export const updateProfile = async (req, res) => {
         });
 
     } catch (error) {
-        if (error.name === 'There was a validation error') {
+        if (error.name === 'ValidationError') {
             return res.status(400).json({ message: "Validation failed", errors: error.errors });
         }
         res.status(500).json({ message: "Server error", error: error.message });
