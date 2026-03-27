@@ -106,7 +106,7 @@ export const createProject = async (req, res) => {
             dueDate: normalizedDueDate
             }));
 
-            await Task.create(tasksToCreate, { session });
+            await Task.insertMany(tasksToCreate, { session });
         }
         });
 
