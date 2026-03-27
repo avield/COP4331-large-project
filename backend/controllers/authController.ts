@@ -198,7 +198,7 @@ export const registerUser = async (
       }
     });
 
-    const verificationUrl = `${process.env.BACKEND_URL}auth/verify-email/${rawEmailVerificationToken}`;
+    const verificationUrl = `${process.env.BACKEND_URL}/auth/verify-email/${rawEmailVerificationToken}`;
 
     const mailOptions = {
       from: process.env.EMAIL_FROM,
