@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkspaceRouteRouteImport } from './routes/_workspace/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WorkspaceProfileRouteImport } from './routes/_workspace/profile'
 import { Route as WorkspaceHomeRouteImport } from './routes/_workspace/home'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const WorkspaceProfileRoute = WorkspaceProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => WorkspaceRouteRoute,
 } as any)
 const WorkspaceHomeRoute = WorkspaceHomeRouteImport.update({
   id: '/home',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
   '/home': typeof WorkspaceHomeRoute
+  '/profile': typeof WorkspaceProfileRoute
   '/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/projects/new': typeof WorkspaceProjectsNewRoute
 }
@@ -71,6 +78,7 @@ export interface FileRoutesByTo {
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
   '/home': typeof WorkspaceHomeRoute
+  '/profile': typeof WorkspaceProfileRoute
   '/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/projects/new': typeof WorkspaceProjectsNewRoute
 }
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/register': typeof authRegisterRoute
   '/_workspace/home': typeof WorkspaceHomeRoute
+  '/_workspace/profile': typeof WorkspaceProfileRoute
   '/_workspace/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/_workspace/projects/new': typeof WorkspaceProjectsNewRoute
 }
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/home'
+    | '/profile'
     | '/projects/$projectId'
     | '/projects/new'
   fileRoutesByTo: FileRoutesByTo
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/home'
+    | '/profile'
     | '/projects/$projectId'
     | '/projects/new'
   id:
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '/(auth)/login'
     | '/(auth)/register'
     | '/_workspace/home'
+    | '/_workspace/profile'
     | '/_workspace/projects/$projectId'
     | '/_workspace/projects/new'
   fileRoutesById: FileRoutesById
@@ -142,6 +154,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_workspace/profile': {
+      id: '/_workspace/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof WorkspaceProfileRouteImport
+      parentRoute: typeof WorkspaceRouteRoute
     }
     '/_workspace/home': {
       id: '/_workspace/home'
@@ -197,12 +216,14 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 
 interface WorkspaceRouteRouteChildren {
   WorkspaceHomeRoute: typeof WorkspaceHomeRoute
+  WorkspaceProfileRoute: typeof WorkspaceProfileRoute
   WorkspaceProjectsProjectIdRoute: typeof WorkspaceProjectsProjectIdRoute
   WorkspaceProjectsNewRoute: typeof WorkspaceProjectsNewRoute
 }
 
 const WorkspaceRouteRouteChildren: WorkspaceRouteRouteChildren = {
   WorkspaceHomeRoute: WorkspaceHomeRoute,
+  WorkspaceProfileRoute: WorkspaceProfileRoute,
   WorkspaceProjectsProjectIdRoute: WorkspaceProjectsProjectIdRoute,
   WorkspaceProjectsNewRoute: WorkspaceProjectsNewRoute,
 }
