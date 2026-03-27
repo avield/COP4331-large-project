@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, type InferSchemaType, type HydratedDocument, type Model } from 'mongoose';
 
-const projectMemberSchema = new mongoose.Schema(
+const projectMemberSchema = new Schema(
   {
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -39,6 +39,12 @@ const projectMemberSchema = new mongoose.Schema(
 
 projectMemberSchema.index({ projectId: 1, userId: 1 }, { unique: true });
 
-const ProjectMember = mongoose.model('ProjectMember', projectMemberSchema);
+export type MembershipStatus = 'active' | 'pending' | 'removed';
+
+export type ProjectMember = InferSchemaType<typeof projectMemberSchema>;
+export type ProjectMemberDocument = HydratedDocument<ProjectMember>;
+export type ProjectMemberModel = Model<ProjectMember>;
+
+const ProjectMember = mongoose.model<ProjectMember>('ProjectMember', projectMemberSchema);
 
 export default ProjectMember;

@@ -1,6 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import protect from '../middleware/authMiddleware.mjs';
+import protect from '../middleware/authMiddleware.js';
 import { 
     createProject,
     getMyProjects,
@@ -8,7 +8,7 @@ import {
     updateProject,
     deleteProject,
     getProjectDetails
- } from '../controllers/projectController.mjs';
+ } from '../controllers/projectController.js';
 
 const router = express.Router();
 

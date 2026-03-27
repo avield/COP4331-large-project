@@ -1,11 +1,11 @@
 import express from 'express';
-import protect from '../middleware/authMiddleware.mjs';
+import protect from '../middleware/authMiddleware.js';
 import {
   getProjectMembers,
   addProjectMember,
   updateProjectMember,
   removeProjectMember
-} from '../controllers/projectMembersController.mjs';
+} from '../controllers/projectMembersController.js';
 
 const router = express.Router();
 

@@ -1,26 +1,73 @@
-import Task from '../models/Task.mjs';
-import Project from '../models/Project.mjs';
-import ProjectMember from '../models/ProjectMember.mjs';
+import mongoose from 'mongoose';
+import type { Response } from 'express';
+import type { TaskStatus, TaskPriority } from '../models/Task.js';
+import Task from '../models/Task.js';
+import Project from '../models/Project.js';
+import ProjectMember from '../models/ProjectMember.js';
+import type { AuthenticatedRequest } from '../types/express.js';
+import { requireUser } from '../types/guards.js';
 
-// Create Task
-// POST /api/tasks
-export const createTask = async (req, res) => {
+type TaskStatusOnly = {
+  status: TaskStatus;
+};
+
+interface TaskBody {
+  projectId?: string;
+  title?: string;
+  description?: string;
+  dueDate?: string | null;
+  assignedToUserIds?: string[];
+  status?: 'todo' | 'in_progress' | 'blocked' | 'done';
+  priority?: 'low' | 'medium' | 'high';
+  tags?: string[];
+  roleRequired?: string;
+}
+
+const validTaskStatuses = ['todo', 'in_progress', 'blocked', 'done'] as const;
+const validTaskPriorities = ['low', 'medium', 'high'] as const;
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === 'string' && validTaskStatuses.includes(value as TaskStatus);
+}
+
+function isTaskPriority(value: unknown): value is TaskPriority {
+  return typeof value === 'string' && validTaskPriorities.includes(value as TaskPriority);
+}
+
+export const createTask = async (
+  req: AuthenticatedRequest & { body: TaskBody },
+  res: Response
+): Promise<void> => {
   try {
-    const { projectId, title, description, dueDate, assignedToUserIds, status, priority, tags, roleRequired } = req.body;
+    const {
+      projectId,
+      title,
+      description,
+      dueDate,
+      assignedToUserIds,
+      status,
+      priority,
+      tags,
+      roleRequired
+    } = req.body;
 
     if (!projectId) {
-      return res.status(400).json({ message: 'Project ID is required.' });
+      res.status(400).json({ message: 'Project ID is required.' });
+      return;
     }
 
     if (!title || !title.trim()) {
-      return res.status(400).json({ message: 'Task title is required.' });
+      res.status(400).json({ message: 'Task title is required.' });
+      return;
     }
 
     const project = await Project.findById(projectId);
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      res.status(404).json({ message: 'Project not found.' });
+      return;
     }
 
+    requireUser(req);
     const membership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
@@ -28,24 +75,25 @@ export const createTask = async (req, res) => {
     });
 
     if (!membership) {
-      return res.status(403).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
+      return;
     }
 
-    const canCreate =
-      membership.role === 'Owner' ||
-      membership.permissions?.canCreateTasks;
+    const canCreate = membership.role === 'Owner' || membership.permissions?.canCreateTasks;
 
     if (!canCreate) {
-      return res.status(403).json({ message: 'You do not have permission to create tasks.' });
+      res.status(403).json({ message: 'You do not have permission to create tasks.' });
+      return;
     }
 
-    let validatedAssignedUserIds = [];
+    let validatedAssignedUserIds: string[] = [];
 
     if (assignedToUserIds !== undefined) {
       if (!Array.isArray(assignedToUserIds)) {
-        return res.status(400).json({
+        res.status(400).json({
           message: 'assignedToUserIds must be an array.'
         });
+        return;
       }
 
       if (assignedToUserIds.length > 0) {
@@ -62,39 +110,50 @@ export const createTask = async (req, res) => {
         );
 
         if (!allAssignedUsersAreMembers) {
-          return res.status(400).json({
+          res.status(400).json({
             message: 'One or more assigned users are not active members of this project.'
           });
+          return;
         }
 
         validatedAssignedUserIds = assignedToUserIds;
       }
     }
 
-    const normalizedStatus =
-      typeof status === 'string' &&
-      ['todo', 'in_progress', 'blocked', 'done'].includes(status)
-        ? status
+    const validTaskStatuses: TaskStatus[] = ['todo', 'in_progress', 'blocked', 'done'];
+    const normalizedStatus: TaskStatus =
+      typeof status === 'string' && validTaskStatuses.includes(status as TaskStatus)
+        ? (status as TaskStatus)
         : 'todo';
 
-    const normalizedPriority =
-      typeof priority === 'string' &&
-      ['low', 'medium', 'high'].includes(priority)
-        ? priority
+    const validTaskPriorities: TaskPriority[] = ['low', 'medium', 'high'];
+    const normalizedPriority: TaskPriority =
+      typeof priority === 'string' && validTaskPriorities.includes(priority as TaskPriority)
+        ? (priority as TaskPriority)
         : 'medium';
 
     const normalizedTags = Array.isArray(tags)
       ? tags.filter((tag) => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean)
       : [];
 
-    const taskData = {
+    const taskData: {
+      projectId: string;
+      title: string;
+      description: string;
+      dueDate: Date | null;
+      assignedToUserIds: string[];
+      createdBy: string;
+      status: 'todo' | 'in_progress' | 'blocked' | 'done';
+      priority: 'low' | 'medium' | 'high';
+      tags: string[];
+      roleRequired: string;
+      completedAt?: Date;
+      completedBy?: string;
+    } = {
       projectId,
       title: title.trim(),
       description: typeof description === 'string' ? description.trim() : '',
-      dueDate:
-        dueDate && !Number.isNaN(new Date(dueDate).getTime())
-          ? new Date(dueDate)
-          : null,
+      dueDate: dueDate && !Number.isNaN(new Date(dueDate).getTime()) ? new Date(dueDate) : null,
       assignedToUserIds: validatedAssignedUserIds,
       createdBy: req.user._id,
       status: normalizedStatus,
@@ -110,20 +169,22 @@ export const createTask = async (req, res) => {
 
     const task = await Task.create(taskData);
 
-    return res.status(201).json({
+    res.status(201).json({
       message: 'Task created successfully.',
       task
     });
   } catch (error) {
     console.error('createTask error:', error);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// Retrieve Tasks
-// GET /api/tasks/project/:projectId
-export const getProjectTasks = async (req, res) => {
+export const getProjectTasks = async (
+  req: AuthenticatedRequest & { params: { projectId: string } },
+  res: Response
+): Promise<void> => {
   try {
+    requireUser(req);
     const { projectId } = req.params;
 
     const membership = await ProjectMember.findOne({
@@ -133,12 +194,14 @@ export const getProjectTasks = async (req, res) => {
     });
 
     if (!membership) {
-      return res.status(403).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
+      return;
     }
 
     const projectExists = await Project.exists({ _id: projectId });
     if (!projectExists) {
-      return res.status(404).json({ message: 'Project not found.' });
+      res.status(404).json({ message: 'Project not found.' });
+      return;
     }
 
     const tasks = await Task.find({ projectId })
@@ -147,16 +210,17 @@ export const getProjectTasks = async (req, res) => {
       .populate('completedBy', 'displayName email')
       .sort({ createdAt: -1 });
 
-    return res.status(200).json(tasks);
+    res.status(200).json(tasks);
   } catch (error) {
     console.error('getProjectTasks error:', error);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// Retrieve Task by ID
-// GET /api/tasks/:taskId
-export const getTaskById = async (req, res) => {
+export const getTaskById = async (
+  req: AuthenticatedRequest & { params: { taskId: string } },
+  res: Response
+): Promise<void> => {
   try {
     const { taskId } = req.params;
 
@@ -166,9 +230,11 @@ export const getTaskById = async (req, res) => {
       .populate('completedBy', 'displayName email');
 
     if (!task) {
-      return res.status(404).json({ message: 'Task not found.' });
+      res.status(404).json({ message: 'Task not found.' });
+      return;
     }
 
+    requireUser(req);
     const membership = await ProjectMember.findOne({
       projectId: task.projectId,
       userId: req.user._id,
@@ -176,27 +242,32 @@ export const getTaskById = async (req, res) => {
     });
 
     if (!membership) {
-      return res.status(403).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
+      return;
     }
 
-    return res.status(200).json(task);
+    res.status(200).json(task);
   } catch (error) {
     console.error('getTaskById error:', error);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// Update Task
-// PUT /api/tasks/:taskId
-export const updateTask = async (req, res) => {
+export const updateTask = async (
+  req: AuthenticatedRequest & { params: { taskId: string }; body: TaskBody },
+  res: Response
+): Promise<void> => {
   try {
+    requireUser(req);
     const { taskId } = req.params;
-    const { title, description, dueDate, assignedToUserIds, status, priority, tags, roleRequired } = req.body;
+    const { title, description, dueDate, assignedToUserIds, status, priority, tags, roleRequired } =
+      req.body;
 
     const task = await Task.findById(taskId);
 
     if (!task) {
-      return res.status(404).json({ message: 'Task not found.' });
+      res.status(404).json({ message: 'Task not found.' });
+      return;
     }
 
     const membership = await ProjectMember.findOne({
@@ -206,7 +277,8 @@ export const updateTask = async (req, res) => {
     });
 
     if (!membership) {
-      return res.status(403).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
+      return;
     }
 
     const canEdit =
@@ -215,7 +287,8 @@ export const updateTask = async (req, res) => {
       task.createdBy.toString() === req.user._id.toString();
 
     if (!canEdit) {
-      return res.status(403).json({ message: 'You do not have permission to update this task.' });
+      res.status(403).json({ message: 'You do not have permission to update this task.' });
+      return;
     }
 
     if (typeof title === 'string' && title.trim()) {
@@ -237,7 +310,7 @@ export const updateTask = async (req, res) => {
 
       if (status === 'done') {
         task.completedAt = new Date();
-        task.completedBy = req.user._id;
+        task.completedBy = new mongoose.Types.ObjectId(req.user._id);
       } else {
         task.completedAt = null;
         task.completedBy = null;
@@ -250,7 +323,8 @@ export const updateTask = async (req, res) => {
 
     if (tags !== undefined) {
       if (!Array.isArray(tags)) {
-        return res.status(400).json({ message: 'tags must be an array.' });
+        res.status(400).json({ message: 'tags must be an array.' });
+        return;
       }
 
       task.tags = tags
@@ -265,9 +339,10 @@ export const updateTask = async (req, res) => {
 
     if (assignedToUserIds !== undefined) {
       if (!Array.isArray(assignedToUserIds)) {
-        return res.status(400).json({
+        res.status(400).json({
           message: 'assignedToUserIds must be an array.'
         });
+        return;
       }
 
       if (assignedToUserIds.length === 0) {
@@ -286,9 +361,10 @@ export const updateTask = async (req, res) => {
         );
 
         if (!allAssignedUsersAreMembers) {
-          return res.status(400).json({
+          res.status(400).json({
             message: 'One or more assigned users are not active members of this project.'
           });
+          return;
         }
 
         task.assignedToUserIds = assignedToUserIds;
@@ -297,26 +373,29 @@ export const updateTask = async (req, res) => {
 
     await task.save();
 
-    return res.status(200).json({
+    res.status(200).json({
       message: 'Task updated successfully.',
       task
     });
   } catch (error) {
     console.error('updateTask error:', error);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// Delete Task
-// DELETE /api/tasks/:taskId
-export const deleteTask = async (req, res) => {
+export const deleteTask = async (
+  req: AuthenticatedRequest & { params: { taskId: string } },
+  res: Response
+): Promise<void> => {
   try {
+    requireUser(req);
     const { taskId } = req.params;
 
     const task = await Task.findById(taskId);
 
     if (!task) {
-      return res.status(404).json({ message: 'Task not found.' });
+      res.status(404).json({ message: 'Task not found.' });
+      return;
     }
 
     const membership = await ProjectMember.findOne({
@@ -326,24 +405,25 @@ export const deleteTask = async (req, res) => {
     });
 
     if (!membership) {
-      return res.status(403).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
+      return;
     }
 
     const canDelete =
-      membership.role === 'Owner' ||
-      task.createdBy.toString() === req.user._id.toString();
+      membership.role === 'Owner' || task.createdBy.toString() === req.user._id.toString();
 
     if (!canDelete) {
-      return res.status(403).json({ message: 'You do not have permission to delete this task.' });
+      res.status(403).json({ message: 'You do not have permission to delete this task.' });
+      return;
     }
 
     await Task.findByIdAndDelete(taskId);
 
-    return res.status(200).json({
+    res.status(200).json({
       message: 'Task deleted successfully.'
     });
   } catch (error) {
     console.error('deleteTask error:', error);
-    return res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };

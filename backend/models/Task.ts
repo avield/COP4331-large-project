@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, type InferSchemaType, type HydratedDocument, type Model } from 'mongoose';
 
-const taskSchema = new mongoose.Schema(
+const taskSchema = new Schema(
   {
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -65,6 +65,13 @@ const taskSchema = new mongoose.Schema(
 taskSchema.index({ projectId: 1, status: 1 });
 taskSchema.index({ title: 'text', description: 'text', tags: 'text' });
 
-const Task = mongoose.model('Task', taskSchema);
+export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
+export type Task = InferSchemaType<typeof taskSchema>;
+export type TaskDocument = HydratedDocument<Task>;
+export type TaskModel = Model<Task>;
+
+const Task = mongoose.model<Task>('Task', taskSchema);
 
 export default Task;
