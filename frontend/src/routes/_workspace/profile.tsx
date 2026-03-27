@@ -25,27 +25,30 @@ interface Project {
   visibility?: 'public' | 'private'
 }
 
+interface ProjectsResponse {
+  projects: Project[]
+}
+
 // ── Route + Loader ─────────────────────────────────────────────────────────────
-export const Route = createFileRoute('/_workspace/home')({
-  loader: async (): Promise<{ projects: Project[] }> => {
-    try {
-      const res = await fetch(`${import.meta.env.BACKEND_URL}/api/projects/`, {
-        credentials: 'include',
-      })
-      if (!res.ok) return { projects: [] }
-      return res.json()
-    } catch {
-      // Backend unreachable — return empty list so the page still renders
-      return { projects: [] }
-    }
+export const Route = createFileRoute('/_workspace/profile')({
+  loader: async (): Promise<ProjectsResponse> => {
+    const res = await fetch(`${import.meta.env.BACKEND_URL}/api/projects/`, {
+      credentials: 'include',
+    })
+    if (!res.ok) throw new Error('Failed to fetch projects')
+    return res.json()
   },
   component: Home,
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const PROJECT_COLORS = [
-  'bg-blue-500', 'bg-purple-500', 'bg-green-500',
-  'bg-yellow-500', 'bg-pink-500', 'bg-orange-500',
+  'bg-blue-500',
+  'bg-purple-500',
+  'bg-green-500',
+  'bg-yellow-500',
+  'bg-pink-500',
+  'bg-orange-500',
 ]
 
 function getColor(index: number) {
@@ -54,13 +57,24 @@ function getColor(index: number) {
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const map: Record<ProjectStatus, { classes: string; label: string }> = {
-    'in-progress': { classes: 'bg-blue-500/10 text-blue-400 border-blue-500/20', label: 'In Progress' },
-    completed: { classes: 'bg-green-500/10 text-green-400 border-green-500/20', label: 'Completed' },
-    overdue: { classes: 'bg-red-500/10 text-red-400 border-red-500/20', label: 'Overdue' },
+    'in-progress': {
+      classes: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      label: 'In Progress',
+    },
+    completed: {
+      classes: 'bg-green-500/10 text-green-400 border-green-500/20',
+      label: 'Completed',
+    },
+    overdue: {
+      classes: 'bg-red-500/10 text-red-400 border-red-500/20',
+      label: 'Overdue',
+    },
   }
   const { classes, label } = map[status] ?? map['in-progress']
   return (
-    <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${classes}`}>
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${classes}`}
+    >
       {label}
     </span>
   )
@@ -75,7 +89,8 @@ function EmptyState() {
       </div>
       <h2 className="text-2xl font-bold tracking-tight">Welcome to Taskademia!</h2>
       <p className="max-w-sm text-muted-foreground">
-        You don't have any active projects yet. Create your first workspace to start managing your tasks.
+        You don't have any active projects yet. Create your first workspace to start
+        managing your tasks.
       </p>
       <Button className="mt-4 cursor-pointer gap-1" asChild>
         <Link to="/projects/new">
@@ -106,7 +121,8 @@ function Home() {
     weekOut.setDate(now.getDate() + 7)
     return due >= now && due <= weekOut
   }).length
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const completionRate =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const stats = [
     {
@@ -115,9 +131,24 @@ function Home() {
       icon: LayoutGrid,
       sub: `${projects.filter((p: Project) => p.status === 'in-progress').length} in progress`,
     },
-    { label: 'Tasks Completed', value: String(completedTasks), icon: CheckCircle2, sub: `${totalTasks - completedTasks} remaining` },
-    { label: 'Due This Week', value: String(dueThisWeek), icon: Clock, sub: 'Stay on track' },
-    { label: 'Completion Rate', value: `${completionRate}%`, icon: TrendingUp, sub: 'Across all projects' },
+    {
+      label: 'Tasks Completed',
+      value: String(completedTasks),
+      icon: CheckCircle2,
+      sub: `${totalTasks - completedTasks} remaining`,
+    },
+    {
+      label: 'Due This Week',
+      value: String(dueThisWeek),
+      icon: Clock,
+      sub: 'Stay on track',
+    },
+    {
+      label: 'Completion Rate',
+      value: `${completionRate}%`,
+      icon: TrendingUp,
+      sub: 'Across all projects',
+    },
   ]
 
   return (
@@ -128,9 +159,7 @@ function Home() {
           <h1 className="text-2xl font-bold tracking-tight">Home</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             You have{' '}
-            <span className="font-medium text-foreground">
-              {dueThisWeek} project{dueThisWeek !== 1 ? 's' : ''}
-            </span>{' '}
+            <span className="font-medium text-foreground">{dueThisWeek} project{dueThisWeek !== 1 ? 's' : ''}</span>{' '}
             due this week.
           </p>
         </div>
@@ -162,7 +191,12 @@ function Home() {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Your Projects</h2>
-          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-xs text-muted-foreground"
+            asChild
+          >
             <Link to="/projects/new">
               New <ArrowRight className="size-3" />
             </Link>
@@ -185,17 +219,21 @@ function Home() {
                 <Card className="h-full cursor-pointer border-border/50 bg-card/50 transition-all duration-150 hover:border-border hover:bg-card">
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-start gap-2">
-                      <div className={`mt-1.5 size-2 shrink-0 rounded-full ${getColor(index)}`} />
+                      <div
+                        className={`mt-1.5 size-2 shrink-0 rounded-full ${getColor(index)}`}
+                      />
                       <CardTitle className="flex-1 truncate text-sm font-semibold leading-snug">
                         {project.name}
                       </CardTitle>
                       <StatusBadge status={project.status ?? 'in-progress'} />
                     </div>
                   </CardHeader>
+
                   <CardContent className="space-y-3 p-4 pt-1">
                     <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                       {project.description}
                     </p>
+
                     {taskCount > 0 && (
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs text-muted-foreground">
@@ -203,15 +241,23 @@ function Home() {
                           <span>{progress}%</span>
                         </div>
                         <div className="h-1 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
                       </div>
                     )}
+
                     {project.dueDate && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="size-3" />
                         <span>
-                          Due {new Date(project.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          Due{' '}
+                          {new Date(project.dueDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </span>
                       </div>
                     )}

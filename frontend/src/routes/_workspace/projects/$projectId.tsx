@@ -3,10 +3,16 @@ import { useState } from 'react';
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { KanbanColumn, type Column } from './components/column';
 import type { Task } from './components/task';
-import { Button } from '@/components/ui/button';
-import { Plus, Users, Calendar, MoreHorizontal } from 'lucide-react';
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
+  loader: async ({ params }) => {
+    const res = await fetch(
+      `${import.meta.env.BACKEND_URL}/api/projects/${params.projectId}/details`,
+      { credentials: 'include' },
+    )
+    if (!res.ok) throw new Error('Failed to load project')
+    return res.json()
+  },
   component: ProjectBoard,
 })
 
@@ -16,73 +22,115 @@ export type BoardData = {
   columnOrder: string[];
 };
 
-const initialData: BoardData = {
-  tasks: {
-    "task-1": { id: "task-1", content: "Design the Login screen", priority: "High" },
-    "task-2": { id: "task-2", content: "Set up MongoDB schemas", priority: "High" },
-    "task-3": { id: "task-3", content: "Implement drag and drop", priority: "Medium" },
-    "task-4": { id: "task-4", content: "Write Swagger API docs", priority: "Low" },
-  },
-  columns: {
-    "col-1": { id: "col-1", title: "To Do", taskIds: ["task-1", "task-2", "task-4"] },
-    "col-2": { id: "col-2", title: "In Progress", taskIds: ["task-3"] },
-    "col-3": { id: "col-3", title: "Done", taskIds: [] },
-  },
-  columnOrder: ["col-1", "col-2", "col-3"],
-};
+// Transform API response into board data.
+// Adjust field names here if your backend shape differs.
+function buildBoardData(data: Record<string, unknown>): BoardData {
+  // If the backend already returns board-shaped data, use it directly
+  if (data.columns && data.columnOrder) {
+    return data as unknown as BoardData
+  }
+
+  // Otherwise build default columns from a flat tasks array
+  const rawTasks: Array<{ _id: string; content?: string; title?: string; priority?: string; status?: string }> =
+    (data.tasks as Array<{ _id: string; content?: string; title?: string; priority?: string; status?: string }>) ?? []
+
+  const tasks: Record<string, Task> = {}
+  const todo: string[] = []
+  const inProgress: string[] = []
+  const done: string[] = []
+
+  for (const t of rawTasks) {
+    const id = t._id
+    tasks[id] = {
+      id,
+      content: t.content ?? t.title ?? 'Untitled task',
+      priority: (t.priority as Task['priority']) ?? 'Medium',
+    }
+    if (t.status === 'done' || t.status === 'completed') {
+      done.push(id)
+    } else if (t.status === 'in-progress' || t.status === 'inProgress') {
+      inProgress.push(id)
+    } else {
+      todo.push(id)
+    }
+  }
+
+  return {
+    tasks,
+    columns: {
+      'col-1': { id: 'col-1', title: 'To Do', taskIds: todo },
+      'col-2': { id: 'col-2', title: 'In Progress', taskIds: inProgress },
+      'col-3': { id: 'col-3', title: 'Done', taskIds: done },
+    },
+    columnOrder: ['col-1', 'col-2', 'col-3'],
+  }
+}
 
 function ProjectBoard() {
-  const [data, setData] = useState(initialData);
+  const loaderData = Route.useLoaderData()
+  const { projectId } = Route.useParams()
 
-  const totalTasks = Object.keys(data.tasks).length;
-  const doneTasks = data.columns["col-3"]?.taskIds.length ?? 0;
+  // The API may return { project: { ... } } or the object directly
+  const raw = (loaderData as { project?: Record<string, unknown> }).project
+    ?? (loaderData as Record<string, unknown>)
+
+  const projectName: string = (raw.name as string) ?? 'Project Board'
+  const projectDescription: string = (raw.description as string) ?? 'Manage your tasks. Drag and drop to update their status.'
+
+  const [data, setData] = useState<BoardData>(() => buildBoardData(raw))
 
   const handleDeleteTask = (columnId: string, taskId: string) => {
-    const newColumnTaskIds = data.columns[columnId].taskIds.filter(id => id !== taskId);
-    const newTasks = { ...data.tasks };
-    delete newTasks[taskId];
-    setData({ ...data, tasks: newTasks, columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: newColumnTaskIds } } });
-  };
+    const newColumnTaskIds = data.columns[columnId].taskIds.filter(id => id !== taskId)
+    const newTasks = { ...data.tasks }
+    delete newTasks[taskId]
+    setData({
+      ...data,
+      tasks: newTasks,
+      columns: {
+        ...data.columns,
+        [columnId]: { ...data.columns[columnId], taskIds: newColumnTaskIds },
+      },
+    })
+  }
 
   const handleAddTask = (columnId: string, content: string) => {
-    const newTaskId = `task-${Date.now()}`;
-    const newTask: Task = { id: newTaskId, content, priority: "Medium" };
+    const newTaskId = `task-${Date.now()}`
+    const newTask: Task = { id: newTaskId, content, priority: 'Medium' }
     setData({
       ...data,
       tasks: { ...data.tasks, [newTaskId]: newTask },
-      columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: [...data.columns[columnId].taskIds, newTaskId] } },
-    });
-  };
-
-  const handleAddColumn = () => {
-    const newColId = `col-${Date.now()}`;
-    setData({
-      ...data,
-      columns: { ...data.columns, [newColId]: { id: newColId, title: "New Column", taskIds: [] } },
-      columnOrder: [...data.columnOrder, newColId],
-    });
-  };
+      columns: {
+        ...data.columns,
+        [columnId]: {
+          ...data.columns[columnId],
+          taskIds: [...data.columns[columnId].taskIds, newTaskId],
+        },
+      },
+    })
+  }
 
   const onDragEnd = (result: DropResult) => {
-    const { destination, source, draggableId } = result;
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    const { destination, source, draggableId } = result
+    if (!destination) return
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
-    const startColumn = data.columns[source.droppableId];
-    const finishColumn = data.columns[destination.droppableId];
+    const startColumn = data.columns[source.droppableId]
+    const finishColumn = data.columns[destination.droppableId]
 
     if (startColumn === finishColumn) {
-      const newTaskIds = Array.from(startColumn.taskIds);
-      newTaskIds.splice(source.index, 1);
-      newTaskIds.splice(destination.index, 0, draggableId);
-      setData({ ...data, columns: { ...data.columns, [startColumn.id]: { ...startColumn, taskIds: newTaskIds } } });
-      return;
+      const newTaskIds = Array.from(startColumn.taskIds)
+      newTaskIds.splice(source.index, 1)
+      newTaskIds.splice(destination.index, 0, draggableId)
+      setData({ ...data, columns: { ...data.columns, [startColumn.id]: { ...startColumn, taskIds: newTaskIds } } })
+      return
     }
 
-    const startTaskIds = Array.from(startColumn.taskIds);
-    startTaskIds.splice(source.index, 1);
-    const finishTaskIds = Array.from(finishColumn.taskIds);
-    finishTaskIds.splice(destination.index, 0, draggableId);
+    const startTaskIds = Array.from(startColumn.taskIds)
+    startTaskIds.splice(source.index, 1)
+
+    const finishTaskIds = Array.from(finishColumn.taskIds)
+    finishTaskIds.splice(destination.index, 0, draggableId)
+
     setData({
       ...data,
       columns: {
@@ -90,42 +138,39 @@ function ProjectBoard() {
         [startColumn.id]: { ...startColumn, taskIds: startTaskIds },
         [finishColumn.id]: { ...finishColumn, taskIds: finishTaskIds },
       },
-    });
-  };
+    })
+  }
+
+  // Suppress unused variable warning during development
+  void projectId
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Project Board</h1>
-          <p className="text-muted-foreground text-sm mt-1">Drag and drop tasks to update their status.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground bg-muted/40 border border-border/50 rounded-lg px-3 py-2">
-            <span className="flex items-center gap-1.5"><Calendar className="size-3" />{doneTasks}/{totalTasks} done</span>
-            <span className="w-px h-3 bg-border" />
-            <span className="flex items-center gap-1.5"><Users className="size-3" />Team</span>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground cursor-pointer">
-            <MoreHorizontal className="size-4" />
-          </Button>
-        </div>
+    <div className="p-6 md:p-8 h-full flex flex-col">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">{projectName}</h1>
+        <p className="text-muted-foreground mt-2">{projectDescription}</p>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-6 flex-1 items-start">
-          {data.columnOrder.map((columnId, index) => {
-            const column = data.columns[columnId];
-            const tasks = column.taskIds.map((taskId) => data.tasks[taskId]).filter(Boolean);
-            return <KanbanColumn key={column.id} column={column} tasks={tasks} columnIndex={index}
-              onAddTask={handleAddTask} onDeleteTask={handleDeleteTask} />;
+        <div className="flex gap-6 overflow-x-auto pb-4">
+          {data.columnOrder.map((columnId) => {
+            const column = data.columns[columnId]
+            const tasks = column.taskIds
+              .map((taskId) => data.tasks[taskId])
+              .filter((task) => task !== undefined)
+
+            return (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                tasks={tasks}
+                onAddTask={handleAddTask}
+                onDeleteTask={handleDeleteTask}
+              />
+            )
           })}
-          <button onClick={handleAddColumn}
-            className="flex items-center gap-2 shrink-0 w-72 h-12 rounded-lg border border-dashed border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/70 text-sm transition-colors cursor-pointer px-4">
-            <Plus className="size-4" /> Add column
-          </button>
         </div>
       </DragDropContext>
     </div>
-  );
+  )
 }
