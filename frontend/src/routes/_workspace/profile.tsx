@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -284,9 +283,3 @@ function Home() {
     </div>
   )
 }
-=======
-//Profile page test: Fabian Nunezz
-
-
-
->>>>>>> 1f827203ba6174ea6059c72fb5c4e58fc630576f
