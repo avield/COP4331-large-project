@@ -11,22 +11,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut } from "lucide-react";
 
 export default function NavbarAvatar() {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleLogout = async () => {
     try {
-      await fetch(`${import.meta.env.BACKEND_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-    } catch {
-      // best-effort logout
+      await axios.post(
+        "/auth/logout",
+        {},
+        {
+          baseURL: env.BACKEND_URL,
+          withCredentials: true,
+        }
+      );
+    } finally {
+      useAuthStore.getState().clearAuth();
+      queryClient.clear();
+      navigate({ to: "/login" });
     }
-    router.navigate({ to: '/login' })
-  }
+  };
 
   return (
     <DropdownMenu modal={false}>
@@ -45,7 +53,7 @@ export default function NavbarAvatar() {
         <DropdownMenuGroup>
           <DropdownMenuItem
             className="cursor-pointer"
-            onSelect={() => router.navigate({ to: '/profile' })}
+            onSelect={() => navigate({ to: "/profile" })}
           >
             Profile
           </DropdownMenuItem>
@@ -59,10 +67,13 @@ export default function NavbarAvatar() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
-            className="cursor-pointer"
-            variant="destructive"
-            onSelect={handleLogout}
+            className="cursor-pointer gap-2 text-sm text-destructive focus:text-destructive"
+            onSelect={(e) => {
+              e.preventDefault();
+              handleLogout();
+            }}
           >
+            <LogOut className="size-3.5" />
             Log out
           </DropdownMenuItem>
         </DropdownMenuGroup>

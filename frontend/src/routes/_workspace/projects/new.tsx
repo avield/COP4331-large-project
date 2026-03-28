@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Globe, Lock, Loader2, ArrowLeft, Target } from 'lucide-react';
+import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/axios';
 import { isAxiosError } from 'axios';
