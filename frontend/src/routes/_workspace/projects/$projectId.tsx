@@ -1,148 +1,148 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react';
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { KanbanColumn, type Column } from './components/column';
-import type { Task } from './components/task';
+import { useState } from 'react'
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd"
+import { KanbanColumn, type Column } from './components/column'
+import type { Task } from './components/task'
+import api from '@/api/axios'
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
+  loader: async ({ params }) => {
+    try {
+      const res = await api.get(`/projects/${params.projectId}/details`)
+      return res.data
+    } catch {
+      return { project: { _id: params.projectId, name: 'Project Board', description: '' }, tasks: [] }
+    }
+  },
   component: ProjectBoard,
 })
 
 export type BoardData = {
-  tasks: Record<string, Task>;
-  columns: Record<string, Column>;
-  columnOrder: string[];
-};
+  tasks: Record<string, Task>
+  columns: Record<string, Column>
+  columnOrder: string[]
+}
 
-// MOCK DATA
-const initialData: BoardData = {
-  tasks: {
-    "task-1": { id: "task-1", content: "Design the Login screen", priority: "High" as const },
-    "task-2": { id: "task-2", content: "Set up MongoDB schemas", priority: "High" as const },
-    "task-3": { id: "task-3", content: "Implement drag and drop", priority: "Medium" as const },
-    "task-4": { id: "task-4", content: "Write Swagger API docs", priority: "Low" as const },
-  },
-  columns: {
-    "col-1": { id: "col-1", title: "To Do", taskIds: ["task-1", "task-2", "task-4"] },
-    "col-2": { id: "col-2", title: "In Progress", taskIds: ["task-3"] },
-    "col-3": { id: "col-3", title: "Done", taskIds: [] },
-  },
-  columnOrder:["col-1", "col-2", "col-3"],
-};
+// Shape from GET /api/projects/:projectId/details
+interface ApiTask {
+  _id: string
+  title: string
+  description?: string
+  status: 'todo' | 'in_progress' | 'blocked' | 'done'
+  priority: 'low' | 'medium' | 'high'
+}
+
+interface ApiResponse {
+  project: { _id: string; name: string; description: string }
+  tasks: ApiTask[]
+}
+
+function mapPriority(p: string): Task['priority'] {
+  if (p === 'high') return 'High'
+  if (p === 'low') return 'Low'
+  return 'Medium'
+}
+
+function buildBoardData(apiData: ApiResponse): BoardData {
+  const tasks: Record<string, Task> = {}
+  const todo: string[] = []
+  const inProgress: string[] = []
+  const blocked: string[] = []
+  const done: string[] = []
+
+  for (const t of (apiData.tasks ?? [])) {
+    const id = t._id
+    tasks[id] = { id, content: t.title, priority: mapPriority(t.priority) }
+    switch (t.status) {
+      case 'done':        done.push(id);       break
+      case 'in_progress': inProgress.push(id); break
+      case 'blocked':     blocked.push(id);    break
+      default:            todo.push(id)
+    }
+  }
+
+  return {
+    tasks,
+    columns: {
+      'col-1': { id: 'col-1', title: 'To Do',      taskIds: todo },
+      'col-2': { id: 'col-2', title: 'In Progress', taskIds: inProgress },
+      'col-3': { id: 'col-3', title: 'Blocked',     taskIds: blocked },
+      'col-4': { id: 'col-4', title: 'Done',        taskIds: done },
+    },
+    columnOrder: ['col-1', 'col-2', 'col-3', 'col-4'],
+  }
+}
 
 function ProjectBoard() {
-  const [data, setData] = useState(initialData);
+  const loaderData = Route.useLoaderData() as ApiResponse
+  const projectName        = loaderData?.project?.name        ?? 'Project Board'
+  const projectDescription = loaderData?.project?.description ?? 'Drag and drop tasks to update their status.'
+
+  const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
 
   const handleDeleteTask = (columnId: string, taskId: string) => {
-    // Deep clone the specific column and the tasks dictionary so React triggers a re-render
-    const newColumnTaskIds = data.columns[columnId as keyof typeof data.columns].taskIds.filter(id => id !== taskId);
-    
-    const newTasks = { ...data.tasks };
-    delete newTasks[taskId as keyof typeof data.tasks]; // Remove from master dictionary
-
-    setData({
-        ...data,
-        tasks: newTasks,
-        columns: {
-        ...data.columns,
-        [columnId]: {
-            ...data.columns[columnId as keyof typeof data.columns],
-            taskIds: newColumnTaskIds
-        }
-        }
-    });
-  };
+    const newColumnTaskIds = data.columns[columnId].taskIds.filter(id => id !== taskId)
+    const newTasks = { ...data.tasks }
+    delete newTasks[taskId]
+    setData({ ...data, tasks: newTasks, columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: newColumnTaskIds } } })
+  }
 
   const handleAddTask = (columnId: string, content: string) => {
-    const newTaskId = `task-${Date.now()}`; 
-    
-    const newTask: Task = {
-        id: newTaskId,
-        content: content,
-        priority: "Medium",
-    };
-
-    const newData = { ...data };
-
-    newData.tasks[newTaskId] = newTask;
-
-    newData.columns[columnId as keyof typeof data.columns].taskIds.push(newTaskId);
-
-    setData(newData);
-    };
+    const newTaskId = `task-${Date.now()}`
+    const newTask: Task = { id: newTaskId, content, priority: 'Medium' }
+    setData({
+      ...data,
+      tasks: { ...data.tasks, [newTaskId]: newTask },
+      columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: [...data.columns[columnId].taskIds, newTaskId] } },
+    })
+  }
 
   const onDragEnd = (result: DropResult) => {
-    const { destination, source, draggableId } = result;
+    const { destination, source, draggableId } = result
+    if (!destination) return
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
-    // Dropped outside the list
-    if (!destination) return;
+    const startColumn  = data.columns[source.droppableId]
+    const finishColumn = data.columns[destination.droppableId]
 
-    // Dropped in the exact same spot
-    if (destination.droppableId === source.droppableId && destination.index === source.index) {
-      return;
-    }
-
-    const startColumn = data.columns[source.droppableId as keyof typeof data.columns];
-    const finishColumn = data.columns[destination.droppableId as keyof typeof data.columns];
-
-    // Moving within the same column
     if (startColumn === finishColumn) {
-      const newTaskIds = Array.from(startColumn.taskIds);
-      newTaskIds.splice(source.index, 1);
-      newTaskIds.splice(destination.index, 0, draggableId);
-
-      const newColumn = { ...startColumn, taskIds: newTaskIds };
-      setData({ ...data, columns: { ...data.columns, [newColumn.id]: newColumn } });
-      return;
+      const newTaskIds = Array.from(startColumn.taskIds)
+      newTaskIds.splice(source.index, 1)
+      newTaskIds.splice(destination.index, 0, draggableId)
+      setData({ ...data, columns: { ...data.columns, [startColumn.id]: { ...startColumn, taskIds: newTaskIds } } })
+      return
     }
 
-    // Moving from one column to another column
-    const startTaskIds = Array.from(startColumn.taskIds);
-    startTaskIds.splice(source.index, 1);
-    const newStartColumn = { ...startColumn, taskIds: startTaskIds };
-
-    const finishTaskIds = Array.from(finishColumn.taskIds);
-    finishTaskIds.splice(destination.index, 0, draggableId);
-    const newFinishColumn = { ...finishColumn, taskIds: finishTaskIds };
+    const startTaskIds  = Array.from(startColumn.taskIds)
+    startTaskIds.splice(source.index, 1)
+    const finishTaskIds = Array.from(finishColumn.taskIds)
+    finishTaskIds.splice(destination.index, 0, draggableId)
 
     setData({
       ...data,
       columns: {
         ...data.columns,
-        [newStartColumn.id]: newStartColumn,[newFinishColumn.id]: newFinishColumn,
+        [startColumn.id]:  { ...startColumn,  taskIds: startTaskIds },
+        [finishColumn.id]: { ...finishColumn, taskIds: finishTaskIds },
       },
-    });
-  };
+    })
+  }
 
   return (
     <div className="p-6 md:p-8 h-full flex flex-col">
-      {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Project Board</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your tasks. Drag and drop to update their status.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">{projectName}</h1>
+        <p className="text-muted-foreground mt-2">{projectDescription}</p>
       </div>
-
-      {/* Board Area */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-6 overflow-x-auto pb-4">
           {data.columnOrder.map((columnId) => {
-            const column = data.columns[columnId as keyof typeof data.columns];
-            const tasks = column.taskIds
-                .map((taskId) => data.tasks[taskId as keyof typeof data.tasks])
-                .filter((task) => task !== undefined);
-            
-            return <KanbanColumn
-                key={column.id}
-                column={column}
-                tasks={tasks}
-                onAddTask={handleAddTask}
-                onDeleteTask={handleDeleteTask} 
-            />;
+            const column = data.columns[columnId]
+            const tasks  = column.taskIds.map((id) => data.tasks[id]).filter(Boolean)
+            return <KanbanColumn key={column.id} column={column} tasks={tasks} onAddTask={handleAddTask} onDeleteTask={handleDeleteTask} />
           })}
         </div>
       </DragDropContext>
     </div>
-  );
+  )
 }

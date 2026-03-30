@@ -1,0 +1,30 @@
+Meeting Minutes 3-29-26 8pm
+
+Present: Everyone
+
+Agenda: What needs to be done next
+
+Notes:
+- Much the same since we talked on Friday
+- Backend is now on typescript
+- Login Done
+- Register Done
+- Profile page nearly done
+- Manny made progress on projects page but needs info from back end
+- Back end:
+ - All the API endpoints are done
+ - Need to document the endpoints
+
+- We're in a good spot to breathe and test things, but front end needs some help.
+
+Next things to do:
+- (Backend) Create document that tells front end what it gets with each call
+- (Backend) Document API in SwaggerHub
+- Finish projects page
+- Finish profile page
+- Project Invitations (can use ProjectMembers endpoint)
+- Project Progress visuals (Projects endpoint currently gives stats, use that)
+- Settings page??
+- Testing
+- Mobile
+- PowerPoint Presentation

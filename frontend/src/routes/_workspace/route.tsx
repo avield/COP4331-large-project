@@ -1,15 +1,56 @@
 import { SidebarProvider } from '@/components/ui/sidebar'
+<<<<<<< HEAD
 import { createFileRoute, Outlet } from '@tanstack/react-router'
+=======
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+>>>>>>> da591649ffff06731ae2d76a5e4c12a1a341593d
 import UiSidebar from './components/sidebar'
 import Navbar from './components/navbar'
+import { useAuthStore } from '@/api/authStore'
+import { isTokenValid } from '@/api/jwt'
+import { env } from '@/api/env'
+import axios from '@/api/axios'
 
 export const Route = createFileRoute('/_workspace')({
+  beforeLoad: async () => {
+    let token = useAuthStore.getState().accessToken;
+
+    if (!isTokenValid(token)) {
+      try {
+        const response = await axios.post(
+          `/auth/refresh`, 
+          {}, 
+          { 
+            baseURL: env.BACKEND_URL,
+            withCredentials: true 
+          }
+        );
+
+        token = response.data.accessToken;
+
+        useAuthStore.getState().setAccessToken(token as string);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (error) {
+        // Refresh failed. They are not authenticated.
+        throw redirect({
+          to: '/login',
+        });
+      }
+    }
+
+    // They are authenticated, they can go to their desired page
+    return;
+  },
   component: RouteComponent,
-})
+});
 
 function RouteComponent() {
   return (
+<<<<<<< HEAD
     <div className="dark min-h-screen bg-background">
+=======
+    <div className="dark min-h-screen bg-background overflow-x-hidden">
+>>>>>>> da591649ffff06731ae2d76a5e4c12a1a341593d
       <SidebarProvider>
         <UiSidebar />
         <main className="flex-1 w-full flex flex-col">

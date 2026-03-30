@@ -22,6 +22,9 @@ jobs:
           cache: 'npm'
 
       - name: Build frontend
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
         run: |
           rm -f package-lock.json
 
@@ -42,7 +45,7 @@ jobs:
 
       - name: Deploy on server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
 
             cd "${{ vars.SERVER_PATH }}"
@@ -52,8 +55,9 @@ jobs:
 
             npm install
 
-            cd ./backend
+            cd backend
             npm install
-            pm2 restart taskademia-backend || pm2 start server.mjs --name taskademia-backend
+            npm run build
+            pm2 restart taskademia-backend --update-env || pm2 start dist/server.js --name taskademia-backend
             pm2 save
           EOF
