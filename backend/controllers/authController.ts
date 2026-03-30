@@ -391,7 +391,7 @@ export const loginUser = async (
     setRefreshTokenCookie(res, refreshToken);
 
     res.status(201).json({
-      message: 'User registered successfully. Please check your email to verify your account.',
+      message: 'Login successful',
       user: {
         id: user._id,
         email: user.email,

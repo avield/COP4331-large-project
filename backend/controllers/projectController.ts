@@ -249,7 +249,7 @@ export const updateProject = async (
   try {
     requireUser(req);
     const { projectId } = req.params;
-    const { description, visibility, dueDate } = req.body;
+    const { name, description, visibility, dueDate } = req.body;
 
     const membership = await ProjectMember.findOne({
       projectId,
@@ -274,6 +274,15 @@ export const updateProject = async (
     if (!project) {
       res.status(404).json({ message: 'Project not found.' });
       return;
+    }
+
+    if (typeof name === 'string' && name.trim()) {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        res.status(400).json({ message: 'Project name cannot be empty.' });
+        return;
+      }
+      project.name = trimmedName;
     }
 
     if (typeof description === 'string') {
