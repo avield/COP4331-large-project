@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, type InferSchemaType, type HydratedDocument, type Model } from 'mongoose';
 
-const projectSchema = new mongoose.Schema(
+const projectSchema = new Schema(
   {
     name: {
       type: String,
@@ -65,6 +65,14 @@ const projectSchema = new mongoose.Schema(
 
 projectSchema.index({ name: 'text', description: 'text', tags: 'text' });
 
-const Project = mongoose.model('Project', projectSchema);
+export type ProjectVisibility = 'public' | 'private';
+export type RecruitingStatus = 'open' | 'closed';
+export type ProjectStatus = 'active' | 'completed' | 'archived';
+
+export type Project = InferSchemaType<typeof projectSchema>;
+export type ProjectDocument = HydratedDocument<Project>;
+export type ProjectModel = Model<Project>;
+
+const Project = mongoose.model<Project>('Project', projectSchema);
 
 export default Project;

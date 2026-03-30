@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+<<<<<<< HEAD
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,12 +9,31 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react'
 import api from '@/api/axios'
+=======
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/api/axios';
+import { isAxiosError } from 'axios';
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
 
 export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
 })
 
 function NewProject() {
+<<<<<<< HEAD
   const router = useRouter()
 
   const [name, setName] = useState('')
@@ -23,6 +43,16 @@ function NewProject() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [visibility, setVisibility] = useState('private')
+=======
+  const router = useRouter();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [goals, setGoals] = useState([{ title: "", description: "" }]);
+  const [visibility, setVisibility] = useState("private");
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
 
   const addGoal = () => setGoals([...goals, { title: '', description: '' }])
   const removeGoal = (index: number) => setGoals(goals.filter((_, i) => i !== index))
@@ -32,6 +62,7 @@ function NewProject() {
     setGoals(next)
   }
 
+<<<<<<< HEAD
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -62,6 +93,48 @@ function NewProject() {
       setIsSubmitting(false)
     }
   }
+=======
+  const removeGoal = (index: number) => {
+    setGoals(goals.filter((_, i) => i !== index));
+  };
+
+  const updateGoal = (index: number, field: "title" | "description", value: string) => {
+    const newGoals = [...goals];
+    newGoals[index][field] = value;
+    setGoals(newGoals);
+  };
+
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) {
+        throw new Error('Project name is required.');
+      }
+      
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        visibility,
+        dueDate: dueDate || null,
+        goals
+      };
+
+      const response = await api.post('/projects/create', payload);
+      return response.data;
+    },
+    
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      
+      navigate({ to: `/projects/${data.project._id}` });
+    },
+  });
+
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
+
+    createProjectMutation.mutate();
+  };
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
 
   return (
     <div className="max-w-3xl mx-auto p-6 md:p-8 space-y-8">
@@ -78,10 +151,21 @@ function NewProject() {
             <CardTitle>Project Details</CardTitle>
             <CardDescription>Provide basic information about your project</CardDescription>
           </CardHeader>
+<<<<<<< HEAD
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Project Name <span className="text-destructive">*</span></Label>
               <Input id="name" autoFocus placeholder="e.g., Mobile App Design Project" required value={name} onChange={(e) => setName(e.target.value)} />
+=======
+          <CardContent className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="text-sm font-medium">Project Name <span className="text-destructive">*</span></Label>
+              <Input id="name" autoFocus placeholder="e.g., Mobile App Design Project" required value={name} onChange={(e) => setName(e.target.value)} className="border-border/60 focus:border-brand/50" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="text-sm font-medium">Description <span className="text-destructive">*</span></Label>
+              <Textarea id="description" placeholder="Describe the project objectives and scope..." className="min-h-24 resize-none border-border/60" required value={description} onChange={(e) => setDescription(e.target.value)}/>
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
             </div>
 
             <div className="space-y-2">
@@ -110,8 +194,18 @@ function NewProject() {
             </div>
 
             <div className="space-y-2 pt-2">
+<<<<<<< HEAD
               <Label htmlFor="dueDate">Due Date <span className="text-sm text-muted-foreground font-normal">(You can change this later)</span></Label>
               <Input id="dueDate" type="date" className="w-full sm:w-60 text-muted-foreground cursor-pointer" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+=======
+              <Label htmlFor="dueDate">
+                Due Date
+                <span className="text-s text-muted-foreground font-normal ml-0">
+                  (You can change this later)
+                </span>
+              </Label>
+              <Input id="dueDate" type="date" className="w-full sm:w-52 text-muted-foreground cursor-pointer border-border/60" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
             </div>
           </CardContent>
         </Card>
@@ -143,11 +237,18 @@ function NewProject() {
           </CardContent>
         </Card>
 
+<<<<<<< HEAD
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
           <Button type="submit" size="lg" className="w-full cursor-pointer" disabled={isSubmitting}>
             {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>) : 'Create Project'}
+=======
+        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
+          <Button type="button" variant="outline" className="cursor-pointer border-border/60" onClick={() => router.history.back()}>Cancel</Button>
+          <Button type="submit" className="flex-1 sm:flex-none sm:px-8 cursor-pointer bg-brand hover:bg-brand/90 text-brand-foreground" disabled={createProjectMutation.isPending}>
+            {createProjectMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : "Create Project"}
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
           </Button>
           <Button type="button" variant="outline" size="lg" className="w-full cursor-pointer" onClick={() => router.history.back()}>Cancel</Button>
         </div>

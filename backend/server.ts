@@ -1,24 +1,25 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { type CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import connectDB from './config/db.mjs';
-import authRoutes from "./routes/authRoutes.mjs";
-import projectRoutes from "./routes/projectRoutes.mjs";
-import taskRoutes from "./routes/taskRoutes.mjs";
-import projectMemberRoutes from './routes/projectMemberRoutes.mjs';
-import profileRoute from './routes/profileRoutes.mjs';
+import connectDB from './config/db.js';
+import authRoutes from "./routes/authRoutes.js";
+import projectRoutes from "./routes/projectRoutes.js";
+import taskRoutes from "./routes/taskRoutes.js";
+import projectMemberRoutes from './routes/projectMemberRoutes.js';
+import profileRoute from './routes/profileRoutes.js';
+import searchRoute from './routes/searchRoute.js';
 import rateLimit from 'express-rate-limit';
-import styleText from "node:util";
+import { styleText } from "node:util";
 import { exit } from 'node:process';
 
 const result = dotenv.config({ path: ["./.env", "../.env"] });
 
 if (result.error) {
-  console.error(styleText.styleText('red', `Error loading .env file: ${result.error.message}`));
+  console.error(styleText('red', `Error loading .env file: ${result.error.message}`));
   exit(1)
 } else {
-  console.log(styleText.styleText('green', ".env file loaded successfully!"));
+  console.log(styleText('green', ".env file loaded successfully!"));
 }
 
 const app = express();
@@ -28,26 +29,34 @@ connectDB();
 
 // Middleware
 // Checking that requests come from front end or a tool we use
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-].filter(Boolean);
+const allowedOrigins: string[] = [process.env.FRONTEND_URL].filter(
+  (origin): origin is string => Boolean(origin));
 
-app.use(cors({
-  origin: function (origin, callback) {
-    //allow tools like Postman or curl with no origin
-    if (!origin) return callback(null, true);
+const corsOptions: CorsOptions = {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
+    // Allow tools like Postman or curl with no origin
+    if (!origin) {
+      return callback(null, true);
+    }
 
-    const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+    const isLocalhost =
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:');
 
     if (allowedOrigins.includes(origin) || isLocalhost) {
       return callback(null, true);
     }
 
-    return callback(new Error ('Not allowed by CORS'));
+    return callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
-}));
+  credentials: true,
+};
 
+//Middleware
+app.use(cors(corsOptions));
 app.use(express.json()); // this middleware will parse JSON bodies: req.body
 app.use(cookieParser());
 
@@ -57,8 +66,9 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/users', profileRoute);
+app.use("/api/search", searchRoute);
 
-const PORT = process.env.PORT || 5000;
+const PORT: number = Number(process.env.PORT) || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);

@@ -114,6 +114,7 @@ function ProfilePage() {
     </div>
   )
 }
+<<<<<<< HEAD
 
 function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -124,3 +125,5 @@ function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: strin
     </div>
   )
 }
+=======
+>>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
