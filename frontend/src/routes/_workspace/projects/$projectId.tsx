@@ -1,96 +1,86 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react';
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { KanbanColumn, type Column } from './components/column';
-import type { Task } from './components/task';
+import { useState } from 'react'
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd"
+import { KanbanColumn, type Column } from './components/column'
+import type { Task } from './components/task'
+import api from '@/api/axios'
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
-    const res = await fetch(
-      `${import.meta.env.BACKEND_URL}/api/projects/${params.projectId}/details`,
-      { credentials: 'include' },
-    )
-    if (!res.ok) throw new Error('Failed to load project')
-    return res.json()
+    const res = await api.get(`/api/projects/${params.projectId}/details`)
+    return res.data
   },
   component: ProjectBoard,
 })
 
 export type BoardData = {
-  tasks: Record<string, Task>;
-  columns: Record<string, Column>;
-  columnOrder: string[];
-};
+  tasks: Record<string, Task>
+  columns: Record<string, Column>
+  columnOrder: string[]
+}
 
-// Transform API response into board data.
-// Adjust field names here if your backend shape differs.
-function buildBoardData(data: Record<string, unknown>): BoardData {
-  // If the backend already returns board-shaped data, use it directly
-  if (data.columns && data.columnOrder) {
-    return data as unknown as BoardData
-  }
+// Shape from GET /api/projects/:projectId/details
+interface ApiTask {
+  _id: string
+  title: string
+  description?: string
+  status: 'todo' | 'in_progress' | 'blocked' | 'done'
+  priority: 'low' | 'medium' | 'high'
+}
 
-  // Otherwise build default columns from a flat tasks array
-  const rawTasks: Array<{ _id: string; content?: string; title?: string; priority?: string; status?: string }> =
-    (data.tasks as Array<{ _id: string; content?: string; title?: string; priority?: string; status?: string }>) ?? []
+interface ApiResponse {
+  project: { _id: string; name: string; description: string }
+  tasks: ApiTask[]
+}
 
+function mapPriority(p: string): Task['priority'] {
+  if (p === 'high') return 'High'
+  if (p === 'low') return 'Low'
+  return 'Medium'
+}
+
+function buildBoardData(apiData: ApiResponse): BoardData {
   const tasks: Record<string, Task> = {}
   const todo: string[] = []
   const inProgress: string[] = []
+  const blocked: string[] = []
   const done: string[] = []
 
-  for (const t of rawTasks) {
+  for (const t of (apiData.tasks ?? [])) {
     const id = t._id
-    tasks[id] = {
-      id,
-      content: t.content ?? t.title ?? 'Untitled task',
-      priority: (t.priority as Task['priority']) ?? 'Medium',
-    }
-    if (t.status === 'done' || t.status === 'completed') {
-      done.push(id)
-    } else if (t.status === 'in-progress' || t.status === 'inProgress') {
-      inProgress.push(id)
-    } else {
-      todo.push(id)
+    tasks[id] = { id, content: t.title, priority: mapPriority(t.priority) }
+    switch (t.status) {
+      case 'done':        done.push(id);       break
+      case 'in_progress': inProgress.push(id); break
+      case 'blocked':     blocked.push(id);    break
+      default:            todo.push(id)
     }
   }
 
   return {
     tasks,
     columns: {
-      'col-1': { id: 'col-1', title: 'To Do', taskIds: todo },
+      'col-1': { id: 'col-1', title: 'To Do',      taskIds: todo },
       'col-2': { id: 'col-2', title: 'In Progress', taskIds: inProgress },
-      'col-3': { id: 'col-3', title: 'Done', taskIds: done },
+      'col-3': { id: 'col-3', title: 'Blocked',     taskIds: blocked },
+      'col-4': { id: 'col-4', title: 'Done',        taskIds: done },
     },
-    columnOrder: ['col-1', 'col-2', 'col-3'],
+    columnOrder: ['col-1', 'col-2', 'col-3', 'col-4'],
   }
 }
 
 function ProjectBoard() {
-  const loaderData = Route.useLoaderData()
-  const { projectId } = Route.useParams()
+  const loaderData = Route.useLoaderData() as ApiResponse
+  const projectName        = loaderData?.project?.name        ?? 'Project Board'
+  const projectDescription = loaderData?.project?.description ?? 'Drag and drop tasks to update their status.'
 
-  // The API may return { project: { ... } } or the object directly
-  const raw = (loaderData as { project?: Record<string, unknown> }).project
-    ?? (loaderData as Record<string, unknown>)
-
-  const projectName: string = (raw.name as string) ?? 'Project Board'
-  const projectDescription: string = (raw.description as string) ?? 'Manage your tasks. Drag and drop to update their status.'
-
-  const [data, setData] = useState<BoardData>(() => buildBoardData(raw))
+  const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
 
   const handleDeleteTask = (columnId: string, taskId: string) => {
     const newColumnTaskIds = data.columns[columnId].taskIds.filter(id => id !== taskId)
     const newTasks = { ...data.tasks }
     delete newTasks[taskId]
-    setData({
-      ...data,
-      tasks: newTasks,
-      columns: {
-        ...data.columns,
-        [columnId]: { ...data.columns[columnId], taskIds: newColumnTaskIds },
-      },
-    })
+    setData({ ...data, tasks: newTasks, columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: newColumnTaskIds } } })
   }
 
   const handleAddTask = (columnId: string, content: string) => {
@@ -99,13 +89,7 @@ function ProjectBoard() {
     setData({
       ...data,
       tasks: { ...data.tasks, [newTaskId]: newTask },
-      columns: {
-        ...data.columns,
-        [columnId]: {
-          ...data.columns[columnId],
-          taskIds: [...data.columns[columnId].taskIds, newTaskId],
-        },
-      },
+      columns: { ...data.columns, [columnId]: { ...data.columns[columnId], taskIds: [...data.columns[columnId].taskIds, newTaskId] } },
     })
   }
 
@@ -114,7 +98,7 @@ function ProjectBoard() {
     if (!destination) return
     if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
-    const startColumn = data.columns[source.droppableId]
+    const startColumn  = data.columns[source.droppableId]
     const finishColumn = data.columns[destination.droppableId]
 
     if (startColumn === finishColumn) {
@@ -125,9 +109,8 @@ function ProjectBoard() {
       return
     }
 
-    const startTaskIds = Array.from(startColumn.taskIds)
+    const startTaskIds  = Array.from(startColumn.taskIds)
     startTaskIds.splice(source.index, 1)
-
     const finishTaskIds = Array.from(finishColumn.taskIds)
     finishTaskIds.splice(destination.index, 0, draggableId)
 
@@ -135,14 +118,11 @@ function ProjectBoard() {
       ...data,
       columns: {
         ...data.columns,
-        [startColumn.id]: { ...startColumn, taskIds: startTaskIds },
+        [startColumn.id]:  { ...startColumn,  taskIds: startTaskIds },
         [finishColumn.id]: { ...finishColumn, taskIds: finishTaskIds },
       },
     })
   }
-
-  // Suppress unused variable warning during development
-  void projectId
 
   return (
     <div className="p-6 md:p-8 h-full flex flex-col">
@@ -150,24 +130,12 @@ function ProjectBoard() {
         <h1 className="text-3xl font-bold tracking-tight">{projectName}</h1>
         <p className="text-muted-foreground mt-2">{projectDescription}</p>
       </div>
-
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-6 overflow-x-auto pb-4">
           {data.columnOrder.map((columnId) => {
             const column = data.columns[columnId]
-            const tasks = column.taskIds
-              .map((taskId) => data.tasks[taskId])
-              .filter((task) => task !== undefined)
-
-            return (
-              <KanbanColumn
-                key={column.id}
-                column={column}
-                tasks={tasks}
-                onAddTask={handleAddTask}
-                onDeleteTask={handleDeleteTask}
-              />
-            )
+            const tasks  = column.taskIds.map((id) => data.tasks[id]).filter(Boolean)
+            return <KanbanColumn key={column.id} column={column} tasks={tasks} onAddTask={handleAddTask} onDeleteTask={handleDeleteTask} />
           })}
         </div>
       </DragDropContext>
