@@ -397,7 +397,8 @@ export const loginUser = async (
         email: user.email,
         displayName: user.profile?.displayName ?? '',
         isEmailVerified: user.isEmailVerified
-      }
+      },
+      accessToken
     });
   } catch (error) {
     console.error(error);
