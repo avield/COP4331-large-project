@@ -31,7 +31,7 @@ interface Project {
 export const Route = createFileRoute('/_workspace/home')({
   loader: async (): Promise<Project[]> => {
     try {
-      const res = await api.get<Project[]>('/api/projects')
+      const res = await api.get<Project[]>('/projects')
       return Array.isArray(res.data) ? res.data : []
     } catch {
       return []

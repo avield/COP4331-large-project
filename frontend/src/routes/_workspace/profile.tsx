@@ -24,8 +24,8 @@ export const Route = createFileRoute('/_workspace/profile')({
   loader: async (): Promise<{ profile: UserProfile; email: string }> => {
     try {
       const [profileRes, meRes] = await Promise.all([
-        api.get<UserProfile>('/api/users/profile'),
-        api.get<AuthMe>('/api/auth/me'),
+        api.get<UserProfile>('/users/profile'),
+        api.get<AuthMe>('/auth/me'),
       ])
       return {
         profile: profileRes.data,
@@ -114,7 +114,6 @@ function ProfilePage() {
     </div>
   )
 }
-<<<<<<< HEAD
 
 function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -125,5 +124,3 @@ function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: strin
     </div>
   )
 }
-=======
->>>>>>> 1fd9f63f9cedd3b70fea20571b94755c05efa95b
