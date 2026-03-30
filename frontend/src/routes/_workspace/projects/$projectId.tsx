@@ -7,8 +7,12 @@ import api from '@/api/axios'
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
-    const res = await api.get(`/api/projects/${params.projectId}/details`)
-    return res.data
+    try {
+      const res = await api.get(`/api/projects/${params.projectId}/details`)
+      return res.data
+    } catch {
+      return { project: { _id: params.projectId, name: 'Project Board', description: '' }, tasks: [] }
+    }
   },
   component: ProjectBoard,
 })
