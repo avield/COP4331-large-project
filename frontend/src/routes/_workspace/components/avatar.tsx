@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,9 +9,25 @@ import { useRouter } from "@tanstack/react-router"
 import { useAuthStore } from "@/api/authStore"
 import api from "@/api/axios"
 
+interface UserProfile {
+  displayName: string
+  profilePictureUrl: string
+}
+
+function getInitials(name: string) {
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
+}
+
 export default function NavbarAvatar() {
   const router = useRouter()
   const clearAuth = useAuthStore((s) => s.clearAuth)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+
+  useEffect(() => {
+    api.get<UserProfile>('/users/profile')
+      .then((res) => setProfile(res.data))
+      .catch(() => {})
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -27,7 +44,10 @@ export default function NavbarAvatar() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
           <Avatar size="lg">
-            <AvatarFallback>U</AvatarFallback>
+            {profile?.profilePictureUrl
+              ? <img src={profile.profilePictureUrl} alt={profile.displayName} className="size-full rounded-full object-cover" />
+              : <AvatarFallback>{profile ? getInitials(profile.displayName) : 'U'}</AvatarFallback>
+            }
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
