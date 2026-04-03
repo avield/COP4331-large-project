@@ -2,11 +2,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-fs.mkdirSync('public/uploads', { recursive: true });
+fs.mkdirSync('public/uploads', { recursive: true }); // This was added to ensure the folder exists
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/uploads/'); // Ensure this folder exists in your root
+        cb(null, 'public/uploads/'); // This folder must exist in the root, but code on top already creates it
     },
     filename: (req, file, cb) => {
         // Create a unique filename: timestamp + original extension
