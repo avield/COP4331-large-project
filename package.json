@@ -8,7 +8,7 @@
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently -k \"cd frontend && node ../node_modules/vite/bin/vite.js\" \"cd backend && node --watch server.mjs\""
+    "dev": "concurrently -k \"cd frontend && npm run dev\" \"cd backend && npm run dev\""
   },
   "dependencies": {
     "nodemailer": "^8.0.3"

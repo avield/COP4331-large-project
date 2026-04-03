@@ -43,9 +43,9 @@ function RouteComponent() {
     <div className="dark min-h-screen bg-background overflow-x-hidden">
       <SidebarProvider>
         <UiSidebar />
-        <main className="flex-1 w-full flex flex-col">
+        <main className="flex-1 min-w-0 w-full flex flex-col">
           <Navbar />
-          <div className="p-4 md:p-6">
+          <div className="min-w-0 p-4 md:p-6">
             <Outlet />
           </div>
         </main>
