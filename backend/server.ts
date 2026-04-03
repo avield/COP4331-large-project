@@ -12,6 +12,13 @@ import searchRoute from './routes/searchRoute.js';
 import rateLimit from 'express-rate-limit';
 import { styleText } from "node:util";
 import { exit } from 'node:process';
+import path from 'path'; // for dealing with profile images
+import { fileURLToPath } from 'url'; // for dealing with profile images
+
+// using absolute paths for dealing with bugs due to ES modules when running server from different directory
+// This was added for dealing with profile image files (next two lines)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const result = dotenv.config({ path: ["./.env", "../.env"] });
 
@@ -67,6 +74,7 @@ app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/users', profileRoute);
 app.use("/api/search", searchRoute);
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // for dealing with profile images NOT AN ENDPOINT
 
 const PORT: number = Number(process.env.PORT) || 5000;
 

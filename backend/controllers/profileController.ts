@@ -3,6 +3,11 @@ import User from '../models/User.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { requireUser } from '../types/guards.js';
 
+// Extend the type to include Multer file property
+type ProfileUploadRequest = AuthenticatedRequest & {
+  file?: Express.Multer.File;
+};
+
 // GET profile info
 export const getProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -22,15 +27,27 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // PUT profile info update
-export const updateProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const updateProfile = async (req: ProfileUploadRequest, res: Response): Promise<void> => {
   try {
     requireUser(req);
-    const { profile } = req.body as { profile: unknown };
     const userId = req.user._id;
+
+    // When using FOrmData on teh frontend, 'profile' might arrive as a JSON string or as individual fields. Adjust to handle both.
+    let profileData: any = {};
+    if(typeof req.body.profile === 'string') {
+      profileData = JSON.parse(req.body.profile);
+    } else {
+      profileData = req.body.profile || {};
+    }
+
+    // If Multer successfully saved a file, add the local path to the profile object
+    if (req.file) {
+      profileData.profilePictureUrl = `/uploads/${req.file.filename}`;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { $set: { profile } },
+      { $set: { profileData } },
       {
         new: true,
         runValidators: true
