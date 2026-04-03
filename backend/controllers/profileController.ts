@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import User from '../models/User.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { requireUser } from '../types/guards.js';
+import multer, {MulterError} from "multer";
 
 // Extend the type to include Multer file property
 type ProfileUploadRequest = AuthenticatedRequest & {
@@ -74,6 +75,29 @@ export const updateProfile = async (req: ProfileUploadRequest, res: Response): P
       return;
     }
 
+    // Catch profile picture errors
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        res.status(400).json({ message: 'File is too large. Max limit is 2MB.' });
+        return;
+      }
+      res.status(400).json({ message: `Upload error: ${error.message}` });
+      return;
+    }
+
+    // Catch file validation errors from fileFilter check and general errors
+    if (error instanceof Error) {
+      if (error.message === 'Only jpg, jpeg or png images are allowed!') {
+        res.status(400).json({ message: error.message });
+        return;
+      }
+
+      res.status(500).json({
+        message: 'Server error', error: error.message
+      })
+    }
+
+    // Default error message that aren't error objects thrown
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ message: 'Server error', error: message });
   }

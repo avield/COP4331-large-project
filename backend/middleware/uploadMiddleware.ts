@@ -15,4 +15,20 @@ const storage = multer.diskStorage({
     }
 });
 
-export const upload = multer({ storage: storage });
+export const upload = multer({ storage: storage,
+    limits: {
+        fileSize: 2 * 1024 * 1024 // Limits to 2mb image file
+    },
+    fileFilter: (req, file, cb) => {
+    // Will limit file image formats
+        const fileTypes = /jpeg|jpg|png|webp/;
+        const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimeType = fileTypes.test(file.mimetype);
+
+        if (extName && mimeType) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only jpg, jpeg or png images are allowed!'));
+    }
+
+    } });
