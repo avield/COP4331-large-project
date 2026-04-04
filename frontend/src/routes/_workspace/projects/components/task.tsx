@@ -78,10 +78,11 @@ export function KanbanTask({
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          className={`group relative mb-2 rounded-lg border bg-card p-3 transition-all duration-150 ${
+          onClick={onClick}
+          className={`group relative mb-2 rounded-lg border bg-card p-3 cursor-pointer transition-all duration-150 ${
             snapshot.isDragging
               ? 'rotate-1 scale-105 border-brand/30 shadow-xl shadow-black/30 ring-1 ring-brand/20'
-              : 'border-border/50 hover:border-border hover:shadow-md hover:shadow-black/10'
+              : 'border-border/50 hover:border-border hover:shadow-md hover:shadow-black/10 hover:bg-muted/30'
           }`}
         >
           <div className="flex items-start gap-2">
@@ -92,11 +93,7 @@ export function KanbanTask({
               <GripVertical className="size-3.5" />
             </div>
 
-            <button
-              type="button"
-              onClick={onClick}
-              className="flex min-w-0 flex-1 flex-col items-start text-left"
-            >
+            <div className="flex min-w-0 flex-1 flex-col items-start text-left">
               <p className="pr-6 text-sm leading-snug font-medium text-foreground">
                 {task.title}
               </p>
@@ -106,7 +103,7 @@ export function KanbanTask({
                   {task.description}
                 </p>
               )}
-            </button>
+            </div>
           </div>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-5">
