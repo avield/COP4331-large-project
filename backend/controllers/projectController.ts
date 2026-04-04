@@ -40,6 +40,13 @@ type ProjectLike = {
   toObject: () => Record<string, unknown>;
 };
 
+type PopulatedUser = {
+      _id: string
+      email?: string
+      profile?: {
+        displayName?: string
+      }
+    }
 
 export const createProject = async (
   req: AuthenticatedRequest & { body: CreateProjectBody },
@@ -383,14 +390,27 @@ export const getProjectDetails = async (
       projectId,
       membershipStatus: 'active'
     })
-      .populate('userId', 'displayName email username')
-      .populate('joinedBy', 'displayName email username')
+      .populate('userId', 'email profile.displayName')
+      .populate('joinedBy', 'email profile.displayName')
       .sort({ createdAt: 1 });
 
+    const normalizedMembers = members.map((member) => {
+      const user = member.userId as unknown as PopulatedUser | null
+      return {
+        ...member.toObject(),
+        userId: user ? {
+          _id: user._id,
+          email: user.email,
+          displayName: user.profile?.displayName ?? '',
+        }
+        : null,
+      }
+    })
+
     const tasks = (await Task.find({ projectId })
-      .populate('createdBy', 'displayName email username')
-      .populate('assignedToUserIds', 'displayName email username')
-      .populate('completedBy', 'displayName email username')
+      .populate('createdBy', 'email profile.displayName')
+      .populate('assignedToUserIds', 'email profile.displayName')
+      .populate('completedBy', 'email profile.displayName')
       .sort({ createdAt: -1 })) as TaskStatusOnly[];
 
     const stats = {
@@ -403,7 +423,7 @@ export const getProjectDetails = async (
 
     res.status(200).json({
       project,
-      members,
+      normalizedMembers,
       tasks,
       stats
     });
