@@ -423,7 +423,7 @@ export const getProjectDetails = async (
 
     res.status(200).json({
       project,
-      normalizedMembers,
+      members: normalizedMembers,
       tasks,
       stats
     });
