@@ -1,8 +1,15 @@
 import type { Response } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import {fileURLToPath} from 'url';
 import User from '../models/User.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { requireUser } from '../types/guards.js';
 import multer, {MulterError} from "multer";
+
+// Helper for __dirname in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Extend the type to include Multer file property
 type ProfileUploadRequest = AuthenticatedRequest & {
@@ -28,42 +35,61 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // PUT profile info update
-export const updateProfile = async (req: ProfileUploadRequest, res: Response): Promise<void> => {
+export const updateProfile = async (req: any, res: Response): Promise<void> => {
   try {
-    requireUser(req);
     const userId = req.user._id;
 
-    // When using FOrmData on teh frontend, 'profile' might arrive as a JSON string or as individual fields. Adjust to handle both.
+    // Find user to handle file cleanup
+    const user = await User.findById(userId);
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Get the profile data from FormData
     let profileData: any = {};
-    if(typeof req.body.profile === 'string') {
+    if (typeof req.body.profile === 'string') {
       profileData = JSON.parse(req.body.profile);
     } else {
       profileData = req.body.profile || {};
     }
 
-    // If Multer successfully saved a file, add the local path to the profile object
+    // Clean up logic to remove old image files already uploaded to server
     if (req.file) {
+      // Check if the user already has an old profile picture stored in the server
+      const oldPath = user.profile?.profilePictureUrl;
+
+      // Only delete if there's an existing path that isn't empty
+      if (oldPath && oldPath.startsWith('/uploads/')) {
+        // Construct the full system path to the file
+        const fullOldPath = path.join(__dirname, '..', 'public', oldPath);
+
+        try {
+          // Delete the old file
+          await fs.unlink(fullOldPath);
+          console.log(`Deleted old profile pic: ${fullOldPath}`);
+        } catch (error) {
+          // Log error but don't stop the update if deletion fails since it could have been deleted manually
+          console.error("Old file cleanup failed", error);
+        }
+      }
+
+      // Set the new path, assign the new filename to the profile object
       profileData.profilePictureUrl = `/uploads/${req.file.filename}`;
     }
 
+    // Update the database
     const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: { profileData } },
-      {
-        new: true,
-        runValidators: true
-      }
+        userId,
+        {$set: {profile: {...user.profile, ...profileData}}},
+        {new: true, runValidators: true}
     ).select('profile');
-
-    if (!updatedUser) {
-      res.status(404).json({ message: 'User not found' });
-      return;
-    }
 
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
-      profile: updatedUser.profile
+      profile: updatedUser?.profile
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'ValidationError') {
