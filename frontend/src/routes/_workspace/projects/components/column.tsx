@@ -1,9 +1,7 @@
 import { Droppable } from "@hello-pangea/dnd";
 import { KanbanTask, type Task } from "./task";
-import { Plus, X, Check } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
 
 export type Column = { id: string; title: string; taskIds: string[] };
 
