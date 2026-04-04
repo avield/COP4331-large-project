@@ -76,6 +76,13 @@ export type BoardData = {
   columnOrder: string[]
 }
 
+interface ApiUserSummary {
+  _id: string
+  displayName?: string
+  email?: string
+  username?: string
+}
+
 // Shape from GET /api/projects/:projectId/details
 interface ApiTask {
   _id: string
@@ -83,6 +90,13 @@ interface ApiTask {
   description?: string
   status: 'todo' | 'in_progress' | 'blocked' | 'done'
   priority: 'low' | 'medium' | 'high'
+  tags?: string[]
+  assignedToUserIds?: ApiUserSummary[]
+  roleRequired?: string
+  dueDate?: string | null
+  completedAt?: string | null
+  completedBy?: ApiUserSummary | null
+  createdBy?: ApiUserSummary | null
 }
 
 interface ApiMember {
@@ -155,11 +169,28 @@ function buildBoardData(apiData: ApiResponse): BoardData {
 
   for (const t of (apiData.tasks ?? [])) {
     const id = t._id
-    tasks[id] = { id, content: t.title, priority: mapPriority(t.priority) }
+
+    tasks[id] = {
+      id,
+      title: t.title,
+      description: t.description ?? '',
+      status: t.status,
+      priority: mapPriority(t.priority),
+
+      // NEW FIELDS
+      tags: t.tags ?? [],
+      assignedToUserIds: t.assignedToUserIds ?? [],
+      roleRequired: t.roleRequired ?? '',
+      dueDate: t.dueDate ?? null,
+      completedAt: t.completedAt ?? null,
+      completedBy: t.completedBy ?? null,
+      createdBy: t.createdBy ?? null,
+    }
+
     switch (t.status) {
-      case 'done':        done.push(id);       break;
-      case 'in_progress': inProgress.push(id); break;
-      case 'blocked':     blocked.push(id);    break;
+      case 'done':        done.push(id);       break
+      case 'in_progress': inProgress.push(id); break
+      case 'blocked':     blocked.push(id);    break
       default:            todo.push(id)
     }
   }
@@ -201,8 +232,21 @@ function ProjectPage() {
   const currentUserId = user?.id
   const loaderData = Route.useLoaderData() as ApiResponse
   const members = loaderData.members ?? []
+  const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    priority: 'Medium' as Task['priority'],
+    status: 'todo' as Task['status'],
+    roleRequired: '',
+    dueDate: '',
+    tags: '',
+  })
+  const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
 
   const myMembership = members.find(
     (member) =>
@@ -210,14 +254,10 @@ function ProjectPage() {
       member.userId?._id === currentUserId
   )
 
-  const canEditProject =
-    myMembership?.permissions?.canEditProject ?? false
+  console.log('members from API', loaderData.members)
+  console.log('first member userId', loaderData.members?.[0]?.userId)
 
-  console.log('auth user', user)
-  console.log('currentUserId', currentUserId)
-  console.log('members', members)
-  console.log('myMembership', myMembership)
-  console.log('canEditProject', canEditProject)
+  const canEditProject = myMembership?.permissions?.canEditProject ?? false
   
   const project = loaderData.project
   
@@ -259,21 +299,146 @@ function ProjectPage() {
     })
   }
 
-  const handleAddTask = (columnId: string, content: string) => {
-    const newTaskId = `task-${Date.now()}`
-    const newTask: Task = { id: newTaskId, content, priority: 'Medium' }
-
-    setData({
-      ...data,
-      tasks: { ...data.tasks, [newTaskId]: newTask },
-      columns: {
-        ...data.columns,
-        [columnId]: {
-          ...data.columns[columnId],
-          taskIds: [...data.columns[columnId].taskIds, newTaskId],
-        },
-      },
+  const handleAddTask = (columnId: string) => {
+    setCreateTaskColumnId(columnId)
+    setSelectedTask(null)
+    setTaskForm({
+      title: '',
+      description: '',
+      status: columnIdToStatus(columnId),
+      priority: 'Medium',
+      roleRequired: '',
+      dueDate: '',
+      tags: '',
     })
+    setTaskSheetMode('create')
+    setIsTaskSheetOpen(true)
+  }
+
+  const handleCreateTask = async () => {
+    if (!createTaskColumnId) return
+
+    const trimmedTitle = taskForm.title.trim()
+    if (!trimmedTitle) return
+
+    try {
+      const res = await api.post('/tasks', {
+        projectId: project._id,
+        title: trimmedTitle,
+        description: taskForm.description.trim(),
+        status: taskForm.status,
+        priority: taskForm.priority.toLowerCase(),
+        tags: taskForm.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        roleRequired: taskForm.roleRequired.trim(),
+        dueDate: taskForm.dueDate || null,
+        assignedToUserIds: [],
+      })
+
+      const created = res.data.task ?? res.data
+
+      const newTask: Task = {
+        id: created._id,
+        title: created.title,
+        description: created.description ?? '',
+        status: created.status,
+        priority: mapPriority(created.priority),
+        tags: created.tags ?? [],
+        assignedToUserIds: created.assignedToUserIds ?? [],
+        roleRequired: created.roleRequired ?? '',
+        dueDate: created.dueDate ?? null,
+        completedAt: created.completedAt ?? null,
+        completedBy: created.completedBy ?? null,
+        createdBy: created.createdBy ?? null,
+      }
+
+      setData((prev) => ({
+        ...prev,
+        tasks: {
+          ...prev.tasks,
+          [newTask.id]: newTask,
+        },
+        columns: {
+          ...prev.columns,
+          [createTaskColumnId]: {
+            ...prev.columns[createTaskColumnId],
+            taskIds: [...prev.columns[createTaskColumnId].taskIds, newTask.id],
+          },
+        },
+      }))
+
+      setIsTaskSheetOpen(false)
+      setCreateTaskColumnId(null)
+    } catch (error) {
+      console.error('Failed to create task:', error)
+    }
+  }
+
+  const handleSaveTask = async () => {
+    if (!selectedTask) return
+
+    try {
+      const res = await api.put(`/tasks/${selectedTask.id}`, {
+        title: taskForm.title,
+        description: taskForm.description,
+        priority: taskForm.priority.toLowerCase(),
+        status: taskForm.status,
+        roleRequired: taskForm.roleRequired,
+        dueDate: taskForm.dueDate || null,
+        tags: taskForm.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      })
+
+      const updatedTask = res.data.task ?? res.data
+
+      setData((prev) => ({
+        ...prev,
+        tasks: {
+          ...prev.tasks,
+          [selectedTask.id]: {
+            ...prev.tasks[selectedTask.id],
+            title: updatedTask.title,
+            description: updatedTask.description ?? '',
+            status: updatedTask.status,
+            priority: mapPriority(updatedTask.priority),
+            tags: updatedTask.tags ?? [],
+            roleRequired: updatedTask.roleRequired ?? '',
+            dueDate: updatedTask.dueDate ?? null,
+            assignedToUserIds: updatedTask.assignedToUserIds ?? [],
+            completedAt: updatedTask.completedAt ?? null,
+            completedBy: updatedTask.completedBy ?? null,
+            createdBy: updatedTask.createdBy ?? null,
+          },
+        },
+      }))
+
+      setSelectedTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: updatedTask.title,
+              description: updatedTask.description ?? '',
+              status: updatedTask.status,
+              priority: mapPriority(updatedTask.priority),
+              tags: updatedTask.tags ?? [],
+              roleRequired: updatedTask.roleRequired ?? '',
+              dueDate: updatedTask.dueDate ?? null,
+              assignedToUserIds: updatedTask.assignedToUserIds ?? [],
+              completedAt: updatedTask.completedAt ?? null,
+              completedBy: updatedTask.completedBy ?? null,
+              createdBy: updatedTask.createdBy ?? null,
+            }
+          : prev
+      )
+
+      setIsTaskSheetOpen(false)
+    } catch (error) {
+      console.error('Failed to update task:', error)
+    }
   }
 
   const onDragEnd = async (result: DropResult) => {
@@ -825,6 +990,20 @@ function ProjectPage() {
                     tasks={tasks}
                     onAddTask={handleAddTask}
                     onDeleteTask={handleDeleteTask}
+                    onTaskClick={(task) => {
+                      setSelectedTask(task)
+                      setTaskForm({
+                        title: task.title,
+                        description: task.description ?? '',
+                        priority: task.priority,
+                        status: task.status,
+                        roleRequired: task.roleRequired ?? '',
+                        dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+                        tags: (task.tags ?? []).join(', '),
+                      })
+                      setTaskSheetMode('view')
+                      setIsTaskSheetOpen(true)
+                    }}
                   />
                 )
               })}
@@ -832,6 +1011,353 @@ function ProjectPage() {
           </DragDropContext>
         </CardContent>
       </Card>
+
+      <Sheet open={isTaskSheetOpen} onOpenChange={setIsTaskSheetOpen}>
+        <SheetContent className="overflow-y-auto p-0 sm:max-w-xl">
+          <>
+            <SheetHeader className='px-6 pt-6'>
+              <SheetTitle>
+                {taskSheetMode === 'create'
+                  ? 'Create Task'
+                  : taskSheetMode === 'edit'
+                    ? 'Edit Task'
+                    : selectedTask?.title ?? 'Task'}
+              </SheetTitle>
+
+              <SheetDescription>
+                {taskSheetMode === 'create'
+                  ? 'Add a new task to this project.'
+                  : taskSheetMode === 'edit'
+                    ? 'Update task information and save your changes.'
+                    : 'View task details.'}
+              </SheetDescription>
+            </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {taskSheetMode === 'edit' || taskSheetMode === 'create' ? (
+                  <div className="space-y-4 px-6 pb-6">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Task Details</CardTitle>
+                        <CardDescription>
+                          {taskSheetMode === 'create'
+                            ? 'Fill out the information for the new task.'
+                            : 'Update the task information below.'}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <FieldSet>
+                          <FieldGroup>
+                            <Field>
+                              <FieldLabel htmlFor="task-title">Title</FieldLabel>
+                              <Input
+                                id="task-title"
+                                value={taskForm.title}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({ ...prev, title: e.target.value }))
+                                }
+                              />
+                            </Field>
+
+                            <Field>
+                              <FieldLabel htmlFor="task-description">Description</FieldLabel>
+                              <Textarea
+                                id="task-description"
+                                value={taskForm.description}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({
+                                    ...prev,
+                                    description: e.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+
+                            <Field>
+                              <FieldLabel htmlFor="task-role-required">Role Required</FieldLabel>
+                              <Input
+                                id="task-role-required"
+                                value={taskForm.roleRequired}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({
+                                    ...prev,
+                                    roleRequired: e.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+
+                            <Field>
+                              <FieldLabel htmlFor="task-due-date">Due Date</FieldLabel>
+                              <Input
+                                id="task-due-date"
+                                type="date"
+                                value={taskForm.dueDate}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({
+                                    ...prev,
+                                    dueDate: e.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+
+                            <Field>
+                              <FieldLabel htmlFor="task-tags">Tags</FieldLabel>
+                              <Input
+                                id="task-tags"
+                                placeholder="frontend, urgent, api"
+                                value={taskForm.tags}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({ ...prev, tags: e.target.value }))
+                                }
+                              />
+                            </Field>
+                          </FieldGroup>
+                        </FieldSet>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Status</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <FieldSet>
+                          <RadioGroup
+                            value={taskForm.status}
+                            onValueChange={(value) =>
+                              setTaskForm((prev) => ({
+                                ...prev,
+                                status: value as Task['status'],
+                              }))
+                            }
+                          >
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="todo" id="task-status-todo" />
+                              <FieldLabel htmlFor="task-status-todo">To Do</FieldLabel>
+                            </Field>
+
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="in_progress" id="task-status-in-progress" />
+                              <FieldLabel htmlFor="task-status-in-progress">In Progress</FieldLabel>
+                            </Field>
+
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="blocked" id="task-status-blocked" />
+                              <FieldLabel htmlFor="task-status-blocked">Blocked</FieldLabel>
+                            </Field>
+
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="done" id="task-status-done" />
+                              <FieldLabel htmlFor="task-status-done">Done</FieldLabel>
+                            </Field>
+                          </RadioGroup>
+                        </FieldSet>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Priority</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <FieldSet>
+                          <RadioGroup
+                            value={taskForm.priority}
+                            onValueChange={(value) =>
+                              setTaskForm((prev) => ({
+                                ...prev,
+                                priority: value as Task['priority'],
+                              }))
+                            }
+                          >
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="Low" id="task-priority-low" />
+                              <FieldLabel htmlFor="task-priority-low">Low</FieldLabel>
+                            </Field>
+
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="Medium" id="task-priority-medium" />
+                              <FieldLabel htmlFor="task-priority-medium">Medium</FieldLabel>
+                            </Field>
+
+                            <Field orientation="horizontal">
+                              <RadioGroupItem value="High" id="task-priority-high" />
+                              <FieldLabel htmlFor="task-priority-high">High</FieldLabel>
+                            </Field>
+                          </RadioGroup>
+                        </FieldSet>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : selectedTask ? (
+                  <div className="space-y-4 px-6 pb-6">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Description</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedTask.description || 'No description provided.'}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Status</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                          {selectedTask.status}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Priority</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                          {selectedTask.priority}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Role Required</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                          {selectedTask.roleRequired || 'None'}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Due Date</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                          {selectedTask.dueDate
+                            ? new Date(selectedTask.dueDate).toLocaleDateString()
+                            : 'No due date'}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Tags</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTask.tags.length > 0 ? (
+                            selectedTask.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
+                                {tag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground">No tags</span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Assigned To</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        {selectedTask.assignedToUserIds.length > 0
+                          ? selectedTask.assignedToUserIds
+                              .map(
+                                (user) =>
+                                  user.displayName || user.username || user.email || 'Unknown User'
+                              )
+                              .join(', ')
+                          : 'No one assigned'}
+                      </CardContent>
+                    </Card>
+
+                    {selectedTask.status === 'done' && (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base">Completion</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                          {selectedTask.completedAt
+                            ? `Completed on ${new Date(selectedTask.completedAt).toLocaleDateString()}`
+                            : 'Completion date not recorded'}
+                          {selectedTask.completedBy
+                            ? ` by ${
+                                selectedTask.completedBy.displayName ||
+                                selectedTask.completedBy.username ||
+                                selectedTask.completedBy.email ||
+                                'Unknown User'
+                              }`
+                            : ''}
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                ) : null }
+
+                <div className="flex gap-2 border-t px-6 py-4">
+                  {taskSheetMode === 'create' ? (
+                    <>
+                      <Button onClick={handleCreateTask}>
+                        Create Task
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsTaskSheetOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : taskSheetMode === 'edit' ? (
+                    <>
+                      <Button onClick={handleSaveTask}>
+                        Save Changes
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (!selectedTask) return
+                          setTaskForm({
+                            title: selectedTask.title,
+                            description: selectedTask.description ?? '',
+                            status: selectedTask.status,
+                            priority: selectedTask.priority,
+                            roleRequired: selectedTask.roleRequired ?? '',
+                            dueDate: selectedTask.dueDate ? selectedTask.dueDate.slice(0, 10) : '',
+                            tags: (selectedTask.tags ?? []).join(', '),
+                          })
+                          setTaskSheetMode('view')
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                      <>
+                      <Button onClick={() => setTaskSheetMode('edit')}>
+                        <Pencil className="mr-2 size-4" />
+                        Edit Task
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsTaskSheetOpen(false)}
+                      >
+                        Close
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+          </>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

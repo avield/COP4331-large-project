@@ -13,18 +13,19 @@ interface KanbanColumnProps {
   column: Column;
   tasks: Task[];
   columnIndex?: number;
-  onAddTask: (columnId: string, content: string) => void;
+  onAddTask: (columnId: string) => void;
   onDeleteTask: (columnId: string, taskId: string) => void;
+  onTaskClick: (task: Task) => void;
 }
 
-export function KanbanColumn({ column, tasks, columnIndex = 0, onAddTask, onDeleteTask }: KanbanColumnProps) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [newTaskText, setNewTaskText] = useState("");
-
-  const handleAdd = () => {
-    if (newTaskText.trim()) onAddTask(column.id, newTaskText.trim());
-    setNewTaskText(""); setIsAdding(false);
-  };
+export function KanbanColumn({ 
+  column, 
+  tasks, 
+  columnIndex = 0, 
+  onAddTask, 
+  onDeleteTask,
+  onTaskClick 
+}: KanbanColumnProps) {
 
   return (
     <div className="flex flex-col w-72 shrink-0">
@@ -35,8 +36,12 @@ export function KanbanColumn({ column, tasks, columnIndex = 0, onAddTask, onDele
             {tasks.length}
           </span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50 hover:text-foreground cursor-pointer"
-          onClick={() => setIsAdding(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground/50 hover:text-foreground cursor-pointer"
+          onClick={() => onAddTask(column.id)}
+        >
           <Plus className="size-3.5" />
         </Button>
       </div>
@@ -48,34 +53,18 @@ export function KanbanColumn({ column, tasks, columnIndex = 0, onAddTask, onDele
               snapshot.isDraggingOver ? "bg-brand/5 ring-1 ring-brand/20" : "bg-muted/20"
             }`}>
             {tasks.map((task, index) => (
-              <KanbanTask key={task.id} task={task} index={index} onDelete={() => onDeleteTask(column.id, task.id)} />
+              <KanbanTask 
+                key={task.id} 
+                task={task} 
+                index={index} 
+                onDelete={() => onDeleteTask(column.id, task.id)}
+                onClick={() => onTaskClick(task)} />
             ))}
             {provided.placeholder}
 
-            {isAdding && (
-              <div className="mt-1 rounded-lg border border-brand/30 bg-card p-2 space-y-2">
-                <Textarea autoFocus placeholder="What needs to be done?" value={newTaskText}
-                  onChange={(e) => setNewTaskText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAdd(); }
-                    if (e.key === "Escape") { setNewTaskText(""); setIsAdding(false); }
-                  }}
-                  className="bg-background border-border/50 min-h-16 resize-none text-sm" />
-                <div className="flex gap-1.5">
-                  <Button size="sm" className="h-7 px-3 text-xs bg-brand hover:bg-brand/90 text-brand-foreground cursor-pointer" onClick={handleAdd}>
-                    <Check className="size-3 mr-1" /> Add
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs cursor-pointer text-muted-foreground"
-                    onClick={() => { setNewTaskText(""); setIsAdding(false); }}>
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {tasks.length === 0 && !isAdding && (
+            {tasks.length === 0 && (
               <div className="flex items-center justify-center h-20 rounded-md border border-dashed border-border/30 cursor-pointer hover:border-brand/30 transition-colors"
-                onClick={() => setIsAdding(true)}>
+                onClick={() => onAddTask(column.id)}>
                 <span className="text-xs text-muted-foreground/40">+ Add a task</span>
               </div>
             )}

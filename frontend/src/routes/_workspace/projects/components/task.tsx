@@ -1,56 +1,180 @@
-import { Draggable } from "@hello-pangea/dnd";
-import { Button } from "@/components/ui/button";
-import { Trash2, GripVertical } from "lucide-react";
+import { Draggable } from '@hello-pangea/dnd'
+import { GripVertical, Trash2, CheckCircle2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
-export type Task = {
-  id: string;
-  content: string;
-  priority: "High" | "Medium" | "Low";
-};
-
-const priorityConfig = {
-  High:   { dot: "bg-red-500",     badge: "text-red-400 bg-red-500/10 border-red-500/20" },
-  Medium: { dot: "bg-amber-500",   badge: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-  Low:    { dot: "bg-emerald-500", badge: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-};
-
-interface KanbanTaskProps {
-  task: Task;
-  index: number;
-  onDelete: () => void;
+export interface Task {
+  id: string
+  title: string
+  description: string
+  status: 'todo' | 'in_progress' | 'blocked' | 'done'
+  priority: 'Low' | 'Medium' | 'High'
+  tags: string[]
+  assignedToUserIds: Array<{
+    _id: string
+    displayName?: string
+    email?: string
+    username?: string
+  }>
+  roleRequired: string
+  dueDate?: string | null
+  completedAt?: string | null
+  completedBy?: {
+    _id: string
+    displayName?: string
+    email?: string
+    username?: string
+  } | null
+  createdBy?: {
+    _id: string
+    displayName?: string
+    email?: string
+    username?: string
+  } | null
 }
 
-export function KanbanTask({ task, index, onDelete }: KanbanTaskProps) {
-  const priority = priorityConfig[task.priority];
+type KanbanTaskProps = {
+  task: Task
+  index: number
+  onDelete: () => void
+  onClick?: () => void
+}
+
+const priorityConfig = {
+  Low: {
+    badge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+    dot: 'bg-emerald-400',
+  },
+  Medium: {
+    badge: 'border-amber-500/20 bg-amber-500/10 text-amber-400',
+    dot: 'bg-amber-400',
+  },
+  High: {
+    badge: 'border-rose-500/20 bg-rose-500/10 text-rose-400',
+    dot: 'bg-rose-400',
+  },
+} as const
+
+function formatCompletedAt(value?: string | null) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString()
+}
+
+export function KanbanTask({
+  task,
+  index,
+  onDelete,
+  onClick,
+}: KanbanTaskProps) {
+  const priority = priorityConfig[task.priority]
+  const assignedUsers = task.assignedToUserIds ?? []
+  const hasDescription = !!task.description?.trim()
+  const hasTags = (task.tags ?? []).length > 0
+  const isDone = task.status === 'done'
+
   return (
     <Draggable draggableId={task.id} index={index}>
       {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps}
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
           className={`group relative mb-2 rounded-lg border bg-card p-3 transition-all duration-150 ${
             snapshot.isDragging
-              ? "shadow-xl shadow-black/30 border-brand/30 ring-1 ring-brand/20 rotate-1 scale-105"
-              : "border-border/50 hover:border-border hover:shadow-md hover:shadow-black/10"
-          }`}>
+              ? 'rotate-1 scale-105 border-brand/30 shadow-xl shadow-black/30 ring-1 ring-brand/20'
+              : 'border-border/50 hover:border-border hover:shadow-md hover:shadow-black/10'
+          }`}
+        >
           <div className="flex items-start gap-2">
-            <div {...provided.dragHandleProps}
-              className="mt-0.5 text-muted-foreground/30 hover:text-muted-foreground/60 cursor-grab active:cursor-grabbing transition-colors shrink-0">
+            <div
+              {...provided.dragHandleProps}
+              className="mt-0.5 shrink-0 cursor-grab text-muted-foreground/30 transition-colors hover:text-muted-foreground/60 active:cursor-grabbing"
+            >
               <GripVertical className="size-3.5" />
             </div>
-            <p className="flex-1 text-sm leading-snug text-foreground/90 pr-6">{task.content}</p>
+
+            <button
+              type="button"
+              onClick={onClick}
+              className="flex min-w-0 flex-1 flex-col items-start text-left"
+            >
+              <p className="pr-6 text-sm leading-snug font-medium text-foreground">
+                {task.title}
+              </p>
+
+              {hasDescription && (
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                  {task.description}
+                </p>
+              )}
+            </button>
           </div>
-          <div className="mt-2.5 pl-5">
-            <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded border ${priority.badge}`}>
-              <span className={`inline-block w-1.5 h-1.5 rounded-full ${priority.dot}`} />
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-5">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[10px] font-medium ${priority.badge}`}
+            >
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${priority.dot}`} />
               {task.priority}
             </span>
+
+            {task.roleRequired && (
+              <Badge variant="outline" className="text-[10px]">
+                {task.roleRequired}
+              </Badge>
+            )}
+
+            {hasTags &&
+              task.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-[10px]">
+                  {tag}
+                </Badge>
+              ))}
           </div>
-          <Button variant="ghost" size="icon"
-            className="absolute right-1.5 top-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-all"
-            onClick={onDelete}>
+
+          {(assignedUsers.length > 0 || isDone) && (
+            <div className="mt-2 space-y-1 pl-5 text-[11px] text-muted-foreground">
+              {assignedUsers.length > 0 && (
+                <div className="truncate">
+                  Assigned to:{' '}
+                  {assignedUsers
+                    .map(
+                      (user) =>
+                        user.displayName || user.username || user.email || 'Unknown User'
+                    )
+                    .join(', ')}
+                </div>
+              )}
+
+              {isDone && (task.completedAt || task.completedBy) && (
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="size-3" />
+                  <span className="truncate">
+                    Completed
+                    {task.completedAt ? ` ${formatCompletedAt(task.completedAt)}` : ''}
+                    {task.completedBy
+                      ? ` by ${
+                          task.completedBy.displayName ||
+                          task.completedBy.username ||
+                          task.completedBy.email ||
+                          'Unknown User'
+                        }`
+                      : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1.5 top-1.5 h-6 w-6 cursor-pointer text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+          >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       )}
     </Draggable>
-  );
+  )
 }
