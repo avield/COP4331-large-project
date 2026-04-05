@@ -53,9 +53,11 @@ const corsOptions: CorsOptions = {
       origin.startsWith('http://localhost:') ||
       origin.startsWith('http://127.0.0.1:');
 
-    if (allowedOrigins.includes(origin) || isLocalhost) {
-      return callback(null, true);
-    }
+      const normalizedOrigin = origin.replace('://www.', '://');
+
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes(normalizedOrigin) || isLocalhost) {
+        return callback(null, true);
+      }
 
     return callback(new Error('Not allowed by CORS'));
   },
