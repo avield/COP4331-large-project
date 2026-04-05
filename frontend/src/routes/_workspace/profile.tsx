@@ -77,9 +77,6 @@ function ProfilePage() {
 
   const router = useRouter()
 
-  // Might need to fix this to correct backend URL
-  const backendUrl = import.meta.env.BACKEND_URL || ''
-
   function handleEditClick() {
     setFormData({ ...profile })
     setPreferredRolesText(profile.preferredRoles.join(', '))
@@ -162,10 +159,19 @@ function ProfilePage() {
     if (!url) return ''
     if (url.startsWith('http')) return `${url}?t=${imgCacheBuster}`
 
-    // Eliminate double slashes if backendUrl ends with one
-    const cleanBackend = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl
+    // 1. Grab the variable your custom Vite setup exposed!
+    let base = import.meta.env.BACKEND_URL;
 
-    return `${cleanBackend}${url}?t=${imgCacheBuster}`;
+    // 2. If it is somehow still empty or missing, use the standard backend port
+    if (!base) {
+      base = 'http://localhost:5000';
+    }
+
+    // 3. Clean up any accidental double slashes
+    const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+
+    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
   }
 
   return (
