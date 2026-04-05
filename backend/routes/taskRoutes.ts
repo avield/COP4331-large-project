@@ -13,9 +13,9 @@ const router = express.Router();
 
 router.post('/', protect, createTask);
 router.get('/project/:projectId', protect, getProjectTasks);
+router.get('/todo', protect, getTasksTodo);
 router.get('/:taskId', protect, getTaskById);
 router.put('/:taskId', protect, updateTask);
 router.delete('/:taskId', protect, deleteTask);
-router.get('/todo', protect, getTasksTodo);
 
 export default router;
