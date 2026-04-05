@@ -136,7 +136,10 @@ function ProfilePage() {
       setIsEditing(false)
       setSelectedFile(null)
       setPreviewUrl(null)
-      router.invalidate()
+
+      // FOrce the router to completely syncrhonize the loader data
+      await router.invalidate({sync: true})
+
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'response' in err
@@ -151,8 +154,10 @@ function ProfilePage() {
   // Fallback engine to determine the correct URL source mapping
   const resolveProfileImage = (url: string) => {
     if (!url) return ''
-    if (url.startsWith('http')) return url
-    return `${backendUrl}${url}`
+    const baseUri = url.startsWith('http') ? url : `${backendUrl}${url}`;
+
+    // Appends a cache-busting timestamp so browser always fetches the newest one!
+    return `${baseUri}?t=${new Date().getTime()}`;
   }
 
   return (
@@ -288,8 +293,8 @@ function ProfilePage() {
             <div className="flex items-center gap-5">
               <Avatar size="lg" className="size-16 text-lg">
                 <AvatarImage
-                    src={resolveProfileImage(profile.profilePictureUrl)}
-                    alt={profile.displayName}
+                    src={resolveProfileImage(loaderData.profile.profilePictureUrl)}
+                    alt={loaderData.profile.displayName}
                 />
                 <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
               </Avatar>
