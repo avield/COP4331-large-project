@@ -121,7 +121,7 @@ function ProfilePage() {
 
       // Append raw file if selected, otherwise fallback to the existing URL string
       if (selectedFile) {
-        data.append('profilePictureUrl', selectedFile)
+        data.append('profilePicture', selectedFile)
       } else {
         data.append('profilePictureUrl', formData.profilePictureUrl)
       }
