@@ -78,7 +78,7 @@ function ProfilePage() {
   const router = useRouter()
 
   // Might need to fix this to correct backend URL
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || ''
+  const backendUrl = import.meta.env.BACKEND_URL || ''
 
   function handleEditClick() {
     setFormData({ ...profile })
