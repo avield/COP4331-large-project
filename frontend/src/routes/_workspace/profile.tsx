@@ -67,10 +67,13 @@ function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+
   // States for File Upload and Previews
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [imgCacheBuster, setImgCacheBuster] = useState<number>(Date.now())
 
   const router = useRouter()
 
@@ -137,6 +140,9 @@ function ProfilePage() {
       setSelectedFile(null)
       setPreviewUrl(null)
 
+      // BUST THE CACHE: Tell the browser it's a new image!
+      setImgCacheBuster(Date.now())
+
       // Force the router to completely syncrhonize the loader data
       await router.invalidate({sync: true})
 
@@ -156,8 +162,8 @@ function ProfilePage() {
     if (!url) return ''
     const baseUri = url.startsWith('http') ? url : `${backendUrl}${url}`;
 
-    // Appends a cache-busting timestamp so browser always fetches the newest one!
-    return `${baseUri}?t=${new Date().getTime()}`;
+    // Uses the locked-in cache buster timestamp state instead of regenerating it constantly
+    return `${baseUri}?t=${imgCacheBuster}`;
   }
 
   return (
@@ -297,10 +303,10 @@ function ProfilePage() {
             <div className="flex items-center gap-5">
               <Avatar size="lg" className="size-16 text-lg">
                 <AvatarImage
-                    src={resolveProfileImage(loaderData.profile.profilePictureUrl)}
-                    alt={loaderData.profile.displayName}
+                    src={resolveProfileImage(profile.profilePictureUrl)}
+                    alt={profile.displayName}
                 />
-                <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
+                <AvatarFallback delayMs={600}>{getInitials(profile.displayName)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold truncate">{profile.displayName}</h2>
