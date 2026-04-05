@@ -160,10 +160,15 @@ function ProfilePage() {
   // Fallback engine to determine the correct URL source mapping
   const resolveProfileImage = (url: string) => {
     if (!url) return ''
-    const baseUri = url.startsWith('http') ? url : `${backendUrl}${url}`;
+    if (url.startsWith('http')) return `${url}?t=${imgCacheBuster}`
 
-    // Uses the locked-in cache buster timestamp state instead of regenerating it constantly
-    return `${baseUri}?t=${imgCacheBuster}`;
+    // Ensure exactly one leading slash
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`
+
+    // Eliminate double slashes if backendUrl ends with one
+    const cleanBackend = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl
+
+    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
   }
 
   return (

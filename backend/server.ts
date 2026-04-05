@@ -76,7 +76,7 @@ app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/users', profileRoute);
 app.use("/api/search", searchRoute);
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // for dealing with profile images NOT AN ENDPOINT
+app.use('/public', express.static(path.resolve('public'))); // for dealing with profile images NOT AN ENDPOINT
 
 const PORT: number = Number(process.env.PORT) || 5000;
 
