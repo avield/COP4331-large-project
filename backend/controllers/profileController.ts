@@ -78,10 +78,10 @@ export const updateProfile = async (req: ProfileUploadRequest, res: Response): P
       const oldPath = user.profile?.profilePictureUrl;
 
       // Only delete if there's an existing path that isn't empty
-      if (oldPath && oldPath.startsWith('/uploads/')) {
+      if (oldPath && oldPath.startsWith('/public/uploads/')) {
         // Construct the full system path to the file
-        const cleanOldPath = oldPath.substring(1);
-        const fullOldPath = path.join(__dirname, '..', 'public', oldPath);
+        const filename = path.basename(oldPath);
+        const fullOldPath = path.join(path.resolve('public'), 'uploads', filename);
 
         try {
           // Delete the old file
@@ -94,7 +94,7 @@ export const updateProfile = async (req: ProfileUploadRequest, res: Response): P
       }
 
       // Set the new path, assign the new filename to the profile object
-      profileData.profilePictureUrl = `/uploads/${req.file.filename}`;
+      profileData.profilePictureUrl = `/public/uploads/${req.file.filename}`;
     }
 
     // Update the database

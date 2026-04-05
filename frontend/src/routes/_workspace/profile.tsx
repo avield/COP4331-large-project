@@ -162,13 +162,10 @@ function ProfilePage() {
     if (!url) return ''
     if (url.startsWith('http')) return `${url}?t=${imgCacheBuster}`
 
-    // Ensure exactly one leading slash
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`
-
     // Eliminate double slashes if backendUrl ends with one
     const cleanBackend = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl
 
-    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
+    return `${cleanBackend}${url}?t=${imgCacheBuster}`;
   }
 
   return (
