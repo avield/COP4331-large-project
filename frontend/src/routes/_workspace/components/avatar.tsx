@@ -23,6 +23,8 @@ export default function NavbarAvatar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const [profile, setProfile] = useState<UserProfile | null>(null)
 
+  const [timestamp] = useState<number>(() => Date.now())
+
   useEffect(() => {
     api.get<UserProfile>('/users/profile')
       .then((res) => setProfile(res.data))
@@ -42,14 +44,14 @@ export default function NavbarAvatar() {
   // Here update the URL (it changes when user wants) SAME AS IN PROFILE PAGE
   const getAvatarUrl = (url: string | undefined) => {
     if (!url) return '';
-    if (url.startsWith('http')) return `${url}?t=${Date.now()}`;
+    if (url.startsWith('http')) return `${url}?t=${timestamp}`;
 
     // Fallback to standard backend port if BACKEND_URL isn't registered
     const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
     const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
     const cleanUrl = url.startsWith('/') ? url : `/${url}`;
 
-    return `${cleanBackend}${cleanUrl}?t=${Date.now()}`;
+    return `${cleanBackend}${cleanUrl}?t=${timestamp}`;
   }
 
   return (
