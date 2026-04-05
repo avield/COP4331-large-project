@@ -34,9 +34,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
+import { AvatarGroup } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { useAuthStore } from '@/api/authStore'
+import { NetworkAvatar } from '@/components/network-avatar'
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
@@ -878,19 +879,11 @@ function ProjectPage() {
             <CardContent className="min-w-0 space-y-4">
               <AvatarGroup>
                 {memberPreview.map((member) => (
-                  <Avatar key={member._id}>
-                    {member.userId?.avatarUrl ? (
-                      <img
-                        src={member.userId.avatarUrl}
-                        alt={member.userId.displayName ?? member.userId.email ?? 'Member'}
-                      />
-                    ) : null}
-                    <AvatarFallback>
-                      {(member.userId?.displayName ?? member.userId?.email ?? '??')
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                    <NetworkAvatar
+                        key={member._id}
+                        displayName={member.userId?.displayName ?? member.userId?.email ?? 'Member'}
+                        profilePictureUrl={member.userId?.avatarUrl}
+                    />
                 ))}
               </AvatarGroup>
 
@@ -913,14 +906,11 @@ function ProjectPage() {
                         className="flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
-                          <Avatar size="sm">
-                            {avatarUrl ? (
-                              <img src={avatarUrl} alt={displayName} />
-                            ) : null}
-                            <AvatarFallback>
-                              {displayName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
+                          <NetworkAvatar
+                              displayName={displayName}
+                              profilePictureUrl={avatarUrl}
+                              size="sm"
+                          />
 
                           <div>
                             <div className="text-sm font-medium">{displayName}</div>
