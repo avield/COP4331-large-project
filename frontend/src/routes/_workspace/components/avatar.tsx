@@ -39,15 +39,34 @@ export default function NavbarAvatar() {
     router.navigate({ to: '/login' })
   }
 
+  // Here update the URL (it changes when user wants) SAME AS IN PROFILE PAGE
+  const getAvatarUrl = (url: string | undefined) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return `${url}?t=${Date.now()}`;
+
+    // Fallback to standard backend port if BACKEND_URL isn't registered
+    const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
+    const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+
+    return `${cleanBackend}${cleanUrl}?t=${Date.now()}`;
+  }
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
-          <Avatar size="lg">
-            {profile?.profilePictureUrl
-              ? <img src={profile.profilePictureUrl} alt={profile.displayName} className="size-full rounded-full object-cover" />
-              : <AvatarFallback>{profile ? getInitials(profile.displayName) : 'U'}</AvatarFallback>
-            }
+          // Use the key here to force a remount when the profile pic changes
+          <Avatar key={profile?.profilePictureUrl} size="lg">
+            {profile?.profilePictureUrl ? (
+                <img
+                    src={getAvatarUrl(profile.profilePictureUrl)}
+                    alt={profile.displayName}
+                    className="size-full rounded-full object-cover"
+                />
+            ) : (
+                <AvatarFallback>{profile ? getInitials(profile.displayName) : 'U'}</AvatarFallback>
+            )}
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
