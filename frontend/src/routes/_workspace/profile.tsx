@@ -137,7 +137,7 @@ function ProfilePage() {
       setSelectedFile(null)
       setPreviewUrl(null)
 
-      // FOrce the router to completely syncrhonize the loader data
+      // Force the router to completely syncrhonize the loader data
       await router.invalidate({sync: true})
 
     } catch (err: unknown) {
