@@ -175,14 +175,6 @@ function ProfilePage() {
                   />
                   <AvatarFallback>{getInitials(formData.displayName || 'U')}</AvatarFallback>
                 </Avatar>
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    disabled={isSaving}
-                >
-                  <Upload className="size-5 text-white" />
-                </button>
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -272,14 +264,23 @@ function ProfilePage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="profilePictureUrl">Profile Picture URL</Label>
-                  <Input
-                    id="profilePictureUrl"
-                    value={formData.profilePictureUrl}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, profilePictureUrl: e.target.value }))}
-                    placeholder="https://…"
-                    disabled={isSaving}
-                  />
+                  <Label htmlFor="profilePictureUrl">Profile Picture</Label>
+                  <div className="relative">
+                    <Input
+                        id="profilePictureUrl"
+                        // Show the file name if they picked a file, otherwise show the existing URL
+                        value={selectedFile ? selectedFile.name : formData.profilePictureUrl}
+                        placeholder="Click to upload an image..."
+                        readOnly
+                        className="cursor-pointer pr-10"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isSaving}
+                    />
+                    <Upload className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click the box above to select a file from your computer.
+                  </p>
                 </div>
               </div>
             </div>
