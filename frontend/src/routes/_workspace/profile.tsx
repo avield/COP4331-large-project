@@ -1,13 +1,13 @@
 import { createFileRoute, Link, useRouter} from '@tanstack/react-router'
-import { useState } from 'react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useState, useRef } from 'react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2 } from 'lucide-react'
+import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2, Upload } from 'lucide-react'
 import api from '@/api/axios'
 
 // GET /api/users/profile → raw profile object (not wrapped)
@@ -66,38 +66,76 @@ function ProfilePage() {
   const [preferredRolesText, setPreferredRolesText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // States for File Upload and Previews
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const router = useRouter()
+
+  // Might need to fix this to correct backend URL
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || ''
 
   function handleEditClick() {
     setFormData({ ...profile })
     setPreferredRolesText(profile.preferredRoles.join(', '))
     setSaveError(null)
+    setSelectedFile(null)
+    setPreviewUrl(null)
     setIsEditing(true)
   }
 
   function handleCancelClick() {
     setIsEditing(false)
     setSaveError(null)
+    setSelectedFile(null)
+    setPreviewUrl(null)
+  }
+
+  // Handle local file selection and create a temporary browser blob URL
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
   }
 
   async function handleSaveClick() {
     setIsSaving(true)
     setSaveError(null)
     try {
-      const res = await api.put<UpdateProfileResponse>('/users/profile', {
-        profile: {
-          displayName: formData.displayName,
-          aboutMe: formData.aboutMe,
-          school: formData.school,
-          preferredRoles: preferredRolesText
-            .split(',')
-            .map((r) => r.trim())
-            .filter(Boolean),
-          profilePictureUrl: formData.profilePictureUrl,
+      // Create FOrmData to send file and text together
+      const data = new FormData()
+      data.append('displayName', formData.displayName)
+      data.append('aboutMe', formData.aboutMe)
+      data.append('school', formData.school)
+
+      const rolesArray = preferredRolesText
+              .split(',')
+              .map((r) => r.trim())
+              .filter(Boolean)
+
+      data.append('preferredRoles', JSON.stringify(rolesArray))
+
+      // Append raw file if selected, otherwise fallback to the existing URL string
+      if (selectedFile) {
+        data.append('profilePictureUrl', selectedFile)
+      } else {
+        data.append('profilePictureUrl', formData.profilePictureUrl)
+      }
+
+      const res = await api.put<UpdateProfileResponse>('/users/profile', data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         },
       })
+
       setProfile(res.data.profile)
       setIsEditing(false)
+      setSelectedFile(null)
+      setPreviewUrl(null)
       router.invalidate()
     } catch (err: unknown) {
       const message =
@@ -108,6 +146,13 @@ function ProfilePage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // Fallback engine to determine the correct URL source mapping
+  const resolveProfileImage = (url: string) => {
+    if (!url) return ''
+    if (url.startsWith('http')) return url
+    return `${backendUrl}${url}`
   }
 
   return (
@@ -122,13 +167,33 @@ function ProfilePage() {
           {isEditing ? (
             <div className="space-y-4">
               <div className="flex items-center gap-5">
-                <Avatar className="size-16 text-lg shrink-0">
-                  {formData.profilePictureUrl
-                    ? <img src={formData.profilePictureUrl} alt={formData.displayName} className="size-full rounded-full object-cover" />
-                    : <AvatarFallback>{getInitials(formData.displayName || 'U')}</AvatarFallback>
-                  }
+                <div className="relative group shrink-0">
+                <Avatar size="lg" className="size-16 text-lg">
+                  <AvatarImage
+                      src={previewUrl ? previewUrl : resolveProfileImage(formData.profilePictureUrl)}
+                      alt={formData.displayName}
+                  />
+                  <AvatarFallback>{getInitials(formData.displayName || 'U')}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    disabled={isSaving}
+                >
+                  <Upload className="size-5 text-white" />
+                </button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    disabled={isSaving}
+                />
+              </div>
+
+              <div className="flex-1 min-w-0">
                   <p className="text-xs text-muted-foreground mb-1">Editing profile</p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -220,11 +285,12 @@ function ProfilePage() {
             </div>
           ) : (
             <div className="flex items-center gap-5">
-              <Avatar className="size-16 text-lg">
-                {profile.profilePictureUrl
-                  ? <img src={profile.profilePictureUrl} alt={profile.displayName} className="size-full rounded-full object-cover" />
-                  : <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
-                }
+              <Avatar size="lg" className="size-16 text-lg">
+                <AvatarImage
+                    src={resolveProfileImage(profile.profilePictureUrl)}
+                    alt={profile.displayName}
+                />
+                <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold truncate">{profile.displayName}</h2>
