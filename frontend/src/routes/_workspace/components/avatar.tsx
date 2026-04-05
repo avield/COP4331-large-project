@@ -56,7 +56,6 @@ export default function NavbarAvatar() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
-          // Use the key here to force a remount when the profile pic changes
           <Avatar key={profile?.profilePictureUrl} size="lg">
             {profile?.profilePictureUrl ? (
                 <img
