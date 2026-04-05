@@ -173,12 +173,16 @@ function ProfilePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-5">
                 <div className="relative group shrink-0">
-                <Avatar size="lg" className="size-16 text-lg">
+                <Avatar
+                  key={profile.profilePictureUrl || 'no-image'}
+                  size="lg"
+                  className="size-16 text-lg"
+                >
                   <AvatarImage
                       src={previewUrl ? previewUrl : resolveProfileImage(formData.profilePictureUrl)}
                       alt={formData.displayName}
                   />
-                  <AvatarFallback>{getInitials(formData.displayName || 'U')}</AvatarFallback>
+                  <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
                 </Avatar>
                 <input
                     type="file"
