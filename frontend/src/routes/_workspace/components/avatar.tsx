@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,11 +8,6 @@ import { useRouter } from "@tanstack/react-router"
 import { useAuthStore } from "@/api/authStore"
 import api from "@/api/axios"
 
-interface UserProfile {
-  displayName: string
-  profilePictureUrl: string
-}
-
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
 }
@@ -21,15 +15,10 @@ function getInitials(name: string) {
 export default function NavbarAvatar() {
   const router = useRouter()
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
 
-  const [timestamp] = useState<number>(() => Date.now())
-
-  useEffect(() => {
-    api.get<UserProfile>('/users/profile')
-      .then((res) => setProfile(res.data))
-      .catch(() => {})
-  }, [])
+  // Pull the global image string directly from Zustand
+  const profileImage = useAuthStore((s) => s.globalProfileImage);
+  const user = useAuthStore((s) => s.user);
 
   const handleLogout = async () => {
     try {
@@ -41,32 +30,15 @@ export default function NavbarAvatar() {
     router.navigate({ to: '/login' })
   }
 
-  // Here update the URL (it changes when user wants) SAME AS IN PROFILE PAGE
-  const getAvatarUrl = (url: string | undefined) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return `${url}?t=${timestamp}`;
-
-    // Fallback to standard backend port if BACKEND_URL isn't registered
-    const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
-    const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-
-    return `${cleanBackend}${cleanUrl}?t=${timestamp}`;
-  }
-
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
-          <Avatar key={profile?.profilePictureUrl} size="lg">
-            {profile?.profilePictureUrl ? (
-                <img
-                    src={getAvatarUrl(profile.profilePictureUrl)}
-                    alt={profile.displayName}
-                    className="size-full rounded-full object-cover"
-                />
+          <Avatar key={profileImage} size="lg">
+            {profileImage ? (
+                <img src={profileImage} alt={user?.displayName} className="size-full rounded-full object-cover" />
             ) : (
-                <AvatarFallback>{profile ? getInitials(profile.displayName) : 'U'}</AvatarFallback>
+                <AvatarFallback>{user?.displayName ? getInitials(user.displayName) : 'U'}</AvatarFallback>
             )}
           </Avatar>
         </Button>

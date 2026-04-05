@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2, Upload } from 'lucide-react'
 import api from '@/api/axios'
+import {useAuthStore} from "@/api/authStore.ts";
 
 // GET /api/users/profile → raw profile object (not wrapped)
 interface UserProfile {
@@ -133,6 +134,7 @@ function ProfilePage() {
       })
 
       setProfile(res.data.profile)
+      useAuthStore.getState().refreshProfileImage(res.data.profile.profilePictureUrl);
       setIsEditing(false)
       setSelectedFile(null)
       setPreviewUrl(null)
