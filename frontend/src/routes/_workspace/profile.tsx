@@ -171,7 +171,11 @@ function ProfilePage() {
     const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
     const cleanUrl = url.startsWith('/') ? url : `/${url}`;
 
-    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
+    const fullUrl = `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
+
+    console.log("TARGET AVATAR URL:", fullUrl);
+
+    return fullUrl;
   }
 
   return (
