@@ -35,8 +35,14 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // PUT profile info update
-export const updateProfile = async (req: any, res: Response): Promise<void> => {
+export const updateProfile = async (req: ProfileUploadRequest, res: Response): Promise<void> => {
   try {
+    // Check if the user is present on the request
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
     const userId = req.user._id;
 
     // Find user to handle file cleanup
@@ -48,11 +54,22 @@ export const updateProfile = async (req: any, res: Response): Promise<void> => {
     }
 
     // Get the profile data from FormData
-    let profileData: any = {};
-    if (typeof req.body.profile === 'string') {
-      profileData = JSON.parse(req.body.profile);
-    } else {
-      profileData = req.body.profile || {};
+    const { displayName, aboutMe, school, profilePictureUrl } = req.body;
+
+    const profileData: any = {
+      displayName,
+      aboutMe,
+      school,
+      profilePictureUrl,
+    }
+
+    // Safely parse preferredRoles since it is JSON.stringified on the frontend
+    if (req.body.preferredRoles) {
+      try{
+        profileData.preferredRoles = JSON.parse(req.body.preferredRoles);
+      } catch(err) {
+        profileData.preferredRoles = [];
+      }
     }
 
     // Clean up logic to remove old image files already uploaded to server
@@ -63,6 +80,7 @@ export const updateProfile = async (req: any, res: Response): Promise<void> => {
       // Only delete if there's an existing path that isn't empty
       if (oldPath && oldPath.startsWith('/uploads/')) {
         // Construct the full system path to the file
+        const cleanOldPath = oldPath.substring(1);
         const fullOldPath = path.join(__dirname, '..', 'public', oldPath);
 
         try {
