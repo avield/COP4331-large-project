@@ -5,7 +5,8 @@ import {
   getProjectTasks,
   getTaskById,
   updateTask,
-  deleteTask
+  deleteTask,
+  getTasksTodo
 } from '../controllers/taskController.js';
 
 const router = express.Router();
@@ -15,5 +16,6 @@ router.get('/project/:projectId', protect, getProjectTasks);
 router.get('/:taskId', protect, getTaskById);
 router.put('/:taskId', protect, updateTask);
 router.delete('/:taskId', protect, deleteTask);
+router.get('/todo', protect, getTasksTodo);
 
 export default router;

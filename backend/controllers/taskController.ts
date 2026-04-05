@@ -427,3 +427,29 @@ export const deleteTask = async (
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+export const getTasksTodo = async (
+  request: AuthenticatedRequest,
+  response: Response,
+): Promise<void> => {
+  try {
+    requireUser(request);
+
+    const memberships = await ProjectMember.find({
+      userId: request.user._id,
+      membershipStatus: 'active'
+    });
+
+    const projectIds = memberships.map(membership => membership.projectId);
+
+    const todoTasks = await Task.find({
+      projectId: { $in: projectIds },
+      status: 'todo', 
+    });
+
+    response.status(200).json(todoTasks);
+  } catch (error) {
+    console.error('getTasksTodo error:', error);
+    response.status(500).json({ message: 'Internal server error.' });
+  }
+};
