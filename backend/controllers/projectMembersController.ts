@@ -49,7 +49,7 @@ export const getProjectMembers = async (
     }
 
     const members = await ProjectMember.find({ projectId, membershipStatus: 'active' })
-      .populate('userId', 'displayName email username avatarUrl')
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
       .populate('joinedBy', 'displayName email username')
       .sort({ createdAt: 1 });
 
@@ -142,7 +142,7 @@ export const addProjectMember = async (
     });
 
     const populatedMember = await ProjectMember.findById(member._id)
-      .populate('userId', 'displayName email username avatarUrl')
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
       .populate('joinedBy', 'displayName email username');
 
     res.status(201).json({
@@ -254,7 +254,7 @@ export const updateProjectMember = async (
     await membership.save();
 
     const updatedMembership = await ProjectMember.findById(membership._id)
-      .populate('userId', 'displayName email username avatarUrl')
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
       .populate('joinedBy', 'displayName email username');
 
     res.status(200).json({

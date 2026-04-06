@@ -106,6 +106,10 @@ interface ApiMember {
   userId: {
     _id: string
     email?: string
+    profile?: {
+      displayName?: string
+      profilePictureUrl?: string
+    }
     displayName?: string
     avatarUrl?: string
   }
@@ -231,8 +235,11 @@ function columnIdToStatus(columnId: string): ApiTask['status'] {
 function ProjectPage() {
   const user = useAuthStore((state) => state.user)
   const currentUserId = user?.id
+
+  const globalProfileImage = useAuthStore((state) => state.globalProfileImage)
+
   const loaderData = Route.useLoaderData() as ApiResponse
-  const members = loaderData.members ?? []
+  const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
   const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
@@ -878,13 +885,18 @@ function ProjectPage() {
             </CardHeader>
             <CardContent className="min-w-0 space-y-4">
               <AvatarGroup>
-                {memberPreview.map((member) => (
-                    <NetworkAvatar
-                        key={member._id}
-                        displayName={member.userId?.displayName ?? member.userId?.email ?? 'Member'}
-                        profilePictureUrl={member.userId?.avatarUrl}
-                    />
-                ))}
+                {memberPreview.map((member) => {
+                  const displayName = member.userId?.profile?.displayName ?? member.userId?.email ?? 'Member'
+                  const avatarUrl = member.userId?.profile?.profilePictureUrl
+
+                  return (
+                      <NetworkAvatar
+                          key={member._id}
+                          displayName={displayName}
+                          profilePictureUrl={avatarUrl}
+                      />
+                  )
+                })}
               </AvatarGroup>
 
               <Separator />
@@ -892,13 +904,11 @@ function ProjectPage() {
               <div className="space-y-3">
                 {members.length > 0 ? (
                   members.map((member) => {
-                    const displayName =
-                      member.userId?.displayName ??
-                      member.userId?.email ??
-                      'Unknown User'
-
+                    const displayName = member.userId?.profile?.displayName ?? member.userId?.email ?? 'Unknown User';
                     const email = member.userId?.email ?? 'No email'
-                    const avatarUrl = member.userId?.avatarUrl
+                    // Check if it's the current user to prioritize global store image
+                    const isMe = member.userId?._id === user?.id
+                    const avatarUrl = isMe ? globalProfileImage : member.userId?.profile?.profilePictureUrl
 
                     return (
                       <div
