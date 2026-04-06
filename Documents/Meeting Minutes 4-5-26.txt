@@ -1,0 +1,50 @@
+Team Meeting 4/5/26 8pm
+
+Present: Aviel, Julio, Tim, Luciano, Fabian
+
+Agenda: What needs to be done, how to split up everything that's left
+
+What needs to be done:
+What needs to be done:
+- authStore.ts
+  - Break into 3? Separate out storing user, accessToken, and profile picture
+- Home page:
+  - Add projects to the side bar
+- Profile picture 
+  - Picture is inconsistently displayed (Fixed by Julio during meeting)
+  - Show error messages related to uploading pictures
+- Search page
+  - Search for users, projects, tasks, roles/tags in tasks?
+  - Click on users to invite? Context sensitive
+  - Settings to hide users from search?
+- Project Page:
+  - Edit button is being inconsistent. (Look into persistence) (Fixed by Julio)
+  - Delete project (tied to edit button)
+  - Progress Bar/Chart
+  - Area chart, radial chart (see luciano's link)
+  - Tasks: assigned to field needs to be in edit form
+- Inviting/joining projects
+  - if not part of project, what do you see? Just name? Nothing?
+   - See a page where you can join or apply to join
+  - User 
+  - Separate button/page for inviting people
+  - Making public projects appear to everyone
+  - A page where people can look for public projects
+- Unit and integration testing
+  - user testing, 
+- Mobile
+
+-Powerpoint Slides
+  - About Project (started)
+  - About us (started)
+  - Tech used
+  - Things that went well
+  - Things that went poorly
+  - Gantt chart (started)
+  - ERD (done, but might need to be updated)
+  - Activity diagram
+  - Use Case diagram
+  - Class diagram for mobile
+  - Unit testing results
+  - Figma prototype
+  - Lighthouse report
