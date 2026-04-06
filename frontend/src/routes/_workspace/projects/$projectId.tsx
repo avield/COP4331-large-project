@@ -34,7 +34,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { AvatarGroup } from '@/components/ui/avatar'
+//import { AvatarGroup } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { useAuthStore } from '@/api/authStore'
 import { NetworkAvatar } from '@/components/network-avatar'
@@ -884,20 +884,22 @@ function ProjectPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 space-y-4">
-              <AvatarGroup>
+              <div className="flex -space-x-2 overflow-hidden">
                 {memberPreview.map((member) => {
-                  const displayName = member.userId?.profile?.displayName ?? 'Member'
+                  const displayName = member.userId?.profile?.displayName ?? 'User'
                   const avatarUrl = member.userId?.profile?.profilePictureUrl
 
                   return (
-                      <NetworkAvatar
-                          key={member._id}
-                          displayName={displayName}
-                          profilePictureUrl={avatarUrl}
-                      />
+                      <div key={member._id} className="inline-block ring-2 ring-card rounded-full">
+                        <NetworkAvatar
+                            displayName={displayName}
+                            profilePictureUrl={avatarUrl}
+                            size="sm"
+                        />
+                      </div>
                   )
                 })}
-              </AvatarGroup>
+              </div>
 
               <Separator />
 
