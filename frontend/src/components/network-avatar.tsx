@@ -10,13 +10,19 @@ interface NetworkAvatarProps {
 // Generate up to 2-letter uppercase initials for other members
 function getInitials(name: string) {
     if (!name) return 'U';
+
+    // Check if the fallback is actually an email address
+    if (name.includes('@') && !name.includes(' ')) {
+        return name[0].toUpperCase();
+    }
+
     return name
         .trim()
         .split(/\s+/)
         .map((n) => n[0])
         .join('')
         .toUpperCase()
-        .slice(0, 2);
+        .slice(0, 2) || 'U';
 }
 
 export function NetworkAvatar({
@@ -41,8 +47,16 @@ export function NetworkAvatar({
 
     const imageUrl = getCleanUrl(profilePictureUrl);
 
+    // Resolve Shadcn Avatar sizes manually via standard Tailwind sizes
+    const sizeClasses = {
+        sm: "h-8 w-8 text-xs",
+        default: "h-10 w-10 text-sm",
+        lg: "h-12 w-12 text-base"
+    };
+
     return (
-        <Avatar size={size} className={className}>
+        // Replaced size={size} with standard Tailwind spacing classes
+        <Avatar className={`${sizeClasses[size]} ${className || ''}`}>
             {imageUrl ? (
                 <img
                     src={imageUrl}
