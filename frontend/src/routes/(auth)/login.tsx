@@ -29,15 +29,9 @@ export default function Login() {
 
       authStore.setAccessToken(data.accessToken)
 
-      const meResponse = await api.get('/auth/me', {
-        headers: {
-          Authorization: `Bearer ${data.accessToken}`,
-        },
-      })
+      authStore.setUser(data.user)
 
-      authStore.setUser(meResponse.data.user)
-
-      navigate({ to: '/home' })
+      await navigate({ to: '/home' })
     },
   });
 
