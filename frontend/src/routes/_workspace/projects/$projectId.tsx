@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 //import { AvatarGroup } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useAuthStore } from '@/api/authStore'
 import { NetworkAvatar } from '@/components/network-avatar'
 
@@ -882,22 +883,33 @@ function ProjectPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 space-y-4">
-              <div className="flex -space-x-2 overflow-hidden">
+              <AvatarGroup>
                 {memberPreview.map((member) => {
                   const displayName = member.userId?.profile?.displayName ?? 'User'
-                  const avatarUrl = member.userId?.profile?.profilePictureUrl
+                  const isMe = member.userId?._id === user?.id
+
+                  // Always fallback to the fresh user store if it's the active session!
+                  const avatarUrl = isMe
+                      ? user?.profile?.profilePictureUrl
+                      : member.userId?.profile?.profilePictureUrl
 
                   return (
-                      <div key={member._id} className="inline-block ring-2 ring-card rounded-full">
-                        <NetworkAvatar
-                            displayName={displayName}
-                            profilePictureUrl={avatarUrl}
-                            size="sm"
-                        />
-                      </div>
+                      <NetworkAvatar
+                          key={member._id}
+                          displayName={displayName}
+                          profilePictureUrl={avatarUrl}
+                          size="sm"
+                      />
                   )
                 })}
-              </div>
+
+                {/* Show the remainder count if there are more than 5 members */}
+                {members.length > 5 && (
+                    <AvatarGroupCount>
+                      +{members.length - 5}
+                    </AvatarGroupCount>
+                )}
+              </AvatarGroup>
 
               <Separator />
 
