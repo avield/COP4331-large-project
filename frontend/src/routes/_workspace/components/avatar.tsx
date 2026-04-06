@@ -19,8 +19,6 @@ export default function NavbarAvatar() {
   const user = useAuthStore((s) => s.user);
 
   const avatarUrl = user?.profile?.profilePictureUrl;
-
-  // Target the nested profile display name path
   const displayName = user?.profile?.displayName ?? 'User';
 
   const handleLogout = async () => {

@@ -236,8 +236,6 @@ function ProjectPage() {
   const user = useAuthStore((state) => state.user)
   const currentUserId = user?.id
 
-  const globalProfileImage = useAuthStore((state) => state.globalProfileImage)
-
   const loaderData = Route.useLoaderData() as ApiResponse
   const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
   const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
@@ -909,9 +907,11 @@ function ProjectPage() {
                     const displayName = member.userId?.profile?.displayName ??
                         member.userId?.displayName ?? 'Unknown User';
                     const email = member.userId?.email ?? 'No email'
-                    // Check if it's the current user to prioritize global store image
+
                     const isMe = member.userId?._id === user?.id
-                    const avatarUrl = isMe ? globalProfileImage : member.userId?.profile?.profilePictureUrl
+                    const avatarUrl = isMe
+                    ? user?.profile?.profilePictureUrl
+                        : member.userId?.profile?.profilePictureUrl;
 
                     return (
                       <div
