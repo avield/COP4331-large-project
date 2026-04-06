@@ -396,7 +396,11 @@ export const loginUser = async (
         id: user._id,
         email: user.email,
         displayName: user.profile?.displayName ?? '',
-        isEmailVerified: user.isEmailVerified
+        isEmailVerified: user.isEmailVerified,
+        profile: {
+          displayName: user.profile?.displayName ?? '',
+          profilePictureUrl: user.profile?.profilePictureUrl ?? ''
+        }
       },
       accessToken
     });
@@ -599,7 +603,10 @@ export const getCurrentUser = async (
     user: {
       id: req.user._id,
       email: req.user.email,
-      displayName: req.user.profile?.displayName
+      profile: {
+        displayName: req.user.profile?.displayName ?? '',
+        profilePictureUrl: req.user.profile?.profilePictureUrl ?? ''
+      }
     }
   });
 };
