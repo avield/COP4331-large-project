@@ -17,8 +17,14 @@ export default function NavbarAvatar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
 
   // Pull the global image string directly from Zustand
-  const profileImage = useAuthStore((s) => s.globalProfileImage);
+  const globalProfileImage = useAuthStore((s) => s.globalProfileImage);
   const user = useAuthStore((s) => s.user);
+
+  // Check both store and database profile picture paths
+  const avatarUrl = globalProfileImage || user?.profile?.profilePictureUrl;
+
+  // Target the nested profile display name path
+  const displayName = user?.profile?.displayName ?? user?.email ?? 'User';
 
   const handleLogout = async () => {
     try {
@@ -34,11 +40,11 @@ export default function NavbarAvatar() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
-          <Avatar key={profileImage} size="lg">
-            {profileImage ? (
-                <img src={profileImage} alt={user?.displayName} className="size-full rounded-full object-cover" />
+          <Avatar key={avatarUrl} size="lg">
+            {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="size-full rounded-full object-cover" />
             ) : (
-                <AvatarFallback>{user?.displayName ? getInitials(user.displayName) : 'U'}</AvatarFallback>
+                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
             )}
           </Avatar>
         </Button>

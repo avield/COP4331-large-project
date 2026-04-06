@@ -4,6 +4,14 @@ import { persist } from 'zustand/middleware'
 type AuthUser = {
   id: string
   email: string
+  profile?: {
+      displayName?: string
+      profilePictureUrl?: string
+      aboutMe?: string
+      preferredRoles?: string[]
+      school?: string
+  }
+  // older code might be looking for this
   displayName?: string
 }
 
