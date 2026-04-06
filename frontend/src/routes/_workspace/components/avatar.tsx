@@ -16,12 +16,9 @@ export default function NavbarAvatar() {
   const router = useRouter()
   const clearAuth = useAuthStore((s) => s.clearAuth)
 
-  // Pull the global image string directly from Zustand
-  const globalProfileImage = useAuthStore((s) => s.globalProfileImage);
   const user = useAuthStore((s) => s.user);
 
-  // Check both store and database profile picture paths
-  const avatarUrl = globalProfileImage || user?.profile?.profilePictureUrl;
+  const avatarUrl = user?.profile?.profilePictureUrl;
 
   // Target the nested profile display name path
   const displayName = user?.profile?.displayName ?? 'User';
