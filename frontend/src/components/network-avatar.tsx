@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface NetworkAvatarProps {
     displayName: string
@@ -32,12 +32,10 @@ export function NetworkAvatar({
                                   className
                               }: NetworkAvatarProps) {
 
-    // Maps relative backend paths to absolute URLs
     const getCleanUrl = (url: string | undefined) => {
         if (!url) return '';
-        if (url.startsWith('http')) return url; // Already an absolute URL
+        if (url.startsWith('http')) return url;
 
-        // Grab environment base URL or fall back to port 5000
         const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
         const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
         const cleanUrl = url.startsWith('/') ? url : `/${url}`;
@@ -47,21 +45,14 @@ export function NetworkAvatar({
 
     const imageUrl = getCleanUrl(profilePictureUrl);
 
-    // Resolve Shadcn Avatar sizes manually via standard Tailwind sizes
-    const sizeClasses = {
-        sm: "h-8 w-8 text-xs",
-        default: "h-10 w-10 text-sm",
-        lg: "h-12 w-12 text-base"
-    };
-
     return (
-        // Replaced size={size} with standard Tailwind spacing classes
-        <Avatar className={`${sizeClasses[size]} ${className || ''}`}>
+        /* We pass size={size} here because your UI Avatar accepts it! */
+        <Avatar size={size} className={className}>
             {imageUrl ? (
-                <img
+                /* We use AvatarImage here to utilize your Radix primitives safely */
+                <AvatarImage
                     src={imageUrl}
                     alt={displayName}
-                    className="size-full rounded-full object-cover"
                 />
             ) : (
                 <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
