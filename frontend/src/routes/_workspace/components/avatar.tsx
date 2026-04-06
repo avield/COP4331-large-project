@@ -24,7 +24,7 @@ export default function NavbarAvatar() {
   const avatarUrl = globalProfileImage || user?.profile?.profilePictureUrl;
 
   // Target the nested profile display name path
-  const displayName = user?.profile?.displayName ?? user?.email ?? 'User';
+  const displayName = user?.profile?.displayName ?? 'User';
 
   const handleLogout = async () => {
     try {
@@ -40,7 +40,7 @@ export default function NavbarAvatar() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full cursor-pointer active:scale-100 active:translate-y-0">
-          <Avatar key={avatarUrl} size="lg">
+          <Avatar key={user?.id || 'guest'} size="lg">
             {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="size-full rounded-full object-cover" />
             ) : (

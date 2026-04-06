@@ -886,7 +886,7 @@ function ProjectPage() {
             <CardContent className="min-w-0 space-y-4">
               <AvatarGroup>
                 {memberPreview.map((member) => {
-                  const displayName = member.userId?.profile?.displayName ?? member.userId?.email ?? 'Member'
+                  const displayName = member.userId?.profile?.displayName ?? 'Member'
                   const avatarUrl = member.userId?.profile?.profilePictureUrl
 
                   return (
@@ -904,7 +904,7 @@ function ProjectPage() {
               <div className="space-y-3">
                 {members.length > 0 ? (
                   members.map((member) => {
-                    const displayName = member.userId?.profile?.displayName ?? member.userId?.email ?? 'Unknown User';
+                    const displayName = member.userId?.profile?.displayName ?? 'Unknown User';
                     const email = member.userId?.email ?? 'No email'
                     // Check if it's the current user to prioritize global store image
                     const isMe = member.userId?._id === user?.id
