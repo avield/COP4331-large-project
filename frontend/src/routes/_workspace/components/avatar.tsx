@@ -33,7 +33,7 @@ export default function NavbarAvatar() {
       // best-effort
     }
     clearAuth()
-    router.navigate({ to: '/login' })
+    await router.navigate({ to: '/login' })
   }
 
   return (
