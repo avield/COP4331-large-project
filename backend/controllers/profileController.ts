@@ -77,19 +77,27 @@ export const updateProfile = async (req: ProfileUploadRequest, res: Response): P
       // Check if the user already has an old profile picture stored in the server
       const oldPath = user.profile?.profilePictureUrl;
 
-      // Only delete if there's an existing path that isn't empty
-      if (oldPath && oldPath.startsWith('/public/uploads/')) {
-        // Construct the full system path to the file
-        const filename = path.basename(oldPath);
-        const fullOldPath = path.join(path.resolve('public'), 'uploads', filename);
+      // Define the absolute base directory for the uploaded images
+      const UPLOAD_DIR = '/var/www/taskademia/backend/public/uploads';
 
+      // Only delete if there's an existing path that isn't empty
+      if (oldPath && oldPath.includes('/public/uploads/')) {
         try {
+          // Get the filename
+          const filename = path.basename(oldPath);
+
+          // Construct the path
+          // Ensures the OS handles the slashes correctly using path.resolve
+          const fullOldPath = path.join(UPLOAD_DIR, filename);
+
           // Delete the old file
           await fs.unlink(fullOldPath);
-          console.log(`Deleted old profile pic: ${fullOldPath}`);
-        } catch (error) {
-          // Log error but don't stop the update if deletion fails since it could have been deleted manually
-          console.error("Old file cleanup failed", error);
+          console.log(`Deleted: ${fullOldPath}`);
+        } catch (error: any) {
+          // If the file is already gone, we don't want to crash the update
+          if (error.code !== 'ENOENT') {
+            console.error("Error during file deletion:", error.message);
+          }
         }
       }
 
