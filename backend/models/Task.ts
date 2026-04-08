@@ -57,7 +57,12 @@ const taskSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null
-    }
+    },
+    goalId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Goal',
+      default: null,
+    },
   },
   { timestamps: true }
 );

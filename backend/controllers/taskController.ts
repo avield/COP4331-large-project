@@ -4,12 +4,9 @@ import type { TaskStatus, TaskPriority } from '../models/Task.js';
 import Task from '../models/Task.js';
 import Project from '../models/Project.js';
 import ProjectMember from '../models/ProjectMember.js';
+import Goal from '../models/Goal.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { requireUser } from '../types/guards.js';
-
-type TaskStatusOnly = {
-  status: TaskStatus;
-};
 
 interface TaskBody {
   projectId?: string;
@@ -21,17 +18,7 @@ interface TaskBody {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   roleRequired?: string;
-}
-
-const validTaskStatuses = ['todo', 'in_progress', 'blocked', 'done'] as const;
-const validTaskPriorities = ['low', 'medium', 'high'] as const;
-
-function isTaskStatus(value: unknown): value is TaskStatus {
-  return typeof value === 'string' && validTaskStatuses.includes(value as TaskStatus);
-}
-
-function isTaskPriority(value: unknown): value is TaskPriority {
-  return typeof value === 'string' && validTaskPriorities.includes(value as TaskPriority);
+  goalId?: string | null;
 }
 
 export const createTask = async (
@@ -48,7 +35,8 @@ export const createTask = async (
       status,
       priority,
       tags,
-      roleRequired
+      roleRequired,
+      goalId
     } = req.body;
 
     if (!projectId) {
@@ -120,6 +108,29 @@ export const createTask = async (
       }
     }
 
+    let validatedGoalId: mongoose.Types.ObjectId | null = null;
+
+    if (goalId !== undefined && goalId !== null && goalId !== '') {
+      if (!mongoose.Types.ObjectId.isValid(goalId)) {
+        res.status(400).json({ message: 'Invalid goalId.' });
+        return;
+      }
+
+      const goal = await Goal.findById(goalId).select('_id projectId');
+
+      if (!goal) {
+        res.status(400).json({ message: 'Goal not found.' });
+        return;
+      }
+
+      if (goal.projectId.toString() !== projectId.toString()) {
+        res.status(400).json({ message: 'Goal does not belong to this project.' });
+        return;
+      }
+
+      validatedGoalId = goal._id;
+    }
+
     const validTaskStatuses: TaskStatus[] = ['todo', 'in_progress', 'blocked', 'done'];
     const normalizedStatus: TaskStatus =
       typeof status === 'string' && validTaskStatuses.includes(status as TaskStatus)
@@ -147,6 +158,7 @@ export const createTask = async (
       priority: 'low' | 'medium' | 'high';
       tags: string[];
       roleRequired: string;
+      goalId: mongoose.Types.ObjectId | null;
       completedAt?: Date;
       completedBy?: string;
     } = {
@@ -159,7 +171,8 @@ export const createTask = async (
       status: normalizedStatus,
       priority: normalizedPriority,
       tags: normalizedTags,
-      roleRequired: typeof roleRequired === 'string' ? roleRequired.trim() : ''
+      roleRequired: typeof roleRequired === 'string' ? roleRequired.trim() : '',
+      goalId: validatedGoalId,
     };
 
     if (normalizedStatus === 'done') {
@@ -208,6 +221,7 @@ export const getProjectTasks = async (
       .populate('createdBy', 'displayName email')
       .populate('assignedToUserIds', 'displayName email')
       .populate('completedBy', 'displayName email')
+      .populate('goalId', 'title description order')
       .sort({ createdAt: -1 });
 
     res.status(200).json(tasks);
@@ -227,7 +241,8 @@ export const getTaskById = async (
     const task = await Task.findById(taskId)
       .populate('createdBy', 'displayName email')
       .populate('assignedToUserIds', 'displayName email')
-      .populate('completedBy', 'displayName email');
+      .populate('completedBy', 'displayName email')
+      .populate('goalId', 'title description order');
 
     if (!task) {
       res.status(404).json({ message: 'Task not found.' });
@@ -260,8 +275,17 @@ export const updateTask = async (
   try {
     requireUser(req);
     const { taskId } = req.params;
-    const { title, description, dueDate, assignedToUserIds, status, priority, tags, roleRequired } =
-      req.body;
+    const { 
+      title, 
+      description, 
+      dueDate, 
+      assignedToUserIds, 
+      status, 
+      priority, 
+      tags, 
+      roleRequired,
+      goalId
+     } = req.body;
 
     const task = await Task.findById(taskId);
 
@@ -335,6 +359,31 @@ export const updateTask = async (
 
     if (typeof roleRequired === 'string') {
       task.roleRequired = roleRequired.trim();
+    }
+
+    if (goalId !== undefined) {
+      if (goalId === null || goalId === '') {
+        task.goalId = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(goalId)) {
+          res.status(400).json({ message: 'Invalid goalId.' });
+          return;
+        }
+
+        const goal = await Goal.findById(goalId).select('_id projectId');
+
+        if (!goal) {
+          res.status(400).json({ message: 'Goal not found.' });
+          return;
+        }
+
+        if (goal.projectId.toString() !== task.projectId.toString()) {
+          res.status(400).json({ message: 'Goal does not belong to this project.' });
+          return;
+        }
+
+        task.goalId = goal._id;
+      }
     }
 
     if (assignedToUserIds !== undefined) {

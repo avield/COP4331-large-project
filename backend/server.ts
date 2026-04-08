@@ -9,6 +9,7 @@ import taskRoutes from "./routes/taskRoutes.js";
 import projectMemberRoutes from './routes/projectMemberRoutes.js';
 import profileRoute from './routes/profileRoutes.js';
 import searchRoute from './routes/searchRoute.js';
+import goalRoute from './routes/goalRoute.js'
 import rateLimit from 'express-rate-limit';
 import { styleText } from "node:util";
 import { exit } from 'node:process';
@@ -76,6 +77,7 @@ app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/users', profileRoute);
 app.use("/api/search", searchRoute);
+app.use('/api/goals', goalRoute);
 app.use('/public/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // for dealing with profile images NOT AN ENDPOINT
 
 const PORT: number = Number(process.env.PORT) || 5000;

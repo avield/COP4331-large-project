@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd"
 import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check } from 'lucide-react'
@@ -9,10 +9,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
   Card, 
+  CardContent, 
+  CardDescription, 
   CardHeader, 
   CardTitle, 
-  CardDescription, 
-  CardContent 
 } from '@/components/ui/card'
 import {
   Sheet,
@@ -31,6 +31,17 @@ import {
   FieldSet,
   FieldLegend,
 } from '@/components/ui/field'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -39,6 +50,9 @@ import { Separator } from '@/components/ui/separator'
 import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useAuthStore } from '@/api/authStore'
 import { NetworkAvatar } from '@/components/network-avatar'
+import { toast } from 'sonner'
+import { ChartRadialLabel } from "./components/radial-chart"
+import { ProjectProgressAreaChart } from "./components/area-chart"
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
@@ -51,7 +65,7 @@ export const Route = createFileRoute('/_workspace/projects/$projectId')({
           name: 'Project Board', 
           description: '',
           dueDate: null,
-          visisbility: 'private',
+          visibility: 'private',
           recruitingStatus: 'closed',
           lookingForRoles: [],
           tags: [],
@@ -62,9 +76,10 @@ export const Route = createFileRoute('/_workspace/projects/$projectId')({
           },
           members: [],
           tasks: [],
+          goals: [],
           permissions: {
             canEditProject: false,
-            conJoinProject: false,
+            canJoinProject: false,
           },
        }
     }
@@ -96,9 +111,11 @@ interface ApiTask {
   assignedToUserIds?: ApiUserSummary[]
   roleRequired?: string
   dueDate?: string | null
+  createdAt?: string | null
   completedAt?: string | null
   completedBy?: ApiUserSummary | null
   createdBy?: ApiUserSummary | null
+  goalId?: string | null
 }
 
 interface ApiMember {
@@ -150,10 +167,28 @@ interface ApiProject {
   } | null
 }
 
+interface ApiGoal {
+  _id: string
+  projectId: string
+  title: string
+  description?: string
+  order: number
+  createdBy?: {
+    _id: string
+    email?: string
+    profile?: {
+      displayName?: string
+    }
+  } | null
+  createdAt?: string
+  updatedAt?: string
+}
+
 interface ApiResponse {
   project: ApiProject
   members?: ApiMember[]
   tasks: ApiTask[]
+  goals?: ApiGoal[]
   permissions?: {
     canEditProject?: boolean
     canJoinProject?: boolean
@@ -182,15 +217,15 @@ function buildBoardData(apiData: ApiResponse): BoardData {
       description: t.description ?? '',
       status: t.status,
       priority: mapPriority(t.priority),
-
-      // NEW FIELDS
       tags: t.tags ?? [],
       assignedToUserIds: t.assignedToUserIds ?? [],
       roleRequired: t.roleRequired ?? '',
       dueDate: t.dueDate ?? null,
+      createdAt: t.createdAt ?? null,
       completedAt: t.completedAt ?? null,
       completedBy: t.completedBy ?? null,
       createdBy: t.createdBy ?? null,
+      goalId: t.goalId ?? null,
     }
 
     switch (t.status) {
@@ -234,6 +269,8 @@ function columnIdToStatus(columnId: string): ApiTask['status'] {
 }
 
 function ProjectPage() {
+
+  //Project Page States
   const user = useAuthStore((state) => state.user)
   const currentUserId = user?.id
 
@@ -244,6 +281,13 @@ function ProjectPage() {
   const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const router = useRouter()
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
+  const [isSavingProject, setIsSavingProject] = useState(false)
+  const [projectSaveError, setProjectSaveError] = useState('')
+  const [isDeletingProject, setIsDeletingProject] = useState(false)
+  const [deleteProjectError, setDeleteProjectError] = useState('')
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -252,8 +296,21 @@ function ProjectPage() {
     roleRequired: '',
     dueDate: '',
     tags: '',
+    goalId: '',
   })
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
+  const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
+  const [isGoalSheetOpen, setIsGoalSheetOpen] = useState(false)
+  const [goalSheetMode, setGoalSheetMode] = useState<'create' | 'edit'>('create')
+  const [isGoalDeleteDialogOpen, setIsGoalDeleteDialogOpen] = useState(false)
+  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false)
+  const [isDeletingGoal, setIsDeletingGoal] = useState(false)
+  const [isCreatingGoal, setIsCreatingGoal] = useState(false)
+  const [goalError, setGoalError] = useState('')
+  const [goalForm, setGoalForm] = useState({
+    title: '',
+    description: '',
+  })
 
   const myMembership = members.find(
     (member) =>
@@ -267,7 +324,6 @@ function ProjectPage() {
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   
   const project = loaderData.project
-  
   
   const canJoinProject = !!loaderData.permissions?.canJoinProject
 
@@ -288,6 +344,48 @@ function ProjectPage() {
 
   const memberPreview = useMemo(() => members.slice(0, 5), [members])
 
+  const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
+
+  const goalProgress = useMemo(() => {
+    const allTasks = Object.values(data.tasks)
+
+    return goals.map((goal) => {
+      const goalTasks = allTasks.filter((task) => task.goalId === goal._id)
+
+      const total = goalTasks.length
+      const done = goalTasks.filter((task) => task.status === 'done').length
+      const inProgress = goalTasks.filter((task) => task.status === 'in_progress').length
+      const blocked = goalTasks.filter((task) => task.status === 'blocked').length
+      const todo = goalTasks.filter((task) => task.status === 'todo').length
+
+      const percentComplete = total > 0 ? Math.round((done / total) * 100) : 0
+
+      return {
+        ...goal,
+        total,
+        done,
+        inProgress,
+        blocked,
+        todo,
+        percentComplete,
+        hasInProgress: inProgress > 0,
+        hasBlocked: blocked > 0,
+      }
+    })
+  }, [goals, data.tasks])
+
+  const ungroupedTaskCount = useMemo(() => {
+    return Object.values(data.tasks).filter((task) => !task.goalId).length
+  }, [data.tasks])
+
+  const goalNameById = useMemo(() => {
+    return Object.fromEntries(goals.map((goal) => [goal._id, goal.title]))
+  }, [goals])
+  
+  
+  // ********************
+  // TASK CRUD OPERATIONS
+  // ********************
   const handleDeleteTask = (columnId: string, taskId: string) => {
     const newColumnTaskIds = data.columns[columnId].taskIds.filter((id) => id !== taskId)
     const newTasks = { ...data.tasks }
@@ -317,6 +415,7 @@ function ProjectPage() {
       roleRequired: '',
       dueDate: '',
       tags: '',
+      goalId: '',
     })
     setTaskSheetMode('create')
     setIsTaskSheetOpen(true)
@@ -341,6 +440,7 @@ function ProjectPage() {
           .filter(Boolean),
         roleRequired: taskForm.roleRequired.trim(),
         dueDate: taskForm.dueDate || null,
+        goalId: taskForm.goalId || null,
         assignedToUserIds: [],
       })
 
@@ -359,6 +459,7 @@ function ProjectPage() {
         completedAt: created.completedAt ?? null,
         completedBy: created.completedBy ?? null,
         createdBy: created.createdBy ?? null,
+        goalId: created.goalId ?? null,
       }
 
       setData((prev) => ({
@@ -394,6 +495,7 @@ function ProjectPage() {
         status: taskForm.status,
         roleRequired: taskForm.roleRequired,
         dueDate: taskForm.dueDate || null,
+        goalId: taskForm.goalId || null,
         tags: taskForm.tags
           .split(',')
           .map((tag) => tag.trim())
@@ -419,6 +521,7 @@ function ProjectPage() {
             completedAt: updatedTask.completedAt ?? null,
             completedBy: updatedTask.completedBy ?? null,
             createdBy: updatedTask.createdBy ?? null,
+            goalId: updatedTask.goalId ?? null,
           },
         },
       }))
@@ -438,6 +541,7 @@ function ProjectPage() {
               completedAt: updatedTask.completedAt ?? null,
               completedBy: updatedTask.completedBy ?? null,
               createdBy: updatedTask.createdBy ?? null,
+              goalId: updatedTask.goalId ?? null,
             }
           : prev
       )
@@ -525,11 +629,182 @@ function ProjectPage() {
     }
   }
 
-  const handleSaveProject = async () => {
-    // Replace with real update endpoint when ready
-    // await api.put(`/projects/${project._id}`, payload)
-    console.log('Save project', editForm)
+  const projectTaskStats = useMemo(() => {
+    const allTasks = Object.values(data.tasks)
+    const total = allTasks.length
+    const done = allTasks.filter((task) => task.status === 'done').length
+    const inProgress = allTasks.filter((task) => task.status === 'in_progress').length
+    const blocked = allTasks.filter((task) => task.status === 'blocked').length
+    const todo = allTasks.filter((task) => task.status === 'todo').length
+
+    return {
+      total,
+      done,
+      inProgress,
+      blocked,
+      todo,
+      percentComplete: total > 0 ? Math.round((done / total) * 100) : 0,
+    }
+  }, [data.tasks])
+
+
+  //  ********************
+  //  GOAL CRUD OPERATIONS
+  //  ********************
+  const handleCreateGoal = async () => {
+    const trimmedTitle = goalForm.title.trim()
+    if (!trimmedTitle) return
+
+    try {
+      setGoalError('')
+      setIsCreatingGoal(true)
+
+      await api.post('/goals', {
+        projectId: project._id,
+        title: trimmedTitle,
+        description: goalForm.description.trim(),
+      })
+
+      await router.invalidate()
+
+      setGoalForm({
+        title: '',
+        description: '',
+      })
+      setIsGoalSheetOpen(false)
+      toast.success('Goal created successfully.')
+    } catch (error) {
+      console.error('Failed to create goal:', error)
+      setGoalError('Failed to create goal. Please try again.')
+      toast.error('Failed to create goal.')
+    } finally {
+      setIsCreatingGoal(false)
+    }
   }
+
+  const handleUpdateGoal = async () => {
+    if (!selectedGoal) return
+
+    const trimmedTitle = goalForm.title.trim()
+    if (!trimmedTitle) return
+
+    try {
+      setGoalError('')
+      setIsUpdatingGoal(true)
+
+      await api.put(`/goals/${selectedGoal._id}`, {
+        title: trimmedTitle,
+        description: goalForm.description.trim(),
+      })
+
+      await router.invalidate()
+      setIsGoalSheetOpen(false)
+      setSelectedGoal(null)
+      setGoalForm({
+        title: '',
+        description: '',
+      })
+      toast.success('Goal updated successfully.')
+    } catch (error) {
+      console.error('Failed to update goal:', error)
+      setGoalError('Failed to update goal. Please try again.')
+      toast.error('Failed to update goal.')
+    } finally {
+      setIsUpdatingGoal(false)
+    }
+  }
+  
+  const handleDeleteGoal = async (taskAction: 'unassign' | 'delete') => {
+    if (!selectedGoal) return
+
+    try {
+      setIsDeletingGoal(true)
+
+      await api.delete(`/goals/${selectedGoal._id}`, {
+        params: { taskAction },
+      })
+
+      await router.invalidate()
+      setIsGoalDeleteDialogOpen(false)
+      setSelectedGoal(null)
+
+      toast.success(
+        taskAction === 'delete'
+          ? 'Goal and associated tasks deleted.'
+          : 'Goal deleted and tasks were unassigned.'
+      )
+    } catch (error) {
+      console.error('Failed to delete goal:', error)
+      toast.error('Failed to delete goal.')
+    } finally {
+      setIsDeletingGoal(false)
+    }
+  }
+
+  //  ************************
+  //  PROJECT CRUD OPERATIONS
+  //  ************************
+
+  const handleSaveProject = async () => {
+    try {
+      setProjectSaveError('')
+      setIsSavingProject(true)
+
+      const payload = {
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+        visibility: editForm.visibility,
+        recruitingStatus: editForm.recruitingStatus,
+        status: editForm.status,
+        dueDate: editForm.dueDate || null,
+        tags: editForm.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        lookingForRoles: editForm.lookingForRoles
+          .split(',')
+          .map((role) => role.trim())
+          .filter(Boolean),
+        allowSelfJoin: editForm.allowSelfJoin,
+        requireApprovalToJoin: editForm.requireApprovalToJoin,
+      }
+
+      await api.put(`/projects/${project._id}`, payload)
+
+      await router.invalidate()
+
+      setIsEditSheetOpen(false)
+      toast.success('Project updated successfully.')
+    } catch (error) {
+      console.error('Failed to update project:', error)
+      setProjectSaveError('Failed to save project changes. Please try again.')
+      toast.error('Failed to update project.')
+    } finally {
+      setIsSavingProject(false)
+    }
+  }
+
+const handleDeleteProject = async () => {
+  try {
+    setDeleteProjectError('')
+    setIsDeletingProject(true)
+
+    await api.delete(`/projects/${project._id}`)
+
+    setIsEditSheetOpen(false)
+    toast.success('Project deleted.', {
+      description: 'Redirecting to your home page.',
+    })
+
+    navigate({ to: '/_workspace/home' })
+  } catch (error) {
+    console.error('Failed to delete project:', error)
+    setDeleteProjectError('Failed to delete project. Please try again.')
+    toast.error('Failed to delete project.')
+  } finally {
+    setIsDeletingProject(false)
+  }
+}
 
   return (
     <div className="flex h-full min-w-0 flex-col gap-6 p-6 md:p-8">
@@ -574,7 +849,7 @@ function ProjectPage() {
           )}
 
           {canEditProject && (
-            <Sheet>
+            <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline">
                   <Pencil className="mr-2 size-4" />
@@ -770,10 +1045,83 @@ function ProjectPage() {
                     </FieldSet>
 
                     <div className="flex gap-2 pt-2">
-                      <Button onClick={handleSaveProject}>Save Changes</Button>
-                      <Button variant="outline" type="button">
+                      <Button onClick={handleSaveProject} disabled={isSavingProject}>
+                        {isSavingProject ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => setIsEditSheetOpen(false)}
+                      >
                         Cancel
                       </Button>
+                    </div>
+
+                    {projectSaveError ? (
+                      <p className="text-sm text-destructive">{projectSaveError}</p>
+                    ) : null}
+
+                    <div className="rounded-xl border border-destructive/20 bg-destructive/5 py-4 text-sm">
+                      <div className="px-4 pb-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wider text-destructive/80">
+                          Danger Zone
+                        </h3>
+                      </div>
+
+                      <div className="px-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium">Delete Project</p>
+                            <p className="text-xs text-muted-foreground">
+                              Permanently remove your project and all associated data.
+                            </p>
+                          </div>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={isDeletingProject}
+                                className="h-7 shrink-0 cursor-pointer rounded-md bg-destructive/10 px-2.5 text-[0.8rem] font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
+                              >
+                                {isDeletingProject ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </AlertDialogTrigger>
+
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete project?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete <span className="font-medium">{project.name}</span> and all
+                                  associated data. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeletingProject}>
+                                  Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    void handleDeleteProject()
+                                  }}
+                                  disabled={isDeletingProject}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {isDeletingProject ? 'Deleting...' : 'Delete Project'}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+
+                        {deleteProjectError ? (
+                          <p className="mt-3 text-xs text-destructive">
+                            {deleteProjectError}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   </FieldSet>
                 </div>
@@ -793,40 +1141,186 @@ function ProjectPage() {
                 Core details, visibility, and recruiting information.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Due Date</div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <CalendarDays className="size-4" />
-                  <span>{formatDate(project.dueDate)}</span>
+
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Due Date</div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CalendarDays className="size-4" />
+                    <span>{formatDate(project.dueDate)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Visibility</div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    {project.visibility === 'public' ? (
+                      <Globe className="size-4" />
+                    ) : (
+                      <Lock className="size-4" />
+                    )}
+                    <span>{project.visibility === 'public' ? 'Public' : 'Private'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Recruiting</div>
+                  <div className="text-muted-foreground">
+                    {project.recruitingStatus === 'open' ? 'Open to new members' : 'Closed'}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Project Status</div>
+                  <div className="text-muted-foreground">{project.status ?? 'planning'}</div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Visibility</div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  {project.visibility === 'public' ? (
-                    <Globe className="size-4" />
-                  ) : (
-                    <Lock className="size-4" />
-                  )}
-                  <span>{project.visibility === 'public' ? 'Public' : 'Private'}</span>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Recruiting</div>
-                <div className="text-muted-foreground">
-                  {project.recruitingStatus === 'open' ? 'Open to new members' : 'Closed'}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Project Status</div>
-                <div className="text-muted-foreground">{project.status ?? 'planning'}</div>
-              </div>
             </CardContent>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Completion</CardTitle>
+                <CardDescription>
+                  Overall progress across all project tasks
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span>{projectTaskStats.done} of {projectTaskStats.total} tasks done</span>
+                  <span>{projectTaskStats.percentComplete}%</span>
+                </div>
+
+                <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${projectTaskStats.percentComplete}%` }}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>To Do: {projectTaskStats.todo}</span>
+                  <span>In Progress: {projectTaskStats.inProgress}</span>
+                  <span>Blocked: {projectTaskStats.blocked}</span>
+                  <span>Done: {projectTaskStats.done}</span>
+                </div>
+              </CardContent>
+            </Card>
           </Card>
+
+          <ProjectProgressAreaChart tasks={Object.values(data.tasks)} />
+
+          {(goals.length > 0 || canEditProject) && (
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                  <CardTitle>Goals</CardTitle>
+                  <CardDescription>
+                    Progress toward project goals.
+                  </CardDescription>
+                </div>
+
+                {canEditProject && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedGoal(null)
+                      setGoalSheetMode('create')
+                      setGoalError('')
+                      setGoalForm({
+                        title: '',
+                        description: '',
+                      })
+                      setIsGoalSheetOpen(true)
+                    }}
+                  >
+                    Add Goal
+                  </Button>
+                )}
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {goalProgress.length > 0 ? (
+                  goalProgress.map((goal) => (
+                    <div key={goal._id} className="rounded-lg border p-4">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium">{goal.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {goal.total > 0
+                              ? `${goal.done}/${goal.total} tasks complete`
+                              : 'No tasks assigned yet'}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
+                          {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
+
+                          {canEditProject && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedGoal(goal)
+                                  setGoalSheetMode('edit')
+                                  setGoalError('')
+                                  setGoalForm({
+                                    title: goal.title,
+                                    description: goal.description ?? '',
+                                  })
+                                  setIsGoalSheetOpen(true)
+                                }}
+                              >
+                                Edit
+                              </Button>
+
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedGoal(goal)
+                                  setIsGoalDeleteDialogOpen(true)
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <ChartRadialLabel
+                        data={[
+                          {
+                            name: goal.title,
+                            value: goal.percentComplete,
+                            fill: 'var(--chart-1)',
+                          },
+                        ]}
+                      />
+
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        {goal.percentComplete}% complete
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                    No goals yet. Create a goal to start tracking progress across related tasks.
+                  </div>
+                )}
+
+                {ungroupedTaskCount > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Tasks without a goal: {ungroupedTaskCount}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -1003,6 +1497,7 @@ function ProjectPage() {
                     column={column}
                     columnIndex={index}
                     tasks={tasks}
+                    goalNameById={goalNameById}
                     onAddTask={handleAddTask}
                     onDeleteTask={handleDeleteTask}
                     onTaskClick={(task) => {
@@ -1015,6 +1510,7 @@ function ProjectPage() {
                         roleRequired: task.roleRequired ?? '',
                         dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
                         tags: (task.tags ?? []).join(', '),
+                        goalId: task.goalId ?? '',
                       })
                       setTaskSheetMode('view')
                       setIsTaskSheetOpen(true)
@@ -1026,6 +1522,165 @@ function ProjectPage() {
           </DragDropContext>
         </CardContent>
       </Card>
+
+      <Sheet
+        open={isGoalSheetOpen}
+        onOpenChange={(open) => {
+          setIsGoalSheetOpen(open)
+          if (!open) {
+            setGoalError('')
+            if (goalSheetMode === 'create') {
+              setGoalForm({
+                title: '',
+                description: '',
+              })
+            }
+          }
+        }}
+      >
+        <SheetContent className="overflow-y-auto p-0 sm:max-w-xl">
+          <>
+            <SheetHeader className="px-6 pt-6">
+              <SheetTitle>
+                {goalSheetMode === 'create' ? 'Create Goal' : 'Edit Goal'}
+              </SheetTitle>
+              <SheetDescription>
+                {goalSheetMode === 'create'
+                  ? 'Create a new goal for this project.'
+                  : 'Update the goal information and save your changes.'}
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-6 space-y-6">
+              <div className="space-y-4 px-6 pb-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Goal Details</CardTitle>
+                    <CardDescription>
+                      {goalSheetMode === 'create'
+                        ? 'Fill out the information for the new goal.'
+                        : 'Update the goal information below.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldSet>
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel htmlFor="goal-title">Goal title</FieldLabel>
+                          <Input
+                            id="goal-title"
+                            value={goalForm.title}
+                            onChange={(e) =>
+                              setGoalForm((prev) => ({ ...prev, title: e.target.value }))
+                            }
+                          />
+                        </Field>
+
+                        <Field>
+                          <FieldLabel htmlFor="goal-description">Description</FieldLabel>
+                          <Textarea
+                            id="goal-description"
+                            value={goalForm.description}
+                            onChange={(e) =>
+                              setGoalForm((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </FieldGroup>
+                    </FieldSet>
+                  </CardContent>
+                </Card>
+
+                {goalError ? (
+                  <p className="text-sm text-destructive">{goalError}</p>
+                ) : null}
+              </div>
+
+              <div className="flex gap-2 border-t px-6 py-4">
+                {goalSheetMode === 'create' ? (
+                  <>
+                    <Button onClick={handleCreateGoal} disabled={isCreatingGoal}>
+                      {isCreatingGoal ? 'Creating...' : 'Create Goal'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        setGoalForm({
+                          title: '',
+                          description: '',
+                        })
+                        setGoalError('')
+                        setIsGoalSheetOpen(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={handleUpdateGoal} disabled={isUpdatingGoal}>
+                      {isUpdatingGoal ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        if (!selectedGoal) return
+                        setGoalForm({
+                          title: selectedGoal.title,
+                          description: selectedGoal.description ?? '',
+                        })
+                        setGoalError('')
+                        setIsGoalSheetOpen(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete goal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose whether to keep tasks and remove their goal assignment, or delete the
+              goal and all tasks assigned to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="outline"
+              onClick={() => void handleDeleteGoal('unassign')}
+              disabled={isDeletingGoal}
+            >
+              {isDeletingGoal ? 'Deleting...' : 'Delete Goal Only'}
+            </Button>
+
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteGoal('delete')}
+              disabled={isDeletingGoal}
+            >
+              {isDeletingGoal ? 'Deleting...' : 'Delete Goal and Tasks'}
+            </Button>
+
+            <AlertDialogCancel disabled={isDeletingGoal}>
+              Cancel
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={isTaskSheetOpen} onOpenChange={setIsTaskSheetOpen}>
         <SheetContent className="overflow-y-auto p-0 sm:max-w-xl">
@@ -1100,6 +1755,28 @@ function ProjectPage() {
                                   }))
                                 }
                               />
+                            </Field>
+
+                            <Field>
+                              <FieldLabel htmlFor="task-goal">Goal</FieldLabel>
+                              <select
+                                id="task-goal"
+                                value={taskForm.goalId}
+                                onChange={(e) =>
+                                  setTaskForm((prev) => ({
+                                    ...prev,
+                                    goalId: e.target.value,
+                                  }))
+                                }
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none"
+                              >
+                                <option value="">No goal</option>
+                                {goals.map((goal) => (
+                                  <option key={goal._id} value={goal._id}>
+                                    {goal.title}
+                                  </option>
+                                ))}
+                              </select>
                             </Field>
 
                             <Field>
@@ -1208,6 +1885,15 @@ function ProjectPage() {
                   </div>
                 ) : selectedTask ? (
                   <div className="space-y-4 px-6 pb-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Goal</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        {selectedTask?.goalId ? goalNameById[selectedTask.goalId] ?? 'Unknown Goal' : 'No goal'}
+                      </CardContent>
+                    </Card>
+
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Description</CardTitle>
@@ -1347,6 +2033,7 @@ function ProjectPage() {
                             roleRequired: selectedTask.roleRequired ?? '',
                             dueDate: selectedTask.dueDate ? selectedTask.dueDate.slice(0, 10) : '',
                             tags: (selectedTask.tags ?? []).join(', '),
+                            goalId: selectedTask.goalId ?? '',
                           })
                           setTaskSheetMode('view')
                         }}

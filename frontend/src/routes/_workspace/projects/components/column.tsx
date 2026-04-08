@@ -11,6 +11,7 @@ interface KanbanColumnProps {
   column: Column;
   tasks: Task[];
   columnIndex?: number;
+  goalNameById: Record<string, string>;
   onAddTask: (columnId: string) => void;
   onDeleteTask: (columnId: string, taskId: string) => void;
   onTaskClick: (task: Task) => void;
@@ -20,6 +21,7 @@ export function KanbanColumn({
   column, 
   tasks, 
   columnIndex = 0, 
+  goalNameById,
   onAddTask, 
   onDeleteTask,
   onTaskClick 
@@ -55,6 +57,7 @@ export function KanbanColumn({
                 key={task.id} 
                 task={task} 
                 index={index} 
+                goalNameById={goalNameById}
                 onDelete={() => onDeleteTask(column.id, task.id)}
                 onClick={() => onTaskClick(task)} />
             ))}

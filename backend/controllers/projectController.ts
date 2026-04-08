@@ -5,6 +5,7 @@ import { requireUser } from '../types/guards.js';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import ProjectMember from '../models/ProjectMember.js';
+import Goal from '../models/Goal.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 
 interface GoalInput {
@@ -386,6 +387,10 @@ export const getProjectDetails = async (
       return;
     }
 
+    const goals = await Goal.find({ projectId })
+      .sort({ order: 1, createdAt: 1 })
+      .populate('createdBy', 'email profile.displayName')
+
     const members = await ProjectMember.find({
       projectId,
       membershipStatus: 'active'
@@ -425,6 +430,7 @@ export const getProjectDetails = async (
       project,
       members: normalizedMembers,
       tasks,
+      goals,
       stats
     });
   } catch (error) {

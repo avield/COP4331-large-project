@@ -6,10 +6,13 @@ export const Route = createRootRoute({
   component: RootComponent,
 })
 
+import { Toaster } from 'sonner'
+
 function RootComponent() {
   return (
     <div className="min-h-screen">
       <Outlet />
+      <Toaster />
     </div>
   );
 }

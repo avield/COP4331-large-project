@@ -18,6 +18,7 @@ export interface Task {
   }>
   roleRequired: string
   dueDate?: string | null
+  createdAt?: string | null
   completedAt?: string | null
   completedBy?: {
     _id: string
@@ -31,11 +32,13 @@ export interface Task {
     email?: string
     username?: string
   } | null
+  goalId?: string | null
 }
 
 type KanbanTaskProps = {
   task: Task
   index: number
+  goalNameById: Record<string, string>
   onDelete: () => void
   onClick?: () => void
 }
@@ -63,6 +66,7 @@ function formatCompletedAt(value?: string | null) {
 export function KanbanTask({
   task,
   index,
+  goalNameById,
   onDelete,
   onClick,
 }: KanbanTaskProps) {
@@ -71,6 +75,7 @@ export function KanbanTask({
   const hasDescription = !!task.description?.trim()
   const hasTags = (task.tags ?? []).length > 0
   const isDone = task.status === 'done'
+  const goalTitle = task.goalId ? goalNameById[task.goalId] : null
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -113,6 +118,12 @@ export function KanbanTask({
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${priority.dot}`} />
               {task.priority}
             </span>
+
+            {goalTitle && (
+              <Badge variant="outline" className="text-[10px]">
+                Goal: {goalTitle}
+              </Badge>
+            )}
 
             {task.roleRequired && (
               <Badge variant="outline" className="text-[10px]">
