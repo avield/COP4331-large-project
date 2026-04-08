@@ -51,7 +51,7 @@ import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useAuthStore } from '@/api/authStore'
 import { NetworkAvatar } from '@/components/network-avatar'
 import { toast } from 'sonner'
-import { ChartRadialLabel } from "./components/radial-chart"
+import { GoalsOverviewChart } from "./components/goals-overview-chart"
 import { ProjectProgressAreaChart } from "./components/area-chart"
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
@@ -159,8 +159,10 @@ interface ApiProject {
   lookingForRoles?: string[]
   tags?: string[]
   status?: 'planning' | 'active' | 'on_hold' | 'completed'
-  allowSelfJoin?: boolean
-  requireApprovalToJoin?: boolean
+  settings?: {
+    allowSelfJoinRequests?: boolean
+    requireApprovalToJoin?: boolean
+  }
   createdBy?: {
     _id: string
     displayName?: string
@@ -338,8 +340,8 @@ function ProjectPage() {
     dueDate: project.dueDate ? project.dueDate.slice(0, 10) : '',
     tags: (project.tags ?? []).join(', '),
     lookingForRoles: (project.lookingForRoles ?? []).join(', '),
-    allowSelfJoin: project.allowSelfJoin ?? false,
-    requireApprovalToJoin: project.requireApprovalToJoin ?? true,
+    allowSelfJoin: project.settings?.allowSelfJoinRequests ?? false,
+    requireApprovalToJoin: project.settings?.requireApprovalToJoin ?? true,
   })
 
   const memberPreview = useMemo(() => members.slice(0, 5), [members])
@@ -374,6 +376,13 @@ function ProjectPage() {
     })
   }, [goals, data.tasks])
 
+  const goalChartData = useMemo(() => {
+    return goalProgress.map((goal) => ({
+      name: goal.title,
+      value: goal.percentComplete,
+    }))
+  }, [goalProgress])
+
   const ungroupedTaskCount = useMemo(() => {
     return Object.values(data.tasks).filter((task) => !task.goalId).length
   }, [data.tasks])
@@ -402,6 +411,21 @@ function ProjectPage() {
         },
       },
     })
+  }
+
+  function statusToColumnId(status: ApiTask['status']): string {
+    switch (status) {
+      case 'todo':
+        return 'col-1'
+      case 'in_progress':
+        return 'col-2'
+      case 'blocked':
+        return 'col-3'
+      case 'done':
+        return 'col-4'
+      default:
+        return 'col-1'
+    }
   }
 
   const handleAddTask = (columnId: string) => {
@@ -462,6 +486,8 @@ function ProjectPage() {
         goalId: created.goalId ?? null,
       }
 
+      const targetColumnId = statusToColumnId(newTask.status)
+
       setData((prev) => ({
         ...prev,
         tasks: {
@@ -470,9 +496,9 @@ function ProjectPage() {
         },
         columns: {
           ...prev.columns,
-          [createTaskColumnId]: {
-            ...prev.columns[createTaskColumnId],
-            taskIds: [...prev.columns[createTaskColumnId].taskIds, newTask.id],
+          [targetColumnId]: {
+            ...prev.columns[targetColumnId],
+            taskIds: [...prev.columns[targetColumnId].taskIds, newTask.id],
           },
         },
       }))
@@ -504,15 +530,20 @@ function ProjectPage() {
 
       const updatedTask = res.data.task ?? res.data
 
-      setData((prev) => ({
-        ...prev,
-        tasks: {
+      setData((prev) => {
+        const oldStatus = prev.tasks[selectedTask.id]?.status ?? 'todo'
+        const newStatus = updatedTask.status as ApiTask['status']
+
+        const oldColumnId = statusToColumnId(oldStatus)
+        const newColumnId = statusToColumnId(newStatus)
+
+        const nextTasks = {
           ...prev.tasks,
           [selectedTask.id]: {
             ...prev.tasks[selectedTask.id],
             title: updatedTask.title,
             description: updatedTask.description ?? '',
-            status: updatedTask.status,
+            status: newStatus,
             priority: mapPriority(updatedTask.priority),
             tags: updatedTask.tags ?? [],
             roleRequired: updatedTask.roleRequired ?? '',
@@ -523,8 +554,31 @@ function ProjectPage() {
             createdBy: updatedTask.createdBy ?? null,
             goalId: updatedTask.goalId ?? null,
           },
-        },
-      }))
+        }
+
+        if (oldColumnId === newColumnId) {
+          return {
+            ...prev,
+            tasks: nextTasks,
+          }
+        }
+
+        return {
+          ...prev,
+          tasks: nextTasks,
+          columns: {
+            ...prev.columns,
+            [oldColumnId]: {
+              ...prev.columns[oldColumnId],
+              taskIds: prev.columns[oldColumnId].taskIds.filter((id) => id !== selectedTask.id),
+            },
+            [newColumnId]: {
+              ...prev.columns[newColumnId],
+              taskIds: [...prev.columns[newColumnId].taskIds, selectedTask.id],
+            },
+          },
+        }
+      })
 
       setSelectedTask((prev) =>
         prev
@@ -765,8 +819,10 @@ function ProjectPage() {
           .split(',')
           .map((role) => role.trim())
           .filter(Boolean),
-        allowSelfJoin: editForm.allowSelfJoin,
-        requireApprovalToJoin: editForm.requireApprovalToJoin,
+        settings: {
+          allowSelfJoinRequests: editForm.allowSelfJoin,
+          requireApprovalToJoin: editForm.requireApprovalToJoin,
+        },
       }
 
       await api.put(`/projects/${project._id}`, payload)
@@ -1132,7 +1188,7 @@ const handleDeleteProject = async () => {
       </div>
 
       {/* Overview grid */}
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="grid gap-6">
           <Card>
             <CardHeader>
@@ -1241,10 +1297,14 @@ const handleDeleteProject = async () => {
               </CardHeader>
 
               <CardContent className="space-y-6">
+                {goalProgress.length > 0 && (
+                  <GoalsOverviewChart data={goalChartData} />
+                )}
+
                 {goalProgress.length > 0 ? (
                   goalProgress.map((goal) => (
                     <div key={goal._id} className="rounded-lg border p-4">
-                      <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="mb-2 flex items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium">{goal.title}</div>
                           <div className="text-xs text-muted-foreground">
@@ -1257,53 +1317,20 @@ const handleDeleteProject = async () => {
                         <div className="flex flex-wrap gap-2">
                           {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
                           {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
-
                           {canEditProject && (
                             <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedGoal(goal)
-                                  setGoalSheetMode('edit')
-                                  setGoalError('')
-                                  setGoalForm({
-                                    title: goal.title,
-                                    description: goal.description ?? '',
-                                  })
-                                  setIsGoalSheetOpen(true)
-                                }}
-                              >
-                                Edit
-                              </Button>
-
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedGoal(goal)
-                                  setIsGoalDeleteDialogOpen(true)
-                                }}
-                              >
-                                Delete
-                              </Button>
+                              <Button variant="outline" size="sm">Edit</Button>
+                              <Button variant="destructive" size="sm">Delete</Button>
                             </>
                           )}
                         </div>
                       </div>
 
-                      <ChartRadialLabel
-                        data={[
-                          {
-                            name: goal.title,
-                            value: goal.percentComplete,
-                            fill: 'var(--chart-1)',
-                          },
-                        ]}
-                      />
-
-                      <div className="mt-3 text-xs text-muted-foreground">
-                        {goal.percentComplete}% complete
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{goal.percentComplete}% complete</span>
+                        <span>
+                          Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
+                        </span>
                       </div>
                     </div>
                   ))
@@ -1321,6 +1348,30 @@ const handleDeleteProject = async () => {
               </CardContent>
             </Card>
           )}
+
+        </div>
+
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Join Settings</CardTitle>
+              <CardDescription>
+                How new members can join this project.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-start gap-2">
+                <Settings className="mt-0.5 size-4 text-muted-foreground" />
+                <div>
+                  {project.settings?.allowSelfJoinRequests
+                    ? 'Users can join immediately.'
+                    : project.settings?.requireApprovalToJoin
+                      ? 'Users must request approval to join.'
+                      : 'Invite only.'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -1345,29 +1396,6 @@ const handleDeleteProject = async () => {
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Join Settings</CardTitle>
-              <CardDescription>
-                How new members can join this project.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-start gap-2">
-                <Settings className="mt-0.5 size-4 text-muted-foreground" />
-                <div>
-                  {project.allowSelfJoin
-                    ? 'Users can join immediately.'
-                    : project.requireApprovalToJoin
-                      ? 'Users must request approval to join.'
-                      : 'Invite only.'}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
@@ -1376,7 +1404,7 @@ const handleDeleteProject = async () => {
                 Current project members and roles.
               </CardDescription>
             </CardHeader>
-            <CardContent className="min-w-0 space-y-4">
+            <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>
                 {memberPreview.map((member) => {
                   const displayName = member.userId?.profile?.displayName ?? 'User'
