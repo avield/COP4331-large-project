@@ -413,9 +413,9 @@ export const getProjectDetails = async (
     })
 
     const tasks = (await Task.find({ projectId })
-      .populate('createdBy', 'email profile.displayName')
-      .populate('assignedToUserIds', 'email profile.displayName')
-      .populate('completedBy', 'email profile.displayName')
+      .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
+      .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
+      .populate('completedBy', 'email profile.displayName profile.profilePictureUrl')
       .sort({ createdAt: -1 })) as TaskStatusOnly[];
 
     const stats = {
