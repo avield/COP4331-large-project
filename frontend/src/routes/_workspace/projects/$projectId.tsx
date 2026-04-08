@@ -98,6 +98,10 @@ interface ApiUserSummary {
   displayName?: string
   email?: string
   username?: string
+  profile?: {
+    displayName?: string
+    profilePictureUrl?: string
+  }
 }
 
 // Shape from GET /api/projects/:projectId/details
@@ -203,6 +207,46 @@ function mapPriority(p: string): Task['priority'] {
   return 'Medium'
 }
 
+function normalizeAssignedUsers(
+  users?: Array<
+    | string
+    | {
+        _id?: string
+        displayName?: string
+        email?: string
+        username?: string
+        profile?: {
+          displayName?: string
+          profilePictureUrl?: string
+        }
+      }
+  >
+) {
+  return (users ?? [])
+    .map((user) => {
+      if (typeof user === 'string') {
+        return {
+          _id: user,
+          displayName: '',
+          email: '',
+          username: '',
+          profile: undefined,
+        }
+      }
+
+      return {
+        ...user,
+        _id: user._id ?? '',
+        displayName:
+          user.displayName ??
+          user.profile?.displayName ??
+          user.email ??
+          '',
+      }
+    })
+    .filter((user) => user._id)
+}
+
 function buildBoardData(apiData: ApiResponse): BoardData {
   const tasks: Record<string, Task> = {}
   const todo: string[] = []
@@ -220,7 +264,7 @@ function buildBoardData(apiData: ApiResponse): BoardData {
       status: t.status,
       priority: mapPriority(t.priority),
       tags: t.tags ?? [],
-      assignedToUserIds: t.assignedToUserIds ?? [],
+      assignedToUserIds: normalizeAssignedUsers(t.assignedToUserIds),
       roleRequired: t.roleRequired ?? '',
       dueDate: t.dueDate ?? null,
       createdAt: t.createdAt ?? null,
@@ -299,6 +343,7 @@ function ProjectPage() {
     dueDate: '',
     tags: '',
     goalId: '',
+    assignedToUserIds: [] as string[],
   })
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
   const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
@@ -345,6 +390,19 @@ function ProjectPage() {
   })
 
   const memberPreview = useMemo(() => members.slice(0, 5), [members])
+
+  const assigneeOptions = useMemo(() => {
+  return members
+    .filter((member) => member.userId?._id)
+    .map((member) => ({
+      id: member.userId._id,
+      label:
+        member.userId.profile?.displayName ??
+        member.userId.displayName ??
+        member.userId.email ??
+        'Unknown User',
+    }))
+}, [members])
 
   const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
 
@@ -440,6 +498,7 @@ function ProjectPage() {
       dueDate: '',
       tags: '',
       goalId: '',
+      assignedToUserIds: [],
     })
     setTaskSheetMode('create')
     setIsTaskSheetOpen(true)
@@ -465,7 +524,7 @@ function ProjectPage() {
         roleRequired: taskForm.roleRequired.trim(),
         dueDate: taskForm.dueDate || null,
         goalId: taskForm.goalId || null,
-        assignedToUserIds: [],
+        assignedToUserIds: taskForm.assignedToUserIds,
       })
 
       const created = res.data.task ?? res.data
@@ -477,7 +536,7 @@ function ProjectPage() {
         status: created.status,
         priority: mapPriority(created.priority),
         tags: created.tags ?? [],
-        assignedToUserIds: created.assignedToUserIds ?? [],
+        assignedToUserIds: normalizeAssignedUsers(created.assignedToUserIds),
         roleRequired: created.roleRequired ?? '',
         dueDate: created.dueDate ?? null,
         completedAt: created.completedAt ?? null,
@@ -522,6 +581,7 @@ function ProjectPage() {
         roleRequired: taskForm.roleRequired,
         dueDate: taskForm.dueDate || null,
         goalId: taskForm.goalId || null,
+        assignedToUserIds: taskForm.assignedToUserIds,
         tags: taskForm.tags
           .split(',')
           .map((tag) => tag.trim())
@@ -548,7 +608,7 @@ function ProjectPage() {
             tags: updatedTask.tags ?? [],
             roleRequired: updatedTask.roleRequired ?? '',
             dueDate: updatedTask.dueDate ?? null,
-            assignedToUserIds: updatedTask.assignedToUserIds ?? [],
+            assignedToUserIds: normalizeAssignedUsers(updatedTask.assignedToUserIds),
             completedAt: updatedTask.completedAt ?? null,
             completedBy: updatedTask.completedBy ?? null,
             createdBy: updatedTask.createdBy ?? null,
@@ -591,7 +651,7 @@ function ProjectPage() {
               tags: updatedTask.tags ?? [],
               roleRequired: updatedTask.roleRequired ?? '',
               dueDate: updatedTask.dueDate ?? null,
-              assignedToUserIds: updatedTask.assignedToUserIds ?? [],
+              assignedToUserIds: normalizeAssignedUsers(updatedTask.assignedToUserIds),
               completedAt: updatedTask.completedAt ?? null,
               completedBy: updatedTask.completedBy ?? null,
               createdBy: updatedTask.createdBy ?? null,
@@ -1539,6 +1599,9 @@ const handleDeleteProject = async () => {
                         dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
                         tags: (task.tags ?? []).join(', '),
                         goalId: task.goalId ?? '',
+                        assignedToUserIds: task.assignedToUserIds
+                          ?.map((user) => typeof user === 'string' ? user : user._id)
+                          .filter(Boolean) ?? [],
                       })
                       setTaskSheetMode('view')
                       setIsTaskSheetOpen(true)
@@ -1786,6 +1849,37 @@ const handleDeleteProject = async () => {
                             </Field>
 
                             <Field>
+                              <FieldLabel>Assigned To</FieldLabel>
+                              <div className="space-y-2 rounded-md border p-3">
+                                {assigneeOptions.length > 0 ? (
+                                  assigneeOptions.map((member) => {
+                                    const checked = taskForm.assignedToUserIds.includes(member.id)
+
+                                    return (
+                                      <label key={member.id} className="flex items-center gap-2 text-sm">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={(e) => {
+                                            setTaskForm((prev) => ({
+                                              ...prev,
+                                              assignedToUserIds: e.target.checked
+                                                ? [...prev.assignedToUserIds, member.id]
+                                                : prev.assignedToUserIds.filter((id) => id !== member.id),
+                                            }))
+                                          }}
+                                        />
+                                        <span>{member.label}</span>
+                                      </label>
+                                    )
+                                  })
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">No members available.</span>
+                                )}
+                              </div>
+                            </Field>
+
+                            <Field>
                               <FieldLabel htmlFor="task-goal">Goal</FieldLabel>
                               <select
                                 id="task-goal"
@@ -1961,6 +2055,8 @@ const handleDeleteProject = async () => {
                         </CardContent>
                       </Card>
 
+                      
+
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm">Due Date</CardTitle>
@@ -1996,15 +2092,30 @@ const handleDeleteProject = async () => {
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Assigned To</CardTitle>
                       </CardHeader>
-                      <CardContent className="text-sm text-muted-foreground">
-                        {selectedTask.assignedToUserIds.length > 0
-                          ? selectedTask.assignedToUserIds
-                              .map(
-                                (user) =>
-                                  user.displayName || user.username || user.email || 'Unknown User'
+
+                      <CardContent>
+                        {selectedTask.assignedToUserIds.length > 0 ? (
+                          <div className="flex -space-x-2">
+                            {selectedTask.assignedToUserIds.map((user) => {
+                              const displayName =
+                                user.displayName ||
+                                user.profile?.displayName ||
+                                user.email ||
+                                'User'
+
+                              return (
+                                <NetworkAvatar
+                                  key={user._id}
+                                  displayName={displayName}
+                                  profilePictureUrl={user.profile?.profilePictureUrl}
+                                  size="sm"
+                                />
                               )
-                              .join(', ')
-                          : 'No one assigned'}
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No one assigned</p>
+                        )}
                       </CardContent>
                     </Card>
 
@@ -2062,6 +2173,7 @@ const handleDeleteProject = async () => {
                             dueDate: selectedTask.dueDate ? selectedTask.dueDate.slice(0, 10) : '',
                             tags: (selectedTask.tags ?? []).join(', '),
                             goalId: selectedTask.goalId ?? '',
+                            assignedToUserIds: selectedTask.assignedToUserIds?.map((user) => user._id) ?? [],
                           })
                           setTaskSheetMode('view')
                         }}

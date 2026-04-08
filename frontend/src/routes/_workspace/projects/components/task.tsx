@@ -2,6 +2,18 @@ import { Draggable } from '@hello-pangea/dnd'
 import { GripVertical, Trash2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { NetworkAvatar } from '@/components/network-avatar'
+
+type AssignedUser = {
+  _id: string
+  displayName?: string
+  email?: string
+  username?: string
+  profile?: {
+    displayName?: string
+    profilePictureUrl?: string
+  }
+}
 
 export interface Task {
   id: string
@@ -10,12 +22,7 @@ export interface Task {
   status: 'todo' | 'in_progress' | 'blocked' | 'done'
   priority: 'Low' | 'Medium' | 'High'
   tags: string[]
-  assignedToUserIds: Array<{
-    _id: string
-    displayName?: string
-    email?: string
-    username?: string
-  }>
+  assignedToUserIds: AssignedUser[]
   roleRequired: string
   dueDate?: string | null
   createdAt?: string | null
@@ -139,36 +146,36 @@ export function KanbanTask({
               ))}
           </div>
 
-          {(assignedUsers.length > 0 || isDone) && (
-            <div className="mt-2 space-y-1 pl-5 text-[11px] text-muted-foreground">
-              {assignedUsers.length > 0 && (
-                <div className="truncate">
-                  Assigned to:{' '}
-                  {assignedUsers
-                    .map(
-                      (user) =>
-                        user.displayName || user.username || user.email || 'Unknown User'
-                    )
-                    .join(', ')}
-                </div>
-              )}
+          {task.assignedToUserIds?.length > 0 && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="flex -space-x-2">
+                {task.assignedToUserIds.slice(0, 4).map((user) => {
+                  const displayName =
+                    user.displayName ||
+                    user.profile?.displayName ||
+                    user.email ||
+                    'User'
 
-              {isDone && (task.completedAt || task.completedBy) && (
-                <div className="flex items-center gap-1">
-                  <CheckCircle2 className="size-3" />
-                  <span className="truncate">
-                    Completed
-                    {task.completedAt ? ` ${formatCompletedAt(task.completedAt)}` : ''}
-                    {task.completedBy
-                      ? ` by ${
-                          task.completedBy.displayName ||
-                          task.completedBy.username ||
-                          task.completedBy.email ||
-                          'Unknown User'
-                        }`
-                      : ''}
-                  </span>
-                </div>
+                  return (
+                    <div
+                      key={user._id}
+                      className="rounded-full ring-2 ring-background"
+                      title={displayName}
+                    >
+                      <NetworkAvatar
+                        displayName={displayName}
+                        profilePictureUrl={user.profile?.profilePictureUrl}
+                        size="sm"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+
+              {task.assignedToUserIds.length > 4 && (
+                <span className="text-xs text-muted-foreground">
+                  +{task.assignedToUserIds.length - 4}
+                </span>
               )}
             </div>
           )}

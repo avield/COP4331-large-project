@@ -182,9 +182,14 @@ export const createTask = async (
 
     const task = await Task.create(taskData);
 
+    const populatedTask = await Task.findById(task._id)
+      .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
+      .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
+      .populate('completedBy', 'email profile.displayName profile.profilePictureUrl');
+
     res.status(201).json({
       message: 'Task created successfully.',
-      task
+      task: populatedTask
     });
   } catch (error) {
     console.error('createTask error:', error);
@@ -422,9 +427,14 @@ export const updateTask = async (
 
     await task.save();
 
+    const populatedTask = await Task.findById(task._id)
+      .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
+      .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
+      .populate('completedBy', 'email profile.displayName profile.profilePictureUrl');
+
     res.status(200).json({
       message: 'Task updated successfully.',
-      task
+      task: populatedTask
     });
   } catch (error) {
     console.error('updateTask error:', error);
