@@ -1,5 +1,5 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { GripVertical, Trash2, CheckCircle2 } from 'lucide-react'
+import { GripVertical, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { NetworkAvatar } from '@/components/network-avatar'
@@ -65,11 +65,6 @@ const priorityConfig = {
   },
 } as const
 
-function formatCompletedAt(value?: string | null) {
-  if (!value) return ''
-  return new Date(value).toLocaleDateString()
-}
-
 export function KanbanTask({
   task,
   index,
@@ -78,10 +73,8 @@ export function KanbanTask({
   onClick,
 }: KanbanTaskProps) {
   const priority = priorityConfig[task.priority]
-  const assignedUsers = task.assignedToUserIds ?? []
   const hasDescription = !!task.description?.trim()
   const hasTags = (task.tags ?? []).length > 0
-  const isDone = task.status === 'done'
   const goalTitle = task.goalId ? goalNameById[task.goalId] : null
 
   return (
