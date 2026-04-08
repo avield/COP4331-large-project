@@ -98,6 +98,11 @@ function ProfilePage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) {
+      if(file.size > 2 * 1024 * 1024){
+        setSaveError('Your image is too large. Please upload a file smaller than 2 MB.')
+        e.target.value = '' //Reset the input so they can try again
+        return
+      }
       setSelectedFile(file)
       setPreviewUrl(URL.createObjectURL(file))
     }
