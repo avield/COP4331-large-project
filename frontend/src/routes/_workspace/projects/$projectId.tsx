@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
 import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical } from 'lucide-react'import { KanbanColumn, type Column } from './components/column'
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical } from 'lucide-react'
+import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
 import { Badge } from '@/components/ui/badge'
