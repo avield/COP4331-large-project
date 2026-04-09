@@ -103,7 +103,7 @@ export default function SearchBar() {
                 )}
 
                 {isOpen && !isFetching && !error && results && 
-                 results.users.length === 0 && results.projects.length === 0 && 
+                 results.users.length === 0 && results.projects.length === 0 && results.tasks.length === 0 &&
                  debouncedQuery.trim().length > 0 && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
                         No results found for "{debouncedQuery}"
@@ -111,7 +111,8 @@ export default function SearchBar() {
                 )}
 
                 {/* Results Dropdown */}
-                {isOpen && debouncedQuery.trim().length > 0 && results && (results.users.length > 0 || results.projects.length > 0) && (
+                {isOpen && debouncedQuery.trim().length > 0 && results && 
+                (results.users.length > 0 || results.projects.length > 0 || results.tasks.length > 0) && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
 
                         {/* USERS SECTION */}
@@ -161,6 +162,44 @@ export default function SearchBar() {
                                         )}
                                     </Link>
                                 ))}
+                            </div>
+                        )}
+
+                        {/* TASKS SECTION */}
+                        {results.tasks.length > 0 && (
+                            <div className="p-2 border-t">
+                                <p className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">Tasks</p>
+                                {results.tasks.map((task) => {
+                                    // If there for some reason the task doesn't have a project id?
+                                    // idk why this is possible but the type says project id might be null
+                                    if (!task.projectId) {
+                                        return (
+                                            <div key={task.id} className="flex flex-col p-2 text-muted-foreground">
+                                                <span className="text-sm font-medium">{task.title} (No Project)</span>
+                                            </div>
+                                        )
+                                    }
+
+                                    // Clicking on a task, takes you to the project that task originates from
+                                    return (
+                                        <Link
+                                            key={task.id}
+                                            to="/projects/$projectId"
+                                            params={{ projectId: task.projectId }}
+                                            className="flex flex-col p-2 hover:bg-accent rounded-md transition-colors"
+                                            onClick={() => {
+                                                setQuery("");
+                                                setIsOpen(false);
+                                            }}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-foreground">{task.title}</span>
+                                                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{task.status}</span>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground mt-0.5">{task.projectName}</span>
+                                        </Link>
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
