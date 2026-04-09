@@ -47,6 +47,7 @@ export default function SearchBar() {
     const debouncedQuery = useDebounce(query, 300); 
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const [isMac, setIsMac] = useState(false);
 
     useClickOutside(containerRef, () => setIsOpen(false));
 
@@ -63,6 +64,12 @@ export default function SearchBar() {
         staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
+    // Small use effect to check if we are on a mac
+    useEffect(() => {
+        setIsMac(navigator.userAgent.toLowerCase().includes("mac"));
+    }, []);
+
+    // Attach keydown listener for keyboard command
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -208,7 +215,7 @@ export default function SearchBar() {
                 {/* Shortcut Badge */}
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1">
                     <kbd className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground border">
-                        <span className="text-xs">Ctrl+K</span>
+                        <span className="text-xs">{isMac ? "⌘K" : "Ctrl+K"}</span>
                     </kbd>
                 </div>
             </div>
