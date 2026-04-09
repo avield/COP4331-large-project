@@ -53,7 +53,8 @@ export default function SearchBar() {
     const { data: results, isFetching, error } = useQuery({
         queryKey: ["search", debouncedQuery],
         queryFn: async ({ signal }) => {
-            const { data } = await api.get<SearchResponse>(`/search?q=${debouncedQuery}`, {
+            const { data } = await api.get<SearchResponse>(`/search`, {
+                params: { query: debouncedQuery },
                 signal, // Auto-cancels previous requests
             });
             return data.results;
