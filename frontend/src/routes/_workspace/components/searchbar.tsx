@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
@@ -42,6 +42,20 @@ interface SearchResponse {
 export default function SearchBar() {
     const [query, setQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Listens to mouse down, if you click outside of search, it automatically closes it
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            // If we click outside the container, close the dropdown
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     // Debouncing
     useEffect(() => {
@@ -62,7 +76,7 @@ export default function SearchBar() {
 
     return (
         <Field orientation="horizontal">
-            <div className="relative w-full max-w-xl mx-3 2xl:mx-100">
+            <div ref={containerRef} className="relative w-full max-w-xl mx-3 2xl:mx-100">
                 {isFetching ? (
                     <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
                 ) : (
@@ -73,17 +87,21 @@ export default function SearchBar() {
                     placeholder="Search for people or projects..."
                     className="pl-9"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                        setQuery(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)} 
                 />
 
-                {error && debouncedQuery.trim().length > 1 && (
+                {isOpen && error && debouncedQuery.trim().length > 1 && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-3 text-sm text-red-500">
                         Something went wrong while searching.
                     </div>
                 )}
 
                 {/* Results Dropdown */}
-                {results && (results.users.length > 0 || results.projects.length > 0) && (
+                {isOpen && results && (results.users.length > 0 || results.projects.length > 0) && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
 
                         {/* USERS SECTION */}
@@ -99,6 +117,7 @@ export default function SearchBar() {
                                         onClick={() => {
                                             setQuery("");
                                             setDebouncedQuery("");
+                                            setIsOpen(false);
                                         }}
                                     >
                                         <NetworkAvatar
