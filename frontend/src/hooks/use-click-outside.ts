@@ -1,19 +1,25 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 // Generic hook that triggers a function when you click outside of an html element
 export function useClickOutside<T extends HTMLElement>(ref: RefObject<T | null>, handler: () => void) {
+    const savedHandler = useRef(handler);
+
+    useEffect(() => {
+        savedHandler.current = handler;
+    }, [handler]);
+
     useEffect(() => {
         const listener = (event: MouseEvent | TouchEvent) => {
             if (!ref.current || ref.current.contains(event.target as Node)) return;
-            handler();
+            savedHandler.current();
         };
 
         document.addEventListener("mousedown", listener);
         document.addEventListener("touchstart", listener);
-        
+
         return () => {
             document.removeEventListener("mousedown", listener);
             document.removeEventListener("touchstart", listener);
         };
-    }, [ref, handler]);
+    }, [ref]);
 }
