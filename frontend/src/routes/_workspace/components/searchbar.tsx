@@ -108,7 +108,7 @@ export default function SearchBar() {
                         {/* PROJECTS SECTION */}
                         {results.projects.length > 0 && (
                             <div className="p-2">
-                                <p className="text-[10px] font-bold text-foreground px-2 py-1 uppercase tracking-wider">Projects</p>
+                                <p className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">Projects</p>
                                 {results.projects.map((project) => (
                                     <Link
                                         key={project.id}
