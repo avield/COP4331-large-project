@@ -6,10 +6,10 @@ import { upload } from '../middleware/uploadMiddleware.js';
 const router = Router();
 
 // Retrieve profile info (used when the page loads)
-router.get('/profile', protect, getProfile);
+router.get('/me', protect, getProfile);
 
 // Update profile info (used when submitting the form)
-router.put('/profile', protect, upload.single('profilePicture'), updateProfile);
+router.put('/update', protect, upload.single('profilePicture'), updateProfile);
 
 // frontend must use 'profilePicture' as the key in FormData
 

@@ -5,7 +5,7 @@ import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import ProjectMember from '../models/ProjectMember.js';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<P = any> extends Request<P> {
   user?: {
     _id: Types.ObjectId | string;
   };
@@ -57,7 +57,7 @@ export const globalSearch = async (
     const allowedTypes = ['all', 'users', 'projects', 'tasks'];
     if (!allowedTypes.includes(type)) {
       return res.status(400).json({
-        message: 'Invalid search type. Must be one of: all, users, projects, tasks.'
+        message: 'Invalid search type. Must be one of: all, users......, projects, tasks.'
       });
     }
 
@@ -98,10 +98,10 @@ export const globalSearch = async (
     if (type === 'all' || type === 'users') {
       const usersQuery: FilterQuery<any> = {
         $or: [
-          { displayName: searchRegex },
+          { 'profile.displayName': searchRegex },
           { email: searchRegex },
-          { aboutMe: searchRegex },
-          { school: searchRegex }
+          { 'profile.aboutMe': searchRegex },
+          { 'profile.school': searchRegex }
         ]
       };
 

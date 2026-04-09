@@ -9,12 +9,14 @@ import taskRoutes from "./routes/taskRoutes.js";
 import projectMemberRoutes from './routes/projectMemberRoutes.js';
 import profileRoute from './routes/profileRoutes.js';
 import searchRoute from './routes/searchRoute.js';
+import userRoutes from './routes/userRoutes.js';
 import goalRoute from './routes/goalRoute.js'
 import rateLimit from 'express-rate-limit';
 import { styleText } from "node:util";
 import { exit } from 'node:process';
 import path from 'path'; // for dealing with profile images
-import { fileURLToPath } from 'url'; // for dealing with profile images
+import { fileURLToPath } from 'url';
+import profileRoutes from "./routes/profileRoutes.js"; // for dealing with profile images
 
 // using absolute paths for dealing with bugs due to ES modules when running server from different directory
 // This was added for dealing with profile image files (next two lines)
@@ -75,7 +77,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
-app.use('/api/users', profileRoute);
+app.use('/api/profile', profileRoute);
+app.use('/api/users......', userRoutes);
 app.use("/api/search", searchRoute);
 app.use('/api/goals', goalRoute);
 app.use('/public/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // for dealing with profile images NOT AN ENDPOINT

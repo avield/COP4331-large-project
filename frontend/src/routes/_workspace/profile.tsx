@@ -11,7 +11,7 @@ import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2, Upload 
 import api from '@/api/axios'
 import {useAuthStore} from "@/api/authStore.ts";
 
-// GET /api/users/profile → raw profile object (not wrapped)
+// GET /api/users....../profile → raw profile object (not wrapped)
 interface UserProfile {
   displayName: string
   aboutMe: string
@@ -25,7 +25,7 @@ interface AuthMe {
   user: { id: string; email: string; displayName: string }
 }
 
-// PUT /api/users/profile response
+// PUT /api/users....../profile response
 interface UpdateProfileResponse {
   success: boolean
   message: string
@@ -36,7 +36,7 @@ export const Route = createFileRoute('/_workspace/profile')({
   loader: async (): Promise<{ profile: UserProfile; email: string }> => {
     try {
       const [profileRes, meRes] = await Promise.all([
-        api.get<UserProfile>('/users/profile'),
+        api.get<UserProfile>('/profile/me'),
         api.get<AuthMe>('/auth/me'),
       ])
       return {
@@ -138,7 +138,7 @@ function ProfilePage() {
         data.append('profilePictureUrl', formData.profilePictureUrl)
       }
 
-      const res = await api.put<UpdateProfileResponse>('/users/profile', data, {
+      const res = await api.put<UpdateProfileResponse>('/profile/update', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

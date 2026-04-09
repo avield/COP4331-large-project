@@ -99,7 +99,7 @@ export const createTask = async (
 
         if (!allAssignedUsersAreMembers) {
           res.status(400).json({
-            message: 'One or more assigned users are not active members of this project.'
+            message: 'One or more assigned users...... are not active members of this project.'
           });
           return;
         }
@@ -416,7 +416,7 @@ export const updateTask = async (
 
         if (!allAssignedUsersAreMembers) {
           res.status(400).json({
-            message: 'One or more assigned users are not active members of this project.'
+            message: 'One or more assigned users...... are not active members of this project.'
           });
           return;
         }
