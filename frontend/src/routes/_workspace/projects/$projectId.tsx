@@ -919,7 +919,7 @@ const handleDeleteProject = async () => {
       description: 'Redirecting to your home page.',
     })
 
-    navigate({ to: '/_workspace/home' })
+    navigate({ to: '/home' })
   } catch (error) {
     console.error('Failed to delete project:', error)
     setDeleteProjectError('Failed to delete project. Please try again.')
