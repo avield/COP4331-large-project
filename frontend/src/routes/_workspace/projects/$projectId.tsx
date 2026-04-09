@@ -58,30 +58,19 @@ export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
     try {
       const res = await api.get(`/projects/${params.projectId}/details`)
-      return res.data
+      return { ...res.data, isFullDetails: true }
     } catch {
-      return { project: { 
-          _id: params.projectId, 
-          name: 'Project Board', 
-          description: '',
-          dueDate: null,
-          visibility: 'private',
-          recruitingStatus: 'closed',
-          lookingForRoles: [],
-          tags: [],
-          status: 'planning',
-          allowSelfJoin: false,
-          requireApprovalToJoin: true,
-          createdBy: null,
-          },
-          members: [],
-          tasks: [],
-          goals: [],
-          permissions: {
-            canEditProject: false,
-            canJoinProject: false,
-          },
-       }
+      // Logic for the fallback (Visitor View)
+      try {
+        const fallbackRes = await api.get(`/projects/${params.projectId}`)
+        return {
+          project: fallbackRes.data.project ?? fallbackRes.data,
+          isFullDetails: false
+        }
+      } catch (fallbackError) {
+        console.error("Critical error loading project:", fallbackError)
+        throw fallbackError // Or return a custom error state
+      }
     }
   },
   component: ProjectPage,
@@ -315,25 +304,48 @@ function columnIdToStatus(columnId: string): ApiTask['status'] {
 }
 
 function ProjectPage() {
-
-  //Project Page States
+  // Core Auth & Router
   const user = useAuthStore((state) => state.user)
   const currentUserId = user?.id
-
-  const loaderData = Route.useLoaderData() as ApiResponse
-  const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
-  const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
-  const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
-  const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
   const navigate = useNavigate()
   const router = useRouter()
+
+  // Data from Loader
+  const loaderData = Route.useLoaderData() as ApiResponse & { isFullDetails: boolean }
+  const { isFullDetails, project } = loaderData
+  const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
+  const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
+
+  // Main Project State
+  const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
+
+  // UI Visibility States
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
-  const [isSavingProject, setIsSavingProject] = useState(false)
-  const [projectSaveError, setProjectSaveError] = useState('')
-  const [isDeletingProject, setIsDeletingProject] = useState(false)
-  const [deleteProjectError, setDeleteProjectError] = useState('')
+  const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
+  const [isGoalSheetOpen, setIsGoalSheetOpen] = useState(false)
+  const [isGoalDeleteDialogOpen, setIsGoalDeleteDialogOpen] = useState(false)
+
+  // Mode & Selection States
+  const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
+  const [goalSheetMode, setGoalSheetMode] = useState<'create' | 'edit'>('create')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
+  const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
+
+  // Form States
+  const [editForm, setEditForm] = useState({
+    name: project?.name ?? '',
+    description: project?.description ?? '',
+    visibility: project?.visibility ?? 'private',
+    recruitingStatus: project?.recruitingStatus ?? 'closed',
+    status: project?.status ?? 'planning',
+    dueDate: project?.dueDate ? project.dueDate.slice(0, 10) : '',
+    tags: (project?.tags ?? []).join(', '),
+    lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
+    allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
+    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+  })
+
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -345,110 +357,97 @@ function ProjectPage() {
     goalId: '',
     assignedToUserIds: [] as string[],
   })
-  const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
-  const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
-  const [isGoalSheetOpen, setIsGoalSheetOpen] = useState(false)
-  const [goalSheetMode, setGoalSheetMode] = useState<'create' | 'edit'>('create')
-  const [isGoalDeleteDialogOpen, setIsGoalDeleteDialogOpen] = useState(false)
-  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false)
-  const [isDeletingGoal, setIsDeletingGoal] = useState(false)
-  const [isCreatingGoal, setIsCreatingGoal] = useState(false)
-  const [goalError, setGoalError] = useState('')
+
   const [goalForm, setGoalForm] = useState({
     title: '',
     description: '',
   })
 
-  const myMembership = members.find(
-    (member) =>
-      member.membershipStatus === 'active' &&
-      member.userId?._id === currentUserId
-  )
+  // Loading & Error States
+  const [isSavingProject, setIsSavingProject] = useState(false)
+  const [isDeletingProject, setIsDeletingProject] = useState(false)
+  const [isCreatingGoal, setIsCreatingGoal] = useState(false)
+  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false)
+  const [isDeletingGoal, setIsDeletingGoal] = useState(false)
+  const [projectSaveError, setProjectSaveError] = useState('')
+  const [deleteProjectError, setDeleteProjectError] = useState('')
+  const [goalError, setGoalError] = useState('')
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
+  const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
 
-  console.log('members from API', loaderData.members)
-  console.log('first member userId', loaderData.members?.[0]?.userId)
+  // Permission & Membership Logic
+  const myMembership = useMemo(() => members.find(
+      (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
+  ), [members, currentUserId])
 
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
-  
-  const project = loaderData.project
-  
   const canJoinProject = !!loaderData.permissions?.canJoinProject
 
-  const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
-
-  const [editForm, setEditForm] = useState({
-    name: project.name ?? '',
-    description: project.description ?? '',
-    visibility: project.visibility ?? 'private',
-    recruitingStatus: project.recruitingStatus ?? 'closed',
-    status: project.status ?? 'planning',
-    dueDate: project.dueDate ? project.dueDate.slice(0, 10) : '',
-    tags: (project.tags ?? []).join(', '),
-    lookingForRoles: (project.lookingForRoles ?? []).join(', '),
-    allowSelfJoin: project.settings?.allowSelfJoinRequests ?? false,
-    requireApprovalToJoin: project.settings?.requireApprovalToJoin ?? true,
-  })
-
-  const memberPreview = useMemo(() => members.slice(0, 5), [members])
-
-  const assigneeOptions = useMemo(() => {
-  return members
-    .filter((member) => member.userId?._id)
-    .map((member) => ({
-      id: member.userId._id,
-      label:
-        member.userId.profile?.displayName ??
-        member.userId.displayName ??
-        member.userId.email ??
-        'Unknown User',
-    }))
-}, [members])
-
-  const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
+  // Memos for Analytics & UI
+  const goalNameById = useMemo(() => {
+    return Object.fromEntries(goals.map((g) => [g._id, g.title]))
+  }, [goals])
 
   const goalProgress = useMemo(() => {
-    const allTasks = Object.values(data.tasks)
-
+    const allTasks = Object.values(data.tasks || {})
     return goals.map((goal) => {
-      const goalTasks = allTasks.filter((task) => task.goalId === goal._id)
+      const goalTasks = allTasks.filter((t) => t.goalId === goal._id)
 
+      const todo = goalTasks.filter((t) => t.status === 'todo').length
+      const inProgress = goalTasks.filter((t) => t.status === 'in_progress').length
+      const blocked = goalTasks.filter((t) => t.status === 'blocked').length
+      const done = goalTasks.filter((t) => t.status === 'done').length
       const total = goalTasks.length
-      const done = goalTasks.filter((task) => task.status === 'done').length
-      const inProgress = goalTasks.filter((task) => task.status === 'in_progress').length
-      const blocked = goalTasks.filter((task) => task.status === 'blocked').length
-      const todo = goalTasks.filter((task) => task.status === 'todo').length
-
-      const percentComplete = total > 0 ? Math.round((done / total) * 100) : 0
 
       return {
-        ...goal,
+        ...goal, // Keeps _id, title, description
         total,
-        done,
+        todo,
         inProgress,
         blocked,
-        todo,
-        percentComplete,
+        done,
+        percentComplete: total > 0 ? Math.round((done / total) * 100) : 0,
+        // Flags for the Badge UI
         hasInProgress: inProgress > 0,
         hasBlocked: blocked > 0,
+        // For Radial Chart
+        name: goal.title,
+        value: total > 0 ? Math.round((done / total) * 100) : 0
       }
     })
   }, [goals, data.tasks])
 
+  const assigneeOptions = useMemo(() => {
+    return members
+        .filter((member) => member.membershipStatus === 'active' && member.userId)
+        .map((member) => {
+          const u = member.userId;
+          const label =
+              u?.profile?.displayName ||
+              u?.displayName ||
+              u?.email ||
+              'Unknown Member';
+
+          return {
+            id: u?._id || '',
+            label: label,
+          };
+        });
+  }, [members]);
+
+  // Match the format expected by the Radial chart component
   const goalChartData = useMemo(() => {
-    return goalProgress.map((goal) => ({
-      name: goal.title,
-      value: goal.percentComplete,
-    }))
+    return goalProgress.map(g => ({ name: g.name, value: g.value }))
   }, [goalProgress])
 
   const ungroupedTaskCount = useMemo(() => {
-    return Object.values(data.tasks).filter((task) => !task.goalId).length
+    return Object.values(data.tasks || {}).filter((t) => !t.goalId).length
   }, [data.tasks])
 
-  const goalNameById = useMemo(() => {
-    return Object.fromEntries(goals.map((goal) => [goal._id, goal.title]))
-  }, [goals])
-  
+  const memberPreview = useMemo(() => {
+    return members.slice(0, 5)
+  }, [members])
+
   
   // ********************
   // TASK CRUD OPERATIONS
@@ -708,6 +707,14 @@ function ProjectPage() {
 
     setData((prev) => ({
       ...prev,
+      // ADD THIS: Update the individual task's status locally
+      tasks: {
+        ...prev.tasks,
+        [draggableId]: {
+          ...prev.tasks[draggableId],
+          status: columnIdToStatus(destination.droppableId),
+        },
+      },
       columns: {
         ...prev.columns,
         [startColumn.id]: {
@@ -922,6 +929,23 @@ const handleDeleteProject = async () => {
   }
 }
 
+// VISITOR VIEW
+if(!isFullDetails) {
+  return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <Lock className="size-12 text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-bold">Private Workspace</h2>
+        <p className="text-muted-foreground mt-2 text-center max-w-sm">
+          Detailed tasks and roadmap for <strong>{project.name}</strong> are restricted to project members.
+        </p>
+        <Button className="mt-6">
+          <UserPlus className="mr-2 size-4" />
+          Request to Join
+        </Button>
+      </div>
+  )
+}
+// MEMBER VIEW
   return (
     <div className="flex h-full min-w-0 flex-col gap-6 p-6 md:p-8">
       {/* Header */}
