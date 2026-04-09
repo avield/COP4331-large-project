@@ -22,17 +22,28 @@ interface UserProfileData {
 
 export const Route = createFileRoute('/_workspace/users/$userId')({
     // Type the loader so 'data' isn't "unknown"
-    loader: async ({ params }): Promise<UserProfileData> => {
-        // Note: use your 'api' instance which likely already has the /api prefix
-        const { data } = await api.get<UserProfileData>(`/users/${params.userId}`)
-        return data
+    loader: async ({ params }): Promise<UserProfileData | null> => {
+        try {
+            const { data } = await api.get<UserProfileData>(`/users/${params.userId}`)
+            return data
+        } catch {
+            return null 
+        }
     },
     component: UserProfilePage,
 })
 
 function UserProfilePage() {
-    // 3. Now 'data' is correctly typed as UserProfileData
     const data = Route.useLoaderData()
+
+    if (!data) {
+        return <div className="max-w-4xl mx-auto p-6 space-y-8">
+            <div className="flex items-center justify-between">
+                User not found
+            </div>
+        </div>
+    }
+
     const { user, projects } = data
 
     return (
