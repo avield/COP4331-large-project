@@ -1,5 +1,5 @@
 import { Draggable } from '@hello-pangea/dnd'
-import { GripVertical, Trash2 } from 'lucide-react'
+import { GripVertical, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { NetworkAvatar } from '@/components/network-avatar'
@@ -47,6 +47,7 @@ type KanbanTaskProps = {
   index: number
   goalNameById: Record<string, string>
   onDelete: () => void
+  onEdit: () => void
   onClick?: () => void
 }
 
@@ -70,6 +71,7 @@ export function KanbanTask({
   index,
   goalNameById,
   onDelete,
+  onEdit,
   onClick,
 }: KanbanTaskProps) {
   const priority = priorityConfig[task.priority]
@@ -84,7 +86,7 @@ export function KanbanTask({
           ref={provided.innerRef}
           {...provided.draggableProps}
           onClick={onClick}
-          className={`group relative mb-2 rounded-lg border bg-card p-3 cursor-pointer transition-all duration-150 ${
+          className={`group relative mb-2 rounded-lg border bg-card p-3 cursor-pointer hover:scale-[1.01] transition-all duration-150 ${
             snapshot.isDragging
               ? 'rotate-1 scale-105 border-brand/30 shadow-xl shadow-black/30 ring-1 ring-brand/20'
               : 'border-border/50 hover:border-border hover:shadow-md hover:shadow-black/10 hover:bg-muted/30'
@@ -173,14 +175,31 @@ export function KanbanTask({
             </div>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-1.5 top-1.5 h-6 w-6 cursor-pointer text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-all group-hover:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground/50 hover:bg-muted"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       )}
     </Draggable>

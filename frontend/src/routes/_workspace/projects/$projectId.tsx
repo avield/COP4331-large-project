@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
 import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical } from 'lucide-react'
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2 } from 'lucide-react'
 import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
@@ -365,6 +365,9 @@ function ProjectPage() {
   const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false)
   const [isGoalSheetOpen, setIsGoalSheetOpen] = useState(false)
   const [isGoalDeleteDialogOpen, setIsGoalDeleteDialogOpen] = useState(false)
+  const [isTaskDeleteDialogOpen, setIsTaskDeleteDialogOpen] = useState(false)
+  const [isDeletingTask, setIsDeletingTask] = useState(false)
+  const [taskDeleteError, setTaskDeleteError] = useState('')
 
   // Mode & Selection States
   const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
@@ -480,22 +483,52 @@ function ProjectPage() {
   // ********************
   // TASK CRUD OPERATIONS
   // ********************
-  const handleDeleteTask = (columnId: string, taskId: string) => {
+  
+  const removeTaskFromBoard = (taskId: string) => {
+    const columnId = statusToColumnId(data.tasks[taskId]?.status ?? 'todo')
     const newColumnTaskIds = data.columns[columnId].taskIds.filter((id) => id !== taskId)
     const newTasks = { ...data.tasks }
     delete newTasks[taskId]
 
-    setData({
-      ...data,
+    setData((prev) => ({
+      ...prev,
       tasks: newTasks,
       columns: {
-        ...data.columns,
+        ...prev.columns,
         [columnId]: {
-          ...data.columns[columnId],
+          ...prev.columns[columnId],
           taskIds: newColumnTaskIds,
         },
       },
-    })
+    }))
+  }
+
+  const handleDeleteTask = async (task?: Task | null) => {
+    const taskToDelete = task ?? selectedTask
+    if (!taskToDelete) return
+
+    try {
+      setTaskDeleteError('')
+      setIsDeletingTask(true)
+
+      await api.delete(`/tasks/${taskToDelete.id}`)
+
+      removeTaskFromBoard(taskToDelete.id)
+
+      if (selectedTask?.id === taskToDelete.id) {
+        setSelectedTask(null)
+        setIsTaskSheetOpen(false)
+      }
+
+      setIsTaskDeleteDialogOpen(false)
+      toast.success('Task deleted successfully.')
+    } catch (error) {
+      console.error('Failed to delete task:', error)
+      setTaskDeleteError('Failed to delete task. Please try again.')
+      toast.error('Failed to delete task.')
+    } finally {
+      setIsDeletingTask(false)
+    }
   }
 
   function statusToColumnId(status: ApiTask['status']): string {
@@ -594,6 +627,48 @@ function ProjectPage() {
     } catch (error) {
       console.error('Failed to create task:', error)
     }
+  }
+
+  const openTaskView = (task: Task) => {
+    setSelectedTask(task)
+    setTaskForm({
+      title: task.title,
+      description: task.description ?? '',
+      priority: task.priority,
+      status: task.status,
+      roleRequired: task.roleRequired ?? '',
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+      tags: (task.tags ?? []).join(', '),
+      goalId: task.goalId ?? '',
+      assignedToUserIds:
+        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+    })
+    setTaskSheetMode('view')
+    setIsTaskSheetOpen(true)
+  }
+
+  const openTaskEdit = (task: Task) => {
+    setSelectedTask(task)
+    setTaskForm({
+      title: task.title,
+      description: task.description ?? '',
+      priority: task.priority,
+      status: task.status,
+      roleRequired: task.roleRequired ?? '',
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+      tags: (task.tags ?? []).join(', '),
+      goalId: task.goalId ?? '',
+      assignedToUserIds:
+        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+    })
+    setTaskSheetMode('edit')
+    setIsTaskSheetOpen(true)
+  }
+
+  const openTaskDeleteDialog = (task: Task) => {
+    setSelectedTask(task)
+    setTaskDeleteError('')
+    setIsTaskDeleteDialogOpen(true)
   }
 
   const handleSaveTask = async () => {
@@ -1755,25 +1830,9 @@ const handleDeleteProject = async () => {
                     tasks={tasks}
                     goalNameById={goalNameById}
                     onAddTask={handleAddTask}
-                    onDeleteTask={handleDeleteTask}
-                    onTaskClick={(task) => {
-                      setSelectedTask(task)
-                      setTaskForm({
-                        title: task.title,
-                        description: task.description ?? '',
-                        priority: task.priority,
-                        status: task.status,
-                        roleRequired: task.roleRequired ?? '',
-                        dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
-                        tags: (task.tags ?? []).join(', '),
-                        goalId: task.goalId ?? '',
-                        assignedToUserIds: task.assignedToUserIds
-                          ?.map((user) => typeof user === 'string' ? user : user._id)
-                          .filter(Boolean) ?? [],
-                      })
-                      setTaskSheetMode('view')
-                      setIsTaskSheetOpen(true)
-                    }}
+                    onDeleteTask={openTaskDeleteDialog}
+                    onEditTask={openTaskEdit}
+                    onTaskClick={openTaskView}
                   />
                 )
               })}
@@ -1940,6 +1999,39 @@ const handleDeleteProject = async () => {
             <AlertDialogCancel disabled={isDeletingGoal}>
               Cancel
             </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isTaskDeleteDialogOpen} onOpenChange={setIsTaskDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete task{selectedTask ? ` "${selectedTask.title}"` : ''}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this task. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {taskDeleteError ? (
+            <p className="text-sm text-destructive">{taskDeleteError}</p>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingTask}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleDeleteTask()
+              }}
+              disabled={isDeletingTask}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingTask ? 'Deleting...' : 'Delete Task'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -2351,13 +2443,38 @@ const handleDeleteProject = async () => {
                       >
                         Cancel
                       </Button>
+                      <Button
+                        variant="destructive"
+                        type="button"
+                        onClick={() => {
+                          setTaskDeleteError('')
+                          setIsTaskDeleteDialogOpen(true)
+                        }}
+                        disabled={isDeletingTask}
+                      >
+                        <Trash2 className="mr-2 size-4" />
+                        Delete Task
+                      </Button>
                     </>
                   ) : (
                       <>
-                      <Button onClick={() => setTaskSheetMode('edit')}>
+                      <Button onClick={() => selectedTask && openTaskEdit(selectedTask)}>
                         <Pencil className="mr-2 size-4" />
                         Edit Task
                       </Button>
+
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          setTaskDeleteError('')
+                          setIsTaskDeleteDialogOpen(true)
+                        }}
+                        disabled={isDeletingTask}
+                      >
+                        <Trash2 className="mr-2 size-4" />
+                        Delete Task
+                      </Button>
+
                       <Button
                         variant="outline"
                         onClick={() => setIsTaskSheetOpen(false)}
