@@ -97,6 +97,7 @@ function ProfilePage() {
   // Handle local file selection and create a temporary browser blob URL
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    setSaveError(null) //clears error message when user uploads an image
     if (file) {
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
       if(!allowedTypes.includes(file.type)){
