@@ -100,7 +100,6 @@ export const globalSearch = async (
         $or: [
           { 'profile.displayName': searchRegex },
           { email: searchRegex },
-          { 'profile.aboutMe': searchRegex },
           { 'profile.school': searchRegex }
         ]
       };
