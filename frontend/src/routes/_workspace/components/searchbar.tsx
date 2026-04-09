@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
@@ -6,6 +6,8 @@ import { Link } from "@tanstack/react-router";
 import api from "@/api/axios";
 import { NetworkAvatar } from "@/components/network-avatar";
 import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce";
+import { useClickOutside } from "@/hooks/use-click-outside";
 
 interface SearchUser {
     id: string;
@@ -41,27 +43,11 @@ interface SearchResponse {
 
 export default function SearchBar() {
     const [query, setQuery] = useState("");
-    const [debouncedQuery, setDebouncedQuery] = useState("");
     const [isOpen, setIsOpen] = useState(false);
+    const debouncedQuery = useDebounce(query, 300); 
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Listens to mouse down, if you click outside of search, it automatically closes it
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            // If we click outside the container, close the dropdown
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Debouncing
-    useEffect(() => {
-        const timer = setTimeout(() => setDebouncedQuery(query), 300);
-        return () => clearTimeout(timer);
-    }, [query]);
+    useClickOutside(containerRef, () => setIsOpen(false));
 
     const { data: results, isFetching, error } = useQuery({
         queryKey: ["search", debouncedQuery],
@@ -72,6 +58,7 @@ export default function SearchBar() {
             return data.results;
         },
         enabled: debouncedQuery.trim().length > 1,
+        staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
     return (
@@ -100,6 +87,14 @@ export default function SearchBar() {
                     </div>
                 )}
 
+                {isOpen && !isFetching && !error && results && 
+                 results.users.length === 0 && results.projects.length === 0 && 
+                 debouncedQuery.trim().length > 1 && (
+                    <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
+                        No results found for "{debouncedQuery}"
+                    </div>
+                )}
+
                 {/* Results Dropdown */}
                 {isOpen && results && (results.users.length > 0 || results.projects.length > 0) && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
@@ -116,7 +111,6 @@ export default function SearchBar() {
                                         className="flex items-center gap-3 p-2 hover:bg-accent rounded-md transition-colors"
                                         onClick={() => {
                                             setQuery("");
-                                            setDebouncedQuery("");
                                             setIsOpen(false);
                                         }}
                                     >
@@ -141,7 +135,10 @@ export default function SearchBar() {
                                         to="/projects/$projectId"
                                         params={{ projectId: project.id }}
                                         className="flex flex-col p-2 hover:bg-accent rounded-md transition-colors"
-                                        onClick={() => setQuery("")}
+                                        onClick={() => {
+                                            setQuery("");
+                                            setIsOpen(false);
+                                        }}
                                     >
                                         <span className="text-sm font-medium text-foreground">{project.name}</span>
                                         {project.description && (
