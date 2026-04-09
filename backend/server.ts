@@ -78,7 +78,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use('/api/project-members', projectMemberRoutes);
 app.use('/api/profile', profileRoute);
-app.use('/api/users......', userRoutes);
+app.use('/api/users', userRoutes);
 app.use("/api/search", searchRoute);
 app.use('/api/goals', goalRoute);
 app.use('/public/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // for dealing with profile images NOT AN ENDPOINT
