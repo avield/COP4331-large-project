@@ -98,6 +98,12 @@ function ProfilePage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      if(!allowedTypes.includes(file.type)){
+        setSaveError('Invalid file type. Please upload a JPEG, PNG, or WebP image.')
+        e.target.value = '' //Reset so the user can pick again
+        return
+      }
       if(file.size > 2 * 1024 * 1024){
         setSaveError('Your image is too large. Please upload a file smaller than 2 MB.')
         e.target.value = '' //Reset the input so they can try again
