@@ -54,12 +54,12 @@ export default function SearchBar() {
         queryKey: ["search", debouncedQuery],
         queryFn: async ({ signal }) => {
             const { data } = await api.get<SearchResponse>(`/search`, {
-                params: { query: debouncedQuery },
+                params: { q: debouncedQuery },
                 signal, // Auto-cancels previous requests
             });
             return data.results;
         },
-        enabled: debouncedQuery.trim().length > 1,
+        enabled: debouncedQuery.trim().length > 0,
         staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
@@ -96,7 +96,7 @@ export default function SearchBar() {
                     onFocus={() => setIsOpen(true)} 
                 />
 
-                {isOpen && error && debouncedQuery.trim().length > 1 && (
+                {isOpen && error && debouncedQuery.trim().length > 0 && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-3 text-sm text-red-500">
                         Something went wrong while searching.
                     </div>
@@ -104,14 +104,14 @@ export default function SearchBar() {
 
                 {isOpen && !isFetching && !error && results && 
                  results.users.length === 0 && results.projects.length === 0 && 
-                 debouncedQuery.trim().length > 1 && (
+                 debouncedQuery.trim().length > 0 && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
                         No results found for "{debouncedQuery}"
                     </div>
                 )}
 
                 {/* Results Dropdown */}
-                {isOpen && results && (results.users.length > 0 || results.projects.length > 0) && (
+                {isOpen && debouncedQuery.trim().length > 0 && results && (results.users.length > 0 || results.projects.length > 0) && (
                     <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
 
                         {/* USERS SECTION */}
