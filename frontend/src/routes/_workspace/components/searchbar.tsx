@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
@@ -46,6 +46,7 @@ export default function SearchBar() {
     const [isOpen, setIsOpen] = useState(false);
     const debouncedQuery = useDebounce(query, 300); 
     const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useClickOutside(containerRef, () => setIsOpen(false));
 
@@ -61,6 +62,18 @@ export default function SearchBar() {
         staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+                e.preventDefault(); // Prevents the browser's default search from opening
+                inputRef.current?.focus();
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
     return (
         <Field orientation="horizontal">
             <div ref={containerRef} className="relative w-full max-w-xl mx-3 2xl:mx-100">
@@ -70,6 +83,7 @@ export default function SearchBar() {
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 )}
                 <Input
+                    ref={inputRef} 
                     type="search"
                     placeholder="Search for people or projects..."
                     className="pl-9"
@@ -150,6 +164,13 @@ export default function SearchBar() {
                         )}
                     </div>
                 )}
+
+                {/* Shortcut Badge */}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1">
+                    <kbd className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground border">
+                        <span className="text-xs">Ctrl+K</span>
+                    </kbd>
+                </div>
             </div>
         </Field>
     );
