@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import api from '@/api/axios.ts' // Use your existing axios instance
+import api from '@/api/axios.ts'
 
 // 1. Define the shape of the data coming from your backend
 interface Project {

@@ -108,8 +108,8 @@ export const globalSearch = async (
       [usersTotal, users] = await Promise.all([
         User.countDocuments(usersQuery),
         User.find(usersQuery)
-          .select('_id displayName email profilePictureUrl')
-          .sort({ displayName: 1 })
+          .select('_id profile.displayName email profile.profilePictureUrl')
+          .sort({ 'profile.displayName': 1 })
           .skip(usersSkip)
           .limit(PAGE_SIZE)
           .lean()
@@ -173,9 +173,9 @@ export const globalSearch = async (
     const formattedUsers = users.map((user) => ({
       type: 'user',
       id: user._id,
-      displayName: user.displayName,
+      displayName: user.profile.displayName,
       email: user.email,
-      profilePictureUrl: user.profilePictureUrl || '',
+      profilePictureUrl: user.profile.profilePictureUrl || '',
       href: `/users/${user._id}`
     }));
 
