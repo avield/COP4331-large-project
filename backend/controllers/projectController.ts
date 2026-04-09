@@ -218,24 +218,14 @@ export const getMyProjects = async (
 };
 
 export const getProjectById = async (
-  req: AuthenticatedRequest & { params: { projectId: string } },
-  res: Response
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
     const { projectId } = req.params;
 
-    const membership = await ProjectMember.findOne({
-      projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!membership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
+    // Fetch the project first
     const project = await Project.findById(projectId).populate('createdBy', 'displayName email');
 
     if (!project) {
@@ -243,7 +233,32 @@ export const getProjectById = async (
       return;
     }
 
-    res.status(200).json(project);
+    // Check membership
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active'
+    });
+
+    // The "Visitor Logic"
+    if (!membership) {
+      if (project.visibility === 'public') {
+        // Return 200 for public project info
+        res.status(200).json({
+          ...project.toObject(),
+          isFullDetails: false
+        });
+        return;
+      }
+      res.status(403).json({ message: 'Access denied.' });
+      return;
+    }
+
+    // Return full object for members
+    res.status(200).json({
+      ...project.toObject(),
+      isFullDetails: true
+    });
   } catch (error) {
     console.error('getProjectById error: ', error);
     res.status(500).json({ message: 'Internal server error.' });
@@ -359,27 +374,17 @@ export const deleteProject = async (
 };
 
 export const getProjectDetails = async (
-  req: AuthenticatedRequest & { params: { projectId: string } },
-  res: Response
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
     const { projectId } = req.params;
 
-    const requesterMembership = await ProjectMember.findOne({
-      projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!requesterMembership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
+    // Fetch the project first to check visibility
     const project = await Project.findById(projectId).populate(
-      'createdBy',
-      'displayName email username'
+        'createdBy',
+        'displayName email username'
     );
 
     if (!project) {
@@ -387,36 +392,60 @@ export const getProjectDetails = async (
       return;
     }
 
+    // Check if the current user is a member
+    const requesterMembership = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active'
+    });
+
+    // SECURITY CHECK: If NOT a member...
+    if (!requesterMembership) {
+      if (project.visibility === 'public') {
+        // Return 200 OK but with restricted data for the Visitor View
+        res.status(200).json({
+          project,
+          isFullDetails: false, // Tells frontend to show the "Locked" UI
+          message: 'Limited visitor view for public project.'
+        });
+        return;
+      }
+
+      // If project is private and user isn't a member, block it
+      res.status(403).json({ message: 'Access denied.' });
+      return;
+    }
+
+    // MEMBER ACCESS: Fetch everything (Goals, Members, Tasks)
     const goals = await Goal.find({ projectId })
-      .sort({ order: 1, createdAt: 1 })
-      .populate('createdBy', 'email profile.displayName')
+        .sort({ order: 1, createdAt: 1 })
+        .populate('createdBy', 'email profile.displayName');
 
     const members = await ProjectMember.find({
       projectId,
       membershipStatus: 'active'
     })
-      .populate('userId', 'email profile.displayName')
-      .populate('joinedBy', 'email profile.displayName')
-      .sort({ createdAt: 1 });
+        .populate('userId', 'email profile.displayName')
+        .populate('joinedBy', 'email profile.displayName')
+        .sort({ createdAt: 1 });
 
     const normalizedMembers = members.map((member) => {
-      const user = member.userId as unknown as PopulatedUser | null
+      const user = member.userId as unknown as PopulatedUser | null;
       return {
         ...member.toObject(),
         userId: user ? {
           _id: user._id,
           email: user.email,
           displayName: user.profile?.displayName ?? '',
-        }
-        : null,
-      }
-    })
+        } : null,
+      };
+    });
 
     const tasks = (await Task.find({ projectId })
-      .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
-      .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
-      .populate('completedBy', 'email profile.displayName profile.profilePictureUrl')
-      .sort({ createdAt: -1 })) as TaskStatusOnly[];
+        .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
+        .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
+        .populate('completedBy', 'email profile.displayName profile.profilePictureUrl')
+        .sort({ createdAt: -1 })) as TaskStatusOnly[];
 
     const stats = {
       totalTasks: tasks.length,
@@ -426,13 +455,16 @@ export const getProjectDetails = async (
       done: tasks.filter((t: TaskStatusOnly) => t.status === 'done').length
     };
 
+    // Return the full package for members
     res.status(200).json({
       project,
       members: normalizedMembers,
       tasks,
       goals,
-      stats
+      stats,
+      isFullDetails: true // Tells frontend to show the Kanban/Member UI
     });
+
   } catch (error) {
     console.error('getProjectDetails error:', error);
     res.status(500).json({ message: 'Internal server error.' });

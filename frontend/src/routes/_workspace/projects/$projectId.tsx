@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
-import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical } from 'lucide-react'
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd"
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check } from 'lucide-react'
 import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
@@ -45,6 +45,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+//import { AvatarGroup } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useAuthStore } from '@/api/authStore'
@@ -55,22 +56,10 @@ import { ProjectProgressAreaChart } from "./components/area-chart"
 
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
-    try {
-      const res = await api.get(`/projects/${params.projectId}/details`)
-      return { ...res.data, isFullDetails: true }
-    } catch {
-      // Logic for the fallback (Visitor View)
-      try {
-        const fallbackRes = await api.get(`/projects/${params.projectId}`)
-        return {
-          project: fallbackRes.data.project ?? fallbackRes.data,
-          isFullDetails: false
-        }
-      } catch (fallbackError) {
-        console.error("Critical error loading project:", fallbackError)
-        throw fallbackError // Or return a custom error state
-      }
-    }
+    const res = await api.get(`/projects/${params.projectId}/details`)
+
+    // Backend provides 'isFullDetails' in the JSON
+    return res.data
   },
   component: ProjectPage,
 })
@@ -236,6 +225,19 @@ function normalizeAssignedUsers(
 }
 
 function buildBoardData(apiData: ApiResponse): BoardData {
+  // If no tasks exist (like in Visitor View), return an empty board
+  if (!apiData.tasks) {
+    return {
+      tasks: {},
+      columns: {
+        'col-1': { id: 'col-1', title: 'To Do',       taskIds: [] },
+        'col-2': { id: 'col-2', title: 'In Progress', taskIds: [] },
+        'col-3': { id: 'col-3', title: 'Blocked',     taskIds: [] },
+        'col-4': { id: 'col-4', title: 'Done',        taskIds: [] },
+      },
+      columnOrder: ['col-1', 'col-2', 'col-3', 'col-4'],
+    }
+  }
   const tasks: Record<string, Task> = {}
   const todo: string[] = []
   const inProgress: string[] = []
@@ -313,16 +315,45 @@ function ProjectPage() {
   const loaderData = Route.useLoaderData() as ApiResponse & { isFullDetails: boolean }
   const { isFullDetails, project } = loaderData
   const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
-  const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
-
-  useEffect(() => {
-    setOrderedGoals(loaderData.goals ?? [])
-  }, [loaderData.goals])
-
-  const goals = orderedGoals
+  const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
 
   // Main Project State
   const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
+
+  // INITIAL FORM STATE
+  // This runs once when the component first mounts.
+  const [editForm, setEditForm] = useState(() => ({
+    name: project?.name ?? '',
+    description: project?.description ?? '',
+    visibility: project?.visibility ?? 'private',
+    recruitingStatus: project?.recruitingStatus ?? 'closed',
+    status: project?.status ?? 'planning',
+    dueDate: project?.dueDate ? project.dueDate.slice(0, 10) : '',
+    tags: (project?.tags ?? []).join(', '),
+    lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
+    allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
+    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+  }))
+
+  // RE-SYNC
+  // This runs whenever you switch projects (e.g., clicking a new search result).
+  useEffect(() => {
+    setEditForm({
+      name: project?.name ?? '',
+      description: project?.description ?? '',
+      visibility: project?.visibility ?? 'private',
+      recruitingStatus: project?.recruitingStatus ?? 'closed',
+      status: project?.status ?? 'planning',
+      dueDate: project?.dueDate ? project.dueDate.slice(0, 10) : '',
+      tags: (project?.tags ?? []).join(', '),
+      lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
+      allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
+      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+    })
+
+    // Re-sync the Kanban board data
+    setData(buildBoardData(loaderData))
+  }, [project, loaderData])
 
   // UI Visibility States
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
@@ -336,20 +367,6 @@ function ProjectPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
-
-  // Form States
-  const [editForm, setEditForm] = useState({
-    name: project?.name ?? '',
-    description: project?.description ?? '',
-    visibility: project?.visibility ?? 'private',
-    recruitingStatus: project?.recruitingStatus ?? 'closed',
-    status: project?.status ?? 'planning',
-    dueDate: project?.dueDate ? project.dueDate.slice(0, 10) : '',
-    tags: (project?.tags ?? []).join(', '),
-    lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
-    allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
-  })
 
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -379,7 +396,6 @@ function ProjectPage() {
   const [goalError, setGoalError] = useState('')
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
-  const [isReorderingGoals, setIsReorderingGoals] = useState(false)
 
   // Permission & Membership Logic
   const myMembership = useMemo(() => members.find(
@@ -867,44 +883,6 @@ function ProjectPage() {
       setIsDeletingGoal(false)
     }
   }
-  
-  const handleGoalDragEnd = async (result: DropResult) => {
-    const { destination, source } = result
-
-    if (!destination) return
-    if (destination.droppableId !== source.droppableId) return
-    if (destination.index === source.index) return
-
-    const previousGoals = [...goals]
-    const nextGoals = Array.from(goals)
-    const [movedGoal] = nextGoals.splice(source.index, 1)
-    nextGoals.splice(destination.index, 0, movedGoal)
-
-    const reorderedGoals = nextGoals.map((goal, index) => ({
-      ...goal,
-      order: index,
-    }))
-
-    setOrderedGoals(reorderedGoals)
-    setIsReorderingGoals(true)
-
-    try {
-      await Promise.all(
-        reorderedGoals.map((goal) =>
-          api.put(`/goals/${goal._id}`, { order: goal.order })
-        )
-      )
-
-      await router.invalidate()
-      toast.success('Goals reordered successfully.')
-    } catch (error) {
-      console.error('Failed to reorder goals:', error)
-      setOrderedGoals(previousGoals)
-      toast.error('Failed to reorder goals.')
-    } finally {
-      setIsReorderingGoals(false)
-    }
-  }
 
   //  ************************
   //  PROJECT CRUD OPERATIONS
@@ -963,7 +941,7 @@ const handleDeleteProject = async () => {
       description: 'Redirecting to your home page.',
     })
 
-    navigate({ to: '/home' })
+    await navigate({ to: '/home' })
   } catch (error) {
     console.error('Failed to delete project:', error)
     setDeleteProjectError('Failed to delete project. Please try again.')
@@ -974,21 +952,29 @@ const handleDeleteProject = async () => {
 }
 
 // VISITOR VIEW
-if(!isFullDetails) {
-  return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <Lock className="size-12 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-bold">Private Workspace</h2>
-        <p className="text-muted-foreground mt-2 text-center max-w-sm">
-          Detailed tasks and roadmap for <strong>{project.name}</strong> are restricted to project members.
-        </p>
-        <Button className="mt-6">
-          <UserPlus className="mr-2 size-4" />
-          Request to Join
-        </Button>
-      </div>
-  )
-}
+  if (!isFullDetails) {
+    return (
+        <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+          <div className="bg-muted p-4 rounded-full mb-6">
+            <Lock className="size-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
+          <p className="text-muted-foreground mt-2 max-w-md">
+            {project.description || "This workspace is currently private."}
+          </p>
+
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <Button size="lg" className="rounded-full px-8">
+              <UserPlus className="mr-2 size-4" />
+              Request to Join
+            </Button>
+            <p className="text-xs text-muted-foreground italic">
+              Managed by {project.createdBy?.displayName || 'a community member'}
+            </p>
+          </div>
+        </div>
+    )
+  }
 // MEMBER VIEW
   return (
     <div className="flex h-full min-w-0 flex-col gap-6 p-6 md:p-8">
@@ -1405,13 +1391,6 @@ if(!isFullDetails) {
                   </CardDescription>
                 </div>
 
-                {isReorderingGoals && (
-                  <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" />
-                    Saving goal order...
-                  </div>
-                )}
-
                 {canEditProject && (
                   <Button
                     size="sm"
@@ -1437,98 +1416,38 @@ if(!isFullDetails) {
                 )}
 
                 {goalProgress.length > 0 ? (
-                  <DragDropContext onDragEnd={handleGoalDragEnd}>
-                    <CardDescription>
-                      Drag goals to reorder radial rings from center outward.
-                    </CardDescription>
-                    <Droppable droppableId="goals-droppable">
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className="space-y-3"
-                        >
-                          {goalProgress.map((goal, index) => (
-                            <Draggable key={goal._id} draggableId={goal._id} index={index}>
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`rounded-lg border p-4 transition-shadow ${
-                                    snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
-                                  }`}
-                                >
-                                  <div className="mb-2 flex items-start justify-between gap-3">
-                                    <div className="flex items-start gap-3">
-                                      <div
-                                        {...provided.dragHandleProps}
-                                        className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
-                                      >
-                                        <GripVertical className="size-4" />
-                                      </div>
-
-                                      <div>
-                                        <div className="text-sm font-medium">{goal.title}</div>
-                                        <div className="text-xs text-muted-foreground">
-                                          {goal.total > 0
-                                            ? `${goal.done}/${goal.total} tasks complete`
-                                            : 'No tasks assigned yet'}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap gap-2">
-                                      {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
-                                      {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
-                                      {canEditProject && (
-                                        <>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedGoal(goal)
-                                              setGoalSheetMode('edit')
-                                              setGoalError('')
-                                              setGoalForm({
-                                                title: goal.title,
-                                                description: goal.description ?? '',
-                                              })
-                                              setIsGoalSheetOpen(true)
-                                            }}
-                                          >
-                                            Edit
-                                          </Button>
-
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedGoal(goal)
-                                              setIsGoalDeleteDialogOpen(true)
-                                            }}
-                                          >
-                                            Delete
-                                          </Button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{goal.percentComplete}% complete</span>
-                                    <span>
-                                      Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
+                  goalProgress.map((goal) => (
+                    <div key={goal._id} className="rounded-lg border p-4">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium">{goal.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {goal.total > 0
+                              ? `${goal.done}/${goal.total} tasks complete`
+                              : 'No tasks assigned yet'}
+                          </div>
                         </div>
-                      )}
-                    </Droppable>
-                  </DragDropContext>
+
+                        <div className="flex flex-wrap gap-2">
+                          {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
+                          {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
+                          {canEditProject && (
+                            <>
+                              <Button variant="outline" size="sm">Edit</Button>
+                              <Button variant="destructive" size="sm">Delete</Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{goal.percentComplete}% complete</span>
+                        <span>
+                          Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
+                        </span>
+                      </div>
+                    </div>
+                  ))
                 ) : (
                   <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
                     No goals yet. Create a goal to start tracking progress across related tasks.
@@ -1755,7 +1674,6 @@ if(!isFullDetails) {
           setIsGoalSheetOpen(open)
           if (!open) {
             setGoalError('')
-            setSelectedGoal(null)
             if (goalSheetMode === 'create') {
               setGoalForm({
                 title: '',
@@ -1878,9 +1796,7 @@ if(!isFullDetails) {
       <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete goal{selectedGoal ? ` "${selectedGoal.title}"` : ''}?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete goal?</AlertDialogTitle>
             <AlertDialogDescription>
               Choose whether to keep tasks and remove their goal assignment, or delete the
               goal and all tasks assigned to it.
