@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import api from "@/api/axios";
 import { NetworkAvatar } from "@/components/network-avatar";
@@ -63,7 +63,11 @@ export default function SearchBar() {
     return (
         <Field orientation="horizontal">
             <div className="relative w-full max-w-xl mx-3 2xl:mx-100">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                {isFetching ? (
+                    <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+                ) : (
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                )}
                 <Input
                     type="search"
                     placeholder="Search for people or projects..."
@@ -92,7 +96,10 @@ export default function SearchBar() {
                                         to="/users/$userId"
                                         params={{ userId: user.id }}
                                         className="flex items-center gap-3 p-2 hover:bg-accent rounded-md transition-colors"
-                                        onClick={() => setQuery("")}
+                                        onClick={() => {
+                                            setQuery("");
+                                            setDebouncedQuery("");
+                                        }}
                                     >
                                         <NetworkAvatar
                                             displayName={user.displayName}
