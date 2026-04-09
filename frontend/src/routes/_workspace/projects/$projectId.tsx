@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check } from 'lucide-react'
-import { KanbanColumn, type Column } from './components/column'
+import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical } from 'lucide-react'import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
 import { Badge } from '@/components/ui/badge'
@@ -45,7 +44,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-//import { AvatarGroup } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useAuthStore } from '@/api/authStore'
@@ -315,7 +313,13 @@ function ProjectPage() {
   const loaderData = Route.useLoaderData() as ApiResponse & { isFullDetails: boolean }
   const { isFullDetails, project } = loaderData
   const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
-  const goals = useMemo(() => loaderData.goals ?? [], [loaderData.goals])
+  const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
+
+  useEffect(() => {
+    setOrderedGoals(loaderData.goals ?? [])
+  }, [loaderData.goals])
+
+  const goals = orderedGoals
 
   // Main Project State
   const [data, setData] = useState<BoardData>(() => buildBoardData(loaderData))
@@ -396,6 +400,7 @@ function ProjectPage() {
   const [goalError, setGoalError] = useState('')
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [savedTaskId, setSavedTaskId] = useState<string | null>(null)
+  const [isReorderingGoals, setIsReorderingGoals] = useState(false)
 
   // Permission & Membership Logic
   const myMembership = useMemo(() => members.find(
@@ -883,6 +888,46 @@ function ProjectPage() {
       setIsDeletingGoal(false)
     }
   }
+
+    
+  const handleGoalDragEnd = async (result: DropResult) => {
+    const { destination, source } = result
+
+    if (!destination) return
+    if (destination.droppableId !== source.droppableId) return
+    if (destination.index === source.index) return
+
+    const previousGoals = [...goals]
+    const nextGoals = Array.from(goals)
+    const [movedGoal] = nextGoals.splice(source.index, 1)
+    nextGoals.splice(destination.index, 0, movedGoal)
+
+    const reorderedGoals = nextGoals.map((goal, index) => ({
+      ...goal,
+      order: index,
+    }))
+
+    setOrderedGoals(reorderedGoals)
+    setIsReorderingGoals(true)
+
+    try {
+      await Promise.all(
+        reorderedGoals.map((goal) =>
+          api.put(`/goals/${goal._id}`, { order: goal.order })
+        )
+      )
+
+      await router.invalidate()
+      toast.success('Goals reordered successfully.')
+    } catch (error) {
+      console.error('Failed to reorder goals:', error)
+      setOrderedGoals(previousGoals)
+      toast.error('Failed to reorder goals.')
+    } finally {
+      setIsReorderingGoals(false)
+    }
+  }
+
 
   //  ************************
   //  PROJECT CRUD OPERATIONS
@@ -1391,6 +1436,14 @@ const handleDeleteProject = async () => {
                   </CardDescription>
                 </div>
 
+                {isReorderingGoals && (
+                  <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Saving goal order...
+                  </div>
+                )}
+
+
                 {canEditProject && (
                   <Button
                     size="sm"
@@ -1416,38 +1469,98 @@ const handleDeleteProject = async () => {
                 )}
 
                 {goalProgress.length > 0 ? (
-                  goalProgress.map((goal) => (
-                    <div key={goal._id} className="rounded-lg border p-4">
-                      <div className="mb-2 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-medium">{goal.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {goal.total > 0
-                              ? `${goal.done}/${goal.total} tasks complete`
-                              : 'No tasks assigned yet'}
-                          </div>
-                        </div>
+                  <DragDropContext onDragEnd={handleGoalDragEnd}>
+                    <CardDescription>
+                      Drag goals to reorder radial rings from center outward.
+                    </CardDescription>
+                    <Droppable droppableId="goals-droppable">
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className="space-y-3"
+                        >
+                          {goalProgress.map((goal, index) => (
+                            <Draggable key={goal._id} draggableId={goal._id} index={index}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`rounded-lg border p-4 transition-shadow ${
+                                    snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
+                                  }`}
+                                >
+                                  <div className="mb-2 flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3">
+                                      <div
+                                        {...provided.dragHandleProps}
+                                        className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                                      >
+                                        <GripVertical className="size-4" />
+                                      </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
-                          {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
-                          {canEditProject && (
-                            <>
-                              <Button variant="outline" size="sm">Edit</Button>
-                              <Button variant="destructive" size="sm">Delete</Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium">{goal.title}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {goal.total > 0
+                                            ? `${goal.done}/${goal.total} tasks complete`
+                                            : 'No tasks assigned yet'}
+                                        </div>
+                                      </div>
+                                    </div>
 
-                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{goal.percentComplete}% complete</span>
-                        <span>
-                          Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
-                        </span>
-                      </div>
-                    </div>
-                  ))
+                                    <div className="flex flex-wrap gap-2">
+                                      {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
+                                      {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
+                                      {canEditProject && (
+                                        <>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedGoal(goal)
+                                              setGoalSheetMode('edit')
+                                              setGoalError('')
+                                              setGoalForm({
+                                                title: goal.title,
+                                                description: goal.description ?? '',
+                                              })
+                                              setIsGoalSheetOpen(true)
+                                            }}
+                                          >
+                                            Edit
+                                          </Button>
+
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedGoal(goal)
+                                              setIsGoalDeleteDialogOpen(true)
+                                            }}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{goal.percentComplete}% complete</span>
+                                    <span>
+                                      Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
                 ) : (
                   <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
                     No goals yet. Create a goal to start tracking progress across related tasks.
@@ -1674,6 +1787,7 @@ const handleDeleteProject = async () => {
           setIsGoalSheetOpen(open)
           if (!open) {
             setGoalError('')
+            setSelectedGoal(null)
             if (goalSheetMode === 'create') {
               setGoalForm({
                 title: '',
@@ -1796,7 +1910,9 @@ const handleDeleteProject = async () => {
       <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete goal?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete goal{selectedGoal ? ` "${selectedGoal.title}"` : ''}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Choose whether to keep tasks and remove their goal assignment, or delete the
               goal and all tasks assigned to it.
