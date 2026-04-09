@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import api from "@/api/axios";
 import { NetworkAvatar } from "@/components/network-avatar";
+import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce";
+import { useClickOutside } from "@/hooks/use-click-outside";
 
 interface SearchUser {
     id: string;
@@ -40,44 +43,84 @@ interface SearchResponse {
 
 export default function SearchBar() {
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<SearchResponse['results']>({
-        users: [],
-        projects: [],
-        tasks: []
+    const [isOpen, setIsOpen] = useState(false);
+    const debouncedQuery = useDebounce(query, 300); 
+    const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [isMac, setIsMac] = useState(false);
+
+    useClickOutside(containerRef, () => setIsOpen(false));
+
+    const { data: results, isFetching, error } = useQuery({
+        queryKey: ["search", debouncedQuery],
+        queryFn: async ({ signal }) => {
+            const { data } = await api.get<SearchResponse>(`/search`, {
+                params: { q: debouncedQuery },
+                signal, // Auto-cancels previous requests
+            });
+            return data.results;
+        },
+        enabled: debouncedQuery.trim().length > 0,
+        staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     });
 
+    // Small use effect to check if we are on a mac
     useEffect(() => {
-        const timer = setTimeout(async () => {
-            if (query.trim().length > 1) {
-                try {
-                    const { data } = await api.get<SearchResponse>(`/search?q=${query}`);
-                    setResults(data.results);
-                } catch (e) {
-                    console.error("Search fetch error:", e);
-                }
-            } else {
-                setResults({ users: [], projects: [], tasks: [] });
-            }
-        }, 300);
+        setIsMac(navigator.userAgent.toLowerCase().includes("mac"));
+    }, []);
 
-        return () => clearTimeout(timer);
-    }, [query]);
+    // Attach keydown listener for keyboard command
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+                e.preventDefault(); // Prevents the browser's default search from opening
+                inputRef.current?.focus();
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     return (
         <Field orientation="horizontal">
-            <div className="relative w-full max-w-xl mx-3 2xl:mx-100">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div ref={containerRef} className="relative w-full max-w-xl mx-3 2xl:mx-100">
+                {isFetching ? (
+                    <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+                ) : (
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                )}
                 <Input
+                    ref={inputRef} 
                     type="search"
                     placeholder="Search for people or projects..."
                     className="pl-9"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                        setQuery(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)} 
                 />
 
-                {/* 3. Results Dropdown */}
-                {(results.users.length > 0 || results.projects.length > 0) && (
-                    <div className="absolute top-full left-0 w-full bg-white border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
+                {isOpen && error && debouncedQuery.trim().length > 0 && (
+                    <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-3 text-sm text-red-500">
+                        Something went wrong while searching.
+                    </div>
+                )}
+
+                {isOpen && !isFetching && !error && results && 
+                 results.users.length === 0 && results.projects.length === 0 && results.tasks.length === 0 &&
+                 debouncedQuery.trim().length > 0 && (
+                    <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 p-4 text-center text-sm text-muted-foreground">
+                        No results found for "{debouncedQuery}"
+                    </div>
+                )}
+
+                {/* Results Dropdown */}
+                {isOpen && debouncedQuery.trim().length > 0 && results && 
+                (results.users.length > 0 || results.projects.length > 0 || results.tasks.length > 0) && (
+                    <div className="absolute top-full left-0 w-full bg-background border rounded-md mt-1 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
 
                         {/* USERS SECTION */}
                         {results.users.length > 0 && (
@@ -88,15 +131,18 @@ export default function SearchBar() {
                                         key={user.id}
                                         to="/users/$userId"
                                         params={{ userId: user.id }}
-                                        className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors"
-                                        onClick={() => setQuery("")}
+                                        className="flex items-center gap-3 p-2 hover:bg-accent rounded-md transition-colors"
+                                        onClick={() => {
+                                            setQuery("");
+                                            setIsOpen(false);
+                                        }}
                                     >
                                         <NetworkAvatar
                                             displayName={user.displayName}
                                             profilePictureUrl={user.profilePictureUrl}
                                             size="sm"
                                         />
-                                        <span className="text-sm font-medium text-slate-900">{user.displayName}</span>
+                                        <span className="text-sm font-medium text-foreground">{user.displayName}</span>
                                     </Link>
                                 ))}
                             </div>
@@ -111,19 +157,67 @@ export default function SearchBar() {
                                         key={project.id}
                                         to="/projects/$projectId"
                                         params={{ projectId: project.id }}
-                                        className="flex flex-col p-2 hover:bg-slate-50 rounded-md transition-colors"
-                                        onClick={() => setQuery("")}
+                                        className="flex flex-col p-2 hover:bg-accent rounded-md transition-colors"
+                                        onClick={() => {
+                                            setQuery("");
+                                            setIsOpen(false);
+                                        }}
                                     >
-                                        <span className="text-sm font-medium text-slate-900">{project.name}</span>
+                                        <span className="text-sm font-medium text-foreground">{project.name}</span>
                                         {project.description && (
-                                            <span className="text-xs text-slate-500 line-clamp-1">{project.description}</span>
+                                            <span className="text-xs text-foreground line-clamp-1">{project.description}</span>
                                         )}
                                     </Link>
                                 ))}
                             </div>
                         )}
+
+                        {/* TASKS SECTION */}
+                        {results.tasks.length > 0 && (
+                            <div className="p-2 border-t">
+                                <p className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">Tasks</p>
+                                {results.tasks.map((task) => {
+                                    // If there for some reason the task doesn't have a project id?
+                                    // idk why this is possible but the type says project id might be null
+                                    if (!task.projectId) {
+                                        return (
+                                            <div key={task.id} className="flex flex-col p-2 text-muted-foreground">
+                                                <span className="text-sm font-medium">{task.title} (No Project)</span>
+                                            </div>
+                                        )
+                                    }
+
+                                    // Clicking on a task, takes you to the project that task originates from
+                                    return (
+                                        <Link
+                                            key={task.id}
+                                            to="/projects/$projectId"
+                                            params={{ projectId: task.projectId }}
+                                            className="flex flex-col p-2 hover:bg-accent rounded-md transition-colors"
+                                            onClick={() => {
+                                                setQuery("");
+                                                setIsOpen(false);
+                                            }}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-foreground">{task.title}</span>
+                                                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{task.status}</span>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground mt-0.5">{task.projectName}</span>
+                                        </Link>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
+
+                {/* Shortcut Badge */}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1">
+                    <kbd className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground border">
+                        <span className="text-xs">{isMac ? "⌘K" : "Ctrl+K"}</span>
+                    </kbd>
+                </div>
             </div>
         </Field>
     );
