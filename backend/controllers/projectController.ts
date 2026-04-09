@@ -128,15 +128,15 @@ export const createProject = async (
       );
 
       if (normalizedGoals.length > 0) {
-        const tasksToCreate = normalizedGoals.map((goal) => ({
+        const goalsToCreate = normalizedGoals.map((goal, index) => ({
           projectId: project._id,
           title: goal.title,
           description: goal.description,
           createdBy: req.user._id,
-          dueDate: normalizedDueDate
+          order: index, // important for your drag ordering UI
         }));
 
-        await Task.insertMany(tasksToCreate, { session });
+        await Goal.insertMany(goalsToCreate, { session });
       }
     });
 

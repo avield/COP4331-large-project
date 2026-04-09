@@ -119,7 +119,7 @@ function NewProject() {
         <Card>
           <CardHeader>
             <CardTitle>Project Goals</CardTitle>
-            <CardDescription>Define key objectives. Each goal becomes an initial task on the board.</CardDescription>
+            <CardDescription>Define key objectives for your project. Think of these as the big outcomes, like "Secure Venue," "Launch Website", or "User Research Phase". You can add tasks under each goal after the project is created.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {goals.map((goal, index) => (
