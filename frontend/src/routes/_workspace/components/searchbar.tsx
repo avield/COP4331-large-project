@@ -86,7 +86,7 @@ export default function SearchBar() {
                                 {results.users.map((user) => (
                                     <Link
                                         key={user.id}
-                                        to="/_workspace/users/$userId"
+                                        to="/users/$userId"
                                         params={{ userId: user.id }}
                                         className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors"
                                         onClick={() => setQuery("")}
@@ -109,7 +109,7 @@ export default function SearchBar() {
                                 {results.projects.map((project) => (
                                     <Link
                                         key={project.id}
-                                        to="/_workspace/projects/$projectId"
+                                        to="/projects/$projectId"
                                         params={{ projectId: project.id }}
                                         className="flex flex-col p-2 hover:bg-slate-50 rounded-md transition-colors"
                                         onClick={() => setQuery("")}
