@@ -369,6 +369,17 @@ function ProjectPage() {
   const [isDeletingTask, setIsDeletingTask] = useState(false)
   const [taskDeleteError, setTaskDeleteError] = useState('')
 
+  //Member management UI States
+  const [isManageMembersSheetOpen, setIsManageMembersSheetOpen] = useState(false)
+  const [manageableMembers, setManageableMembers] = useState<ApiMember[]>([])
+  const [isLoadingManageableMembers, setIsLoadingManageableMembers] = useState(false)
+
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberSearchResults, setMemberSearchResults] = useState<ApiUserSummary[]>([])
+  const [selectedInviteeId, setSelectedInviteeId] = useState('')
+  const [inviteRole, setInviteRole] = useState('Member')
+  const [isInvitingMember, setIsInvitingMember] = useState(false)
+
   // Mode & Selection States
   const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
   const [goalSheetMode, setGoalSheetMode] = useState<'create' | 'edit'>('create')
@@ -414,6 +425,7 @@ function ProjectPage() {
 
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
+  const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
 
   // Memos for Analytics & UI
   const goalNameById = useMemo(() => {
@@ -482,32 +494,135 @@ function ProjectPage() {
 
   //Filter the kanban board by Goals
   const filteredBoardData = useMemo(() => {
-  if (goalFilter === 'all') return data
+    if (goalFilter === 'all') return data
 
-  const filteredTasks = Object.fromEntries(
-    Object.entries(data.tasks).filter(([, task]) => {
-      if (goalFilter === 'ungrouped') {
-        return !task.goalId
+    const filteredTasks = Object.fromEntries(
+      Object.entries(data.tasks).filter(([, task]) => {
+        if (goalFilter === 'ungrouped') {
+          return !task.goalId
+        }
+
+        return task.goalId === goalFilter
+      })
+    )
+
+    return {
+      ...data,
+      columns: Object.fromEntries(
+        Object.entries(data.columns).map(([columnId, column]) => [
+          columnId,
+          {
+            ...column,
+            taskIds: column.taskIds.filter((taskId) => filteredTasks[taskId]),
+          },
+        ])
+      ),
+      tasks: filteredTasks,
+    }
+  }, [data, goalFilter])
+
+  //  *************************
+  //  Member Add/Invite/Remove
+  //  *************************
+
+  //Fetch members
+  useEffect(() => {
+    const loadManageableMembers = async () => {
+      if (!isManageMembersSheetOpen || !canManageMembers) return
+
+      try {
+        setIsLoadingManageableMembers(true)
+        const res = await api.get(`/project-members/project/${project._id}/manage`)
+        setManageableMembers(res.data ?? [])
+      } catch (error) {
+        console.error('Failed to load manageable members:', error)
+        toast.error('Failed to load member management data.')
+      } finally {
+        setIsLoadingManageableMembers(false)
       }
+    }
 
-      return task.goalId === goalFilter
-    })
-  )
+    void loadManageableMembers()
+  }, [isManageMembersSheetOpen, canManageMembers, project._id])
 
-  return {
-    ...data,
-    columns: Object.fromEntries(
-      Object.entries(data.columns).map(([columnId, column]) => [
-        columnId,
-        {
-          ...column,
-          taskIds: column.taskIds.filter((taskId) => filteredTasks[taskId]),
-        },
-      ])
-    ),
-    tasks: filteredTasks,
+  //Helper to search for users
+  const handleSearchUsers = async (value: string) => {
+    setMemberSearch(value)
+
+    const trimmed = value.trim()
+    if (!trimmed) {
+      setMemberSearchResults([])
+      return
+    }
+
+    try {
+      const res = await api.get('/search', {
+        params: { q: trimmed, type: 'users' },
+      })
+
+      const users = res.data?.results?.users ?? []
+      setMemberSearchResults(users)
+    } catch (error) {
+      console.error('Failed to search users:', error)
+    }
   }
-}, [data, goalFilter])
+
+  //Send invitations
+  const handleInviteMember = async () => {
+    if (!selectedInviteeId) return
+
+    try {
+      setIsInvitingMember(true)
+
+      await api.post(`/project-members/project/${project._id}`, {
+        userId: selectedInviteeId,
+        role: inviteRole,
+        permissions: {
+          canEditProject: false,
+          canManageMembers: false,
+          canCreateTasks: true,
+          canAssignTasks: false,
+          canCompleteAnyTask: false,
+          canModerateChat: false,
+        },
+      })
+
+      toast.success('Invitation sent.')
+      setSelectedInviteeId('')
+      setMemberSearch('')
+      setMemberSearchResults([])
+
+      const refreshed = await api.get(`/project-members/project/${project._id}/manage`)
+      setManageableMembers(refreshed.data ?? [])
+      await router.invalidate()
+    } catch (error) {
+      console.error('Failed to invite member:', error)
+      toast.error('Failed to send invitation.')
+    } finally {
+      setIsInvitingMember(false)
+    }
+  }
+
+  //Approve requests, edit permissions, uninvite
+  const handleUpdateMember = async (
+    membershipId: string,
+    updates: Partial<Pick<ApiMember, 'role' | 'membershipStatus'>> & {
+      permissions?: ApiMember['permissions']
+    }
+  ) => {
+    try {
+      await api.put(`/project-members/${membershipId}`, updates)
+
+      const refreshed = await api.get(`/project-members/project/${project._id}/manage`)
+      setManageableMembers(refreshed.data ?? [])
+      await router.invalidate()
+
+      toast.success('Member updated.')
+    } catch (error) {
+      console.error('Failed to update member:', error)
+      toast.error('Failed to update member.')
+    }
+  }
 
   
   // ********************
@@ -1168,6 +1283,7 @@ const handleDeleteProject = async () => {
             </Button>
           )}
 
+          {/* PROJECT TASK SHEET */}
           {canEditProject && (
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
               <SheetTrigger asChild>
@@ -1532,6 +1648,7 @@ const handleDeleteProject = async () => {
 
             </CardContent>
 
+            {/* PROGRESS BAR */}
             <Card>
               <CardHeader>
                 <CardTitle>Project Completion</CardTitle>
@@ -1562,6 +1679,7 @@ const handleDeleteProject = async () => {
             </Card>
           </Card>
 
+          {/* GOAL RADIAL CHART */}
           <ProjectProgressAreaChart tasks={Object.values(data.tasks)} />
 
           {(goals.length > 0 || canEditProject) && (
@@ -1608,6 +1726,7 @@ const handleDeleteProject = async () => {
                   </div>
                 )}
 
+                {/* GOALS STATUS AND LIST */}
                 {goalProgress.length > 0 ? (
                   <DragDropContext onDragEnd={handleGoalDragEnd}>
                     <CardDescription>
@@ -1720,6 +1839,7 @@ const handleDeleteProject = async () => {
 
         </div>
 
+        {/* JOIN SETTINGS */}
         <div className="grid gap-6">
           <Card>
             <CardHeader>
@@ -1766,12 +1886,21 @@ const handleDeleteProject = async () => {
             </CardContent>
           </Card>
 
+          {/* MEMBERS CARD */}
           <Card>
             <CardHeader>
               <CardTitle>Members</CardTitle>
               <CardDescription>
                 Current project members and roles.
               </CardDescription>
+              {canManageMembers && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsManageMembersSheetOpen(true)}
+                >
+                  Manage Members
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>

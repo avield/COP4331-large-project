@@ -75,6 +75,7 @@ export const getManageableMembers = async (
 
 // --- ACTIONS ---
 
+//Changed to behave more like a "Invite Member" function. Might change back
 export const addProjectMember = async (
     req: AuthenticatedRequest & {
       params: { projectId: string };
@@ -116,7 +117,8 @@ export const addProjectMember = async (
         canCompleteAnyTask: !!permissions?.canCompleteAnyTask,
         canModerateChat: !!permissions?.canModerateChat
       },
-      membershipStatus: 'active',
+      //Changed this from active to pending
+      membershipStatus: 'pending',
       joinedBy: req.user._id
     });
 
@@ -124,7 +126,8 @@ export const addProjectMember = async (
         .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'displayName email username');
 
-    res.status(201).json({ message: 'Member added.', member: populatedMember });
+    //Changed the message sent.
+    res.status(201).json({ message: 'Invitation sent.', member: populatedMember });
   } catch (error) {
     console.error('addProjectMember error:', error);
     res.status(500).json({ message: 'Internal server error.' });
@@ -270,3 +273,100 @@ export const denyJoinRequest = async (
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+//Accepting Invitations
+export const acceptProjectInvitation = async (
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { membershipId } = req.params
+
+    const membership = await ProjectMember.findById(membershipId)
+    if (!membership) {
+      res.status(404).json({ message: 'Invitation not found.' })
+      return
+    }
+
+    if (membership.userId.toString() !== req.user._id.toString()) {
+      res.status(403).json({ message: 'You can only accept your own invitations.' })
+      return
+    }
+
+    if (membership.membershipStatus !== 'pending') {
+      res.status(400).json({ message: 'This invitation is no longer pending.' })
+      return
+    }
+
+    membership.membershipStatus = 'active'
+    await membership.save()
+
+    const updated = await ProjectMember.findById(membership._id)
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+      .populate('joinedBy', 'email profile.displayName')
+
+    res.status(200).json({ message: 'Invitation accepted.', member: updated })
+  } catch (error) {
+    console.error('acceptProjectInvitation error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Rejecting invitations
+export const rejectProjectInvitation = async (
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { membershipId } = req.params
+
+    const membership = await ProjectMember.findById(membershipId)
+    if (!membership) {
+      res.status(404).json({ message: 'Invitation not found.' })
+      return
+    }
+
+    if (membership.userId.toString() !== req.user._id.toString()) {
+      res.status(403).json({ message: 'You can only reject your own invitations.' })
+      return
+    }
+
+    if (membership.membershipStatus !== 'pending') {
+      res.status(400).json({ message: 'This invitation is no longer pending.' })
+      return
+    }
+
+    await ProjectMember.findByIdAndDelete(membershipId)
+    res.status(200).json({ message: 'Invitation rejected.' })
+  } catch (error) {
+    console.error('rejectProjectInvitation error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Get all pending invitations
+export const getMyProjectInvitations = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const invitations = await ProjectMember.find({
+      userId: req.user._id,
+      membershipStatus: 'pending',
+    })
+      .populate('projectId', 'name description visibility recruitingStatus')
+      .populate('joinedBy', 'email profile.displayName profile.profilePictureUrl')
+      .sort({ createdAt: -1 })
+
+    res.status(200).json(invitations)
+  } catch (error) {
+    console.error('getMyProjectInvitations error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}

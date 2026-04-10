@@ -180,7 +180,7 @@ export const createProject = async (
               userId: member.userId,
               role: member.role,
               permissions: member.permissions,
-              membershipStatus: 'active',
+              membershipStatus: 'pending',
               joinedBy: req.user._id
             })),
             { session }

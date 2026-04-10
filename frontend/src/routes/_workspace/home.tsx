@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Plus, FolderPlus, CheckCircle2, Clock,
   TrendingUp, ArrowRight, Calendar, LayoutGrid,
@@ -26,15 +26,39 @@ interface Project {
   taskCounts: TaskCounts
 }
 
+interface Invitation {
+  _id: string
+  projectId: {
+    _id: string
+    name: string
+  }
+  joinedBy?: {
+    profile?: {
+      displayName?: string
+    }
+    email?: string
+  }
+}
+
 // ── Route + Loader ─────────────────────────────────────────────────────────────
 // GET /api/projects returns a plain array
 export const Route = createFileRoute('/_workspace/home')({
-  loader: async (): Promise<Project[]> => {
+  loader: async (): Promise<{ projects: Project[]; invitations: Invitation[] }> => {
     try {
-      const res = await api.get<Project[]>('/projects')
-      return Array.isArray(res.data) ? res.data : []
+      const [projectsRes, invitationsRes] = await Promise.all([
+        api.get<Project[]>('/projects'),
+        api.get('/project-members/me/invitations'),
+      ])
+
+      return {
+        projects: Array.isArray(projectsRes.data) ? projectsRes.data : [],
+        invitations: invitationsRes.data ?? [],
+      }
     } catch {
-      return []
+      return {
+        projects: [],
+        invitations: [],
+      }
     }
   },
   component: Home,
@@ -86,9 +110,12 @@ function EmptyState() {
 }
 
 function Home() {
-  const projects = Route.useLoaderData()
+  const { projects, invitations } = Route.useLoaderData()
 
-  if (!projects || projects.length === 0) return <EmptyState />
+  const hasProjects = projects && projects.length > 0
+  const hasInvitations = invitations && invitations.length > 0
+
+  if (!hasProjects && !hasInvitations) return <EmptyState />
 
   const totalTasks     = projects.reduce((s: number, p: Project) => s + p.taskCounts.total, 0)
   const completedTasks = projects.reduce((s: number, p: Project) => s + p.taskCounts.done, 0)
@@ -182,6 +209,38 @@ function Home() {
               </Link>
             )
           })}
+
+          {invitations.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Invitations</h2>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {invitations.map((invite) => (
+                  <Card key={invite._id} className="border-border/50 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
+                      <CardDescription>
+                        Invited by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-2">
+                      <Button onClick={() => api.post(`/project-members/${invite._id}/accept`)}>
+                        Accept
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => api.delete(`/project-members/${invite._id}/reject`)}
+                      >
+                        Reject
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           <Link to="/projects/new" className="block">
             <Card className="flex min-h-[160px] cursor-pointer items-center justify-center border-dashed border-border/30 bg-card/20 transition-all duration-150 hover:border-border/60 hover:bg-card/50">
