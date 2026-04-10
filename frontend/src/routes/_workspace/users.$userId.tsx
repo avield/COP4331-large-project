@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import api from '@/api/axios.ts'
 
-// 1. Define the shape of the data coming from your backend
 interface Project {
     _id: string
     name: string
@@ -9,25 +8,27 @@ interface Project {
     href: string
 }
 
+// 1. Updated Interface to include new fields
 interface UserProfileData {
     user: {
         id: string
         displayName: string
         school: string
         aboutMe: string
+        preferredRoles: string[] // Added
+        profilePictureUrl?: string // Added
         isCurrentUser: boolean
     }
     projects: Project[]
 }
 
 export const Route = createFileRoute('/_workspace/users/$userId')({
-    // Type the loader so 'data' isn't "unknown"
     loader: async ({ params }): Promise<UserProfileData | null> => {
         try {
             const { data } = await api.get<UserProfileData>(`/users/${params.userId}`)
             return data
         } catch {
-            return null 
+            return null
         }
     },
     component: UserProfilePage,
@@ -37,46 +38,81 @@ function UserProfilePage() {
     const data = Route.useLoaderData()
 
     if (!data) {
-        return <div className="max-w-4xl mx-auto p-6 space-y-8">
-            <div className="flex items-center justify-between">
-                User not found
-            </div>
-        </div>
+        return <div className="max-w-4xl mx-auto p-6 text-center">User not found</div>
     }
 
     const { user, projects } = data
 
     return (
-        <div className="max-w-4xl mx-auto p-6 space-y-8">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">{user.displayName}'s Profile</h1>
-                    <p className="text-muted-foreground">{user.school}</p>
+        <div className="max-w-4xl mx-auto p-6 space-y-10">
+            {/* Header Section */}
+            <header className="flex flex-col md:flex-row items-center gap-6">
+                <img
+                    src={user.profilePictureUrl || 'https://via.placeholder.com/150'}
+                    alt={user.displayName}
+                    className="w-32 h-32 rounded-full object-cover border-4 border-muted"
+                />
+                <div className="flex-1 text-center md:text-left space-y-1">
+                    <h1 className="text-4xl font-extrabold tracking-tight">{user.displayName}</h1>
+                    <p className="text-lg text-muted-foreground">
+                        <span className="font-semibold text-foreground">School:</span> {user.school}
+                    </p>
                 </div>
 
-                {/* If it's the logged-in user, show a link to the private profile page */}
                 {user.isCurrentUser && (
-                    <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md">
-                        Edit My Profile
+                    <button className="bg-primary text-primary-foreground px-6 py-2 rounded-full font-medium hover:opacity-90 transition-opacity">
+                        Edit Profile
                     </button>
                 )}
-            </div>
+            </header>
 
-            <section className="space-y-4">
-                <h2 className="text-xl font-semibold">Projects</h2>
-                <div className="grid gap-4">
-                    {projects.length > 0 ? (
-                        projects.map((project: Project) => (
-                            <div key={project._id} className="p-4 border rounded-lg">
-                                <h3 className="font-medium">{project.name}</h3>
-                                <p className="text-sm text-muted-foreground">{project.description}</p>
-                            </div>
-                        ))
-                    ) : (
-                        <p className="text-sm text-muted-foreground">No public projects found.</p>
-                    )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Left Sidebar: About & Roles */}
+                <div className="md:col-span-1 space-y-8">
+                    <section className="space-y-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">About Me</h2>
+                        <p className="text-sm leading-relaxed text-foreground/90">
+                            {user.aboutMe || "This user hasn't shared a bio yet."}
+                        </p>
+                    </section>
+
+                    <section className="space-y-3">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Preferred Roles</h2>
+                        <div className="flex flex-wrap gap-2">
+                            {user.preferredRoles?.length > 0 ? (
+                                user.preferredRoles.map((role: string) => (
+                                    <span key={role} className="px-3 py-1 bg-secondary text-secondary-foreground text-xs font-medium rounded-full">
+                                        {role}
+                                    </span>
+                                ))
+                            ) : (
+                                <p className="text-xs text-muted-foreground italic">No roles specified</p>
+                            )}
+                        </div>
+                    </section>
                 </div>
-            </section>
+
+                {/* Right Content: Projects */}
+                <div className="md:col-span-2">
+                    <section className="space-y-4">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active Projects</h2>
+                        <div className="grid gap-4">
+                            {projects.length > 0 ? (
+                                projects.map((project: Project) => (
+                                    <div key={project._id} className="p-5 border rounded-xl hover:shadow-md transition-shadow bg-card text-card-foreground">
+                                        <h3 className="font-semibold text-lg">{project.name}</h3>
+                                        <p className="text-sm text-muted-foreground line-clamp-2">{project.description}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-8 border border-dashed rounded-xl text-center">
+                                    <p className="text-sm text-muted-foreground italic">No public projects found.</p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </div>
+            </div>
         </div>
     )
 }

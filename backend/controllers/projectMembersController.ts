@@ -29,29 +29,21 @@ interface UpdateProjectMemberBody {
 const validMembershipStatuses = ['active', 'pending', 'removed'] as const;
 type ValidMembershipStatus = (typeof validMembershipStatuses)[number];
 
+// --- GETTERS ---
+
 export const getProjectMembers = async (
-  req: AuthenticatedRequest & { params: { projectId: string } },
-  res: Response
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
     const { projectId } = req.params;
 
-    const requesterMembership = await ProjectMember.findOne({
-      projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!requesterMembership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
+    // Standard members list for team viewing
     const members = await ProjectMember.find({ projectId, membershipStatus: 'active' })
-      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
-      .populate('joinedBy', 'displayName email username')
-      .sort({ createdAt: 1 });
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .populate('joinedBy', 'displayName email username')
+        .sort({ createdAt: 1 });
 
     res.status(200).json(members);
   } catch (error) {
@@ -60,12 +52,35 @@ export const getProjectMembers = async (
   }
 };
 
+export const getManageableMembers = async (
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    const { projectId } = req.params;
+    // Security: middleware already verified 'canManageMembers' or 'Owner'
+    const members = await ProjectMember.find({
+      projectId,
+      membershipStatus: { $in: ['active', 'pending'] }
+    })
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .sort({ membershipStatus: -1, createdAt: 1 });
+
+    res.status(200).json(members);
+  } catch (error) {
+    console.error('getManageableMembers error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// --- ACTIONS ---
+
 export const addProjectMember = async (
-  req: AuthenticatedRequest & {
-    params: { projectId: string };
-    body: AddProjectMemberBody;
-  },
-  res: Response
+    req: AuthenticatedRequest & {
+      params: { projectId: string };
+      body: AddProjectMemberBody;
+    },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
@@ -77,190 +92,136 @@ export const addProjectMember = async (
       return;
     }
 
-    const project = await Project.findById(projectId);
-    if (!project) {
-      res.status(404).json({ message: 'Project not found.' });
-      return;
-    }
-
-    const requesterMembership = await ProjectMember.findOne({
-      projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!requesterMembership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
-    const canManage =
-      requesterMembership.role === 'Owner' ||
-      requesterMembership.permissions?.canManageMembers;
-
-    if (!canManage) {
-      res.status(403).json({
-        message: 'You do not have permission to manage members.'
-      });
-      return;
-    }
-
     const userExists = await User.findById(userId);
     if (!userExists) {
       res.status(404).json({ message: 'User not found.' });
       return;
     }
 
-    const existingMembership = await ProjectMember.findOne({
-      projectId,
-      userId
-    });
-
+    const existingMembership = await ProjectMember.findOne({ projectId, userId });
     if (existingMembership) {
-      res.status(400).json({
-        message: 'That user is already associated with this project.'
-      });
+      res.status(400).json({ message: 'User is already in this project.' });
       return;
     }
-
-    const normalizedPermissions = {
-      canEditProject: !!permissions?.canEditProject,
-      canManageMembers: !!permissions?.canManageMembers,
-      canCreateTasks: permissions?.canCreateTasks ?? true,
-      canAssignTasks: !!permissions?.canAssignTasks,
-      canCompleteAnyTask: !!permissions?.canCompleteAnyTask,
-      canModerateChat: !!permissions?.canModerateChat
-    };
 
     const member = await ProjectMember.create({
       projectId,
       userId,
       role: typeof role === 'string' && role.trim() ? role.trim() : 'Member',
-      permissions: normalizedPermissions,
+      permissions: {
+        canEditProject: !!permissions?.canEditProject,
+        canManageMembers: !!permissions?.canManageMembers,
+        canCreateTasks: permissions?.canCreateTasks ?? true,
+        canAssignTasks: !!permissions?.canAssignTasks,
+        canCompleteAnyTask: !!permissions?.canCompleteAnyTask,
+        canModerateChat: !!permissions?.canModerateChat
+      },
       membershipStatus: 'active',
       joinedBy: req.user._id
     });
 
     const populatedMember = await ProjectMember.findById(member._id)
-      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
-      .populate('joinedBy', 'displayName email username');
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .populate('joinedBy', 'displayName email username');
 
-    res.status(201).json({
-      message: 'Member added successfully.',
-      member: populatedMember
-    });
+    res.status(201).json({ message: 'Member added.', member: populatedMember });
   } catch (error) {
     console.error('addProjectMember error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-export const updateProjectMember = async (
-  req: AuthenticatedRequest & {
-    params: { membershipId: string };
-    body: UpdateProjectMemberBody;
-  },
-  res: Response
+export const requestJoinProject = async (
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
+    const { projectId } = req.params;
+    const userId = req.user._id;
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.settings?.allowSelfJoinRequests) {
+      res.status(403).json({ message: 'Joining is disabled.' });
+      return;
+    }
+
+    const existing = await ProjectMember.findOne({ projectId, userId });
+    if (existing) {
+      res.status(400).json({ message: 'Request already exists.' });
+      return;
+    }
+
+    const needsApproval = project.settings.requireApprovalToJoin ?? true;
+    const status = needsApproval ? 'pending' : 'active';
+
+    const member = await ProjectMember.create({
+      projectId,
+      userId,
+      role: 'Member',
+      membershipStatus: status,
+      joinedBy: userId,
+      permissions: {
+        canEditProject: false,
+        canManageMembers: false,
+        canCreateTasks: !needsApproval,
+        canAssignTasks: false,
+        canCompleteAnyTask: false,
+        canModerateChat: false
+      }
+    });
+
+    res.status(201).json({ message: needsApproval ? 'Request sent!' : 'Joined!', status, member });
+  } catch (error) {
+    console.error('requestJoinProject error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const updateProjectMember = async (
+    req: AuthenticatedRequest & {
+      params: { membershipId: string };
+      body: UpdateProjectMemberBody;
+    },
+    res: Response
+): Promise<void> => {
+  try {
     const { membershipId } = req.params;
     const { role, permissions, membershipStatus } = req.body;
 
     const membership = await ProjectMember.findById(membershipId);
     if (!membership) {
-      res.status(404).json({ message: 'Project member not found.' });
+      res.status(404).json({ message: 'Member not found.' });
       return;
     }
 
-    const requesterMembership = await ProjectMember.findOne({
-      projectId: membership.projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!requesterMembership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
+    // Owner protection is a business rule, keep it here
     if (membership.role === 'Owner' && role && role !== 'Owner') {
-      res.status(400).json({
-        message: 'Use a dedicated ownership transfer flow to change the project owner.'
-      });
+      res.status(400).json({ message: 'Ownership transfer required to change Owner role.' });
       return;
     }
 
-    const canManage =
-      requesterMembership.role === 'Owner' ||
-      requesterMembership.permissions?.canManageMembers;
+    if (role) membership.role = role.trim();
 
-    if (!canManage) {
-      res.status(403).json({
-        message: 'You do not have permission to manage members.'
-      });
-      return;
-    }
-
-    if (typeof role === 'string' && role.trim()) {
-      membership.role = role.trim();
-    }
-
-    if (permissions && typeof permissions === 'object' && !Array.isArray(permissions)) {
-      const currentPermissions: PermissionsInput = {
-        canEditProject: membership.permissions?.canEditProject ?? false,
-        canManageMembers: membership.permissions?.canManageMembers ?? false,
-        canCreateTasks: membership.permissions?.canCreateTasks ?? true,
-        canAssignTasks: membership.permissions?.canAssignTasks ?? false,
-        canCompleteAnyTask: membership.permissions?.canCompleteAnyTask ?? false,
-        canModerateChat: membership.permissions?.canModerateChat ?? false
-      };
-
+    if (permissions) {
       membership.permissions = {
-        canEditProject:
-          permissions.canEditProject !== undefined
-            ? !!permissions.canEditProject
-            : currentPermissions.canEditProject,
-        canManageMembers:
-          permissions.canManageMembers !== undefined
-            ? !!permissions.canManageMembers
-            : currentPermissions.canManageMembers,
-        canCreateTasks:
-          permissions.canCreateTasks !== undefined
-            ? !!permissions.canCreateTasks
-            : currentPermissions.canCreateTasks,
-        canAssignTasks:
-          permissions.canAssignTasks !== undefined
-            ? !!permissions.canAssignTasks
-            : currentPermissions.canAssignTasks,
-        canCompleteAnyTask:
-          permissions.canCompleteAnyTask !== undefined
-            ? !!permissions.canCompleteAnyTask
-            : currentPermissions.canCompleteAnyTask,
-        canModerateChat:
-          permissions.canModerateChat !== undefined
-            ? !!permissions.canModerateChat
-            : currentPermissions.canModerateChat
+        canEditProject: permissions.canEditProject ?? membership.permissions?.canEditProject ?? false,
+        canManageMembers: permissions.canManageMembers ?? membership.permissions?.canManageMembers ?? false,
+        canCreateTasks: permissions.canCreateTasks ?? membership.permissions?.canCreateTasks ?? true,
+        canAssignTasks: permissions.canAssignTasks ?? membership.permissions?.canAssignTasks ?? false,
+        canCompleteAnyTask: permissions.canCompleteAnyTask ?? membership.permissions?.canCompleteAnyTask ?? false,
+        canModerateChat: permissions.canModerateChat ?? membership.permissions?.canModerateChat ?? false
       };
     }
 
-    if (
-      typeof membershipStatus === 'string' &&
-      validMembershipStatuses.includes(membershipStatus as ValidMembershipStatus)
-    ) {
+    if (membershipStatus && validMembershipStatuses.includes(membershipStatus as ValidMembershipStatus)) {
       membership.membershipStatus = membershipStatus as ValidMembershipStatus;
     }
 
     await membership.save();
+    const updated = await ProjectMember.findById(membership._id).populate('userId', 'email profile.displayName');
 
-    const updatedMembership = await ProjectMember.findById(membership._id)
-      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
-      .populate('joinedBy', 'displayName email username');
-
-    res.status(200).json({
-      message: 'Project member updated successfully.',
-      member: updatedMembership
-    });
+    res.status(200).json({ message: 'Member updated.', member: updated });
   } catch (error) {
     console.error('updateProjectMember error:', error);
     res.status(500).json({ message: 'Internal server error.' });
@@ -268,57 +229,44 @@ export const updateProjectMember = async (
 };
 
 export const removeProjectMember = async (
-  req: AuthenticatedRequest & { params: { membershipId: string } },
-  res: Response
+    req: AuthenticatedRequest & { params: { membershipId: string } },
+    res: Response
 ): Promise<void> => {
   try {
     requireUser(req);
     const { membershipId } = req.params;
-
     const membership = await ProjectMember.findById(membershipId);
+
     if (!membership) {
-      res.status(404).json({ message: 'Project member not found.' });
+      res.status(404).json({ message: 'Member not found.' });
       return;
     }
 
-    const requesterMembership = await ProjectMember.findOne({
-      projectId: membership.projectId,
-      userId: req.user._id,
-      membershipStatus: 'active'
-    });
-
-    if (!requesterMembership) {
-      res.status(403).json({ message: 'Access denied.' });
-      return;
-    }
-
-    if (membership.role === 'Owner') {
-      res.status(400).json({
-        message: 'Project owner cannot be removed through this endpoint.'
-      });
-      return;
-    }
-
-    const canManage =
-      requesterMembership.role === 'Owner' ||
-      requesterMembership.permissions?.canManageMembers;
-
+    // Special Case: Allow self-removal even without 'Manage' perms
     const isSelfRemoval = membership.userId.toString() === req.user._id.toString();
 
-    if (!canManage && !isSelfRemoval) {
-      res.status(403).json({
-        message: 'You do not have permission to remove this member.'
-      });
+    // If not self-removal, checkCanManageMembers middleware handles the security
+    if (membership.role === 'Owner') {
+      res.status(400).json({ message: 'Owner cannot be removed.' });
       return;
     }
 
     await ProjectMember.findByIdAndDelete(membershipId);
-
-    res.status(200).json({
-      message: 'Project member removed successfully.'
-    });
+    res.status(200).json({ message: 'Member removed.' });
   } catch (error) {
     console.error('removeProjectMember error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const denyJoinRequest = async (
+    req: AuthenticatedRequest & { params: { membershipId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    await ProjectMember.findByIdAndDelete(req.params.membershipId);
+    res.status(200).json({ message: 'Request denied.' });
+  } catch (error) {
     res.status(500).json({ message: 'Internal server error.' });
   }
 };

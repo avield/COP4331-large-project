@@ -16,6 +16,13 @@ const projectMemberSchema = new Schema(
       type: String,
       default: 'Member'
     },
+
+    membershipStatus: {
+        type: String,
+        enum: ['active', 'pending', 'removed'],
+          default: 'active'
+    },
+
     permissions: {
       canEditProject: { type: Boolean, default: false },
       canManageMembers: { type: Boolean, default: false },
@@ -24,11 +31,7 @@ const projectMemberSchema = new Schema(
       canCompleteAnyTask: { type: Boolean, default: false },
       canModerateChat: { type: Boolean, default: false }
     },
-    membershipStatus: {
-      type: String,
-      enum: ['active', 'pending', 'removed'],
-      default: 'active'
-    },
+
     joinedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
