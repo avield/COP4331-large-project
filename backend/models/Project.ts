@@ -40,7 +40,7 @@ const projectSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'completed', 'archived'],
+      enum: ['active', 'completed', 'planning', 'on_hold'],
       default: 'active'
     },
     progressPercent: {

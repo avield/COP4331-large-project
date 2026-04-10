@@ -40,6 +40,14 @@ interface UpdateProjectBody {
   description?: string;
   visibility?: 'private' | 'public';
   dueDate?: string | null;
+  recruitingStatus?: 'open' | 'closed';
+  status?: 'planning' | 'active' | 'on_hold' | 'completed';
+  tags?: string[];
+  lookingForRoles?: string[];
+  settings?: {
+    allowSelfJoinRequests?: boolean;
+    requireApprovalToJoin?: boolean;
+  };
 }
 
 type ProjectIdOnly = {
@@ -56,12 +64,12 @@ type ProjectLike = {
 };
 
 type PopulatedUser = {
-      _id: string
-      email?: string
-      profile?: {
-        displayName?: string
-      }
-    }
+  _id: string
+  email?: string
+  profile?: {
+    displayName?: string
+  }
+}
 
 export const createProject = async (
   req: AuthenticatedRequest & { body: CreateProjectBody },
@@ -325,7 +333,17 @@ export const updateProject = async (
   try {
     requireUser(req);
     const { projectId } = req.params;
-    const { name, description, visibility, dueDate } = req.body;
+    const {
+      name,
+      description,
+      visibility,
+      dueDate,
+      recruitingStatus,
+      status,
+      tags,
+      lookingForRoles,
+      settings
+    } = req.body;
 
     const membership = await ProjectMember.findOne({
       projectId,
@@ -373,6 +391,40 @@ export const updateProject = async (
       project.dueDate = null;
     } else if (dueDate && !Number.isNaN(new Date(dueDate).getTime())) {
       project.dueDate = new Date(dueDate);
+    }
+
+    if (recruitingStatus === 'open' || recruitingStatus === 'closed') {
+      project.recruitingStatus = recruitingStatus;
+    }
+
+    if (
+      status === 'planning' ||
+      status === 'active' ||
+      status === 'on_hold' ||
+      status === 'completed'
+    ) {
+      project.status = status;
+    }
+
+    if (Array.isArray(tags)) {
+      project.tags = tags
+        .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+        .filter(Boolean);
+    }
+
+    if (Array.isArray(lookingForRoles)) {
+      project.lookingForRoles = lookingForRoles
+        .map((role) => (typeof role === 'string' ? role.trim() : ''))
+        .filter(Boolean);
+    }
+
+    if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+      project.settings = {
+        allowSelfJoinRequests:
+          settings.allowSelfJoinRequests ?? project.settings?.allowSelfJoinRequests ?? true,
+        requireApprovalToJoin:
+          settings.requireApprovalToJoin ?? project.settings?.requireApprovalToJoin ?? true,
+      };
     }
 
     await project.save();

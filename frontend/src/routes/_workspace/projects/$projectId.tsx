@@ -138,7 +138,7 @@ interface ApiProject {
   recruitingStatus?: 'open' | 'closed'
   lookingForRoles?: string[]
   tags?: string[]
-  status?: 'planning' | 'active' | 'on_hold' | 'completed'
+  status?: 'planning' | 'active' | 'on_hold' | 'completed',
   settings?: {
     allowSelfJoinRequests?: boolean
     requireApprovalToJoin?: boolean
@@ -1310,6 +1310,39 @@ const handleDeleteProject = async () => {
                         <Field orientation="horizontal">
                           <RadioGroupItem value="closed" id="recruiting-closed" />
                           <FieldLabel htmlFor="recruiting-closed">Closed</FieldLabel>
+                        </Field>
+                      </RadioGroup>
+                    </FieldSet>
+
+                    <FieldSet>
+                      <FieldLegend>Project status</FieldLegend>
+                      <RadioGroup
+                        value={editForm.status}
+                        onValueChange={(value) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            status: value as 'planning' | 'active' | 'on_hold' | 'completed',
+                          }))
+                        }
+                      >
+                        <Field orientation="horizontal">
+                          <RadioGroupItem value="planning" id="project-status-planning" />
+                          <FieldLabel htmlFor="project-status-planning">Planning</FieldLabel>
+                        </Field>
+
+                        <Field orientation="horizontal">
+                          <RadioGroupItem value="active" id="project-status-active" />
+                          <FieldLabel htmlFor="project-status-active">Active</FieldLabel>
+                        </Field>
+
+                        <Field orientation="horizontal">
+                          <RadioGroupItem value="on_hold" id="project-status-on-hold" />
+                          <FieldLabel htmlFor="project-status-on-hold">On Hold</FieldLabel>
+                        </Field>
+
+                        <Field orientation="horizontal">
+                          <RadioGroupItem value="completed" id="project-status-completed" />
+                          <FieldLabel htmlFor="project-status-completed">Completed</FieldLabel>
                         </Field>
                       </RadioGroup>
                     </FieldSet>
