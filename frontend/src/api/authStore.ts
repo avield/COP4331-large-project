@@ -34,7 +34,20 @@ export const useAuthStore = create<AuthState>()(
             user: null,
 
             setAccessToken: (token: string) => set({ accessToken: token }),
-            setUser: (user) => set({ user }),
+            setUser: (user) => {
+                if (user) {
+                    // Look for the ID in either field provided by the backend
+                    const rawId = user.id || (user as { _id?: string })._id;
+
+                    const normalizedUser: AuthUser = {
+                        ...user,
+                        id: rawId?.toString() || ''
+                    };
+                    set({ user: normalizedUser });
+                } else {
+                    set({ user: null });
+                }
+            },
             clearAuth: () => set({ accessToken: null, user: null }),
 
             // Updates the active user profile immutably to trigger global renders!

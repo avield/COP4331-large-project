@@ -30,11 +30,7 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
         const auth = useAuthStore.getState();
         const currentUser = auth.user;
 
-        // Ensure comparing strings to strings
-        const isOwner = currentUser?.id?.toString() === params.userId?.toString();
-
-        if (isOwner) {
-            console.log("Match found! Redirecting...");
+        if (currentUser?.id === params.userId) {
             throw redirect({
                 to: '/_workspace/profile',
             });
