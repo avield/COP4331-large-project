@@ -173,25 +173,39 @@ function Home() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 {invitations.map((invite: Invitation) => (
-                  <Card key={invite._id} className="border-border/50 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
-                      <CardDescription>
-                        Invited by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex gap-2">
-                      <Button onClick={() => api.post(`/project-members/${invite._id}/accept`)}>
-                        Accept
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => api.delete(`/project-members/${invite._id}/reject`)}
-                      >
-                        Reject
-                      </Button>
-                    </CardContent>
-                  </Card>
+                  <Link
+                    key={invite._id}
+                    to="/projects/$projectId"
+                    params={{ projectId: invite.projectId._id }}
+                    className='block'
+                  >
+                    <Card key={invite._id} className="border-border/50 bg-card/50">
+                      <CardHeader>
+                        <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
+                        <CardDescription>
+                          Invited to join {invite.projectId.name ?? 'Unknown Project'} by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex gap-2">
+                        <Button 
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            api.post(`/project-members/${invite._id}/accept`)}}>
+                          Accept
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            api.delete(`/project-members/${invite._id}/reject`)}}
+                        >
+                          Reject
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))}
               </div>
             </div>
