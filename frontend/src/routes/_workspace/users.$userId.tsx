@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import {useAuthStore} from '@/api/authStore'
 import api from '@/api/axios.ts'
 import {NetworkAvatar} from '@/components/network-avatar'
@@ -115,10 +115,26 @@ function UserProfilePage() {
                         <div className="grid gap-4">
                             {projects.length > 0 ? (
                                 projects.map((project: Project) => (
-                                    <div key={project._id} className="p-5 border rounded-xl hover:shadow-md transition-shadow bg-card text-card-foreground">
-                                        <h3 className="font-semibold text-lg">{project.name}</h3>
-                                        <p className="text-sm text-muted-foreground line-clamp-2">{project.description}</p>
-                                    </div>
+                                    <Link
+                                        key={project._id}
+                                        to="/_workspace/projects/$projectId"
+                                        params={{ projectId: project._id }}
+                                        className="block p-5 border rounded-xl hover:shadow-md hover:border-primary/50 transition-all bg-card text-card-foreground group"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                                                    {project.name}
+                                                </h3>
+                                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                                    {project.description}
+                                                </p>
+                                            </div>
+                                            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        View Project →
+                    </span>
+                                        </div>
+                                    </Link>
                                 ))
                             ) : (
                                 <div className="p-8 border border-dashed rounded-xl text-center">
