@@ -30,18 +30,17 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
         const auth = useAuthStore.getState();
         const currentUser = auth.user;
 
-        // Use .id to match your AuthUser type in authStore.ts
-        if (currentUser && currentUser.id === params.userId) {
+        if (currentUser?.id === params.userId) {
             throw redirect({
                 to: '/_workspace/profile',
-            })
+            });
         }
 
         try {
-            const { data } = await api.get<UserProfileData>(`/users/${params.userId}`)
-            return data
+            const { data } = await api.get<UserProfileData>(`/users/${params.userId}`);
+            return data;
         } catch {
-            return null
+            return null;
         }
     },
     component: UserProfilePage,
