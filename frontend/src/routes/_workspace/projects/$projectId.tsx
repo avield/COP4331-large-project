@@ -71,6 +71,7 @@ export type BoardData = {
 
 interface ApiUserSummary {
   _id: string
+  id?: string,
   displayName?: string
   email?: string
   username?: string
@@ -1853,10 +1854,10 @@ const handleDeleteProject = async () => {
                 <Settings className="mt-0.5 size-4 text-muted-foreground" />
                 <div>
                   {project.settings?.allowSelfJoinRequests
-                    ? 'Users can join immediately.'
-                    : project.settings?.requireApprovalToJoin
-                      ? 'Users must request approval to join.'
-                      : 'Invite only.'}
+                    ? project.settings?.requireApprovalToJoin
+                      ? 'Users can request to join and wait for approval.'
+                      : 'Users can join immediately.'
+                    : 'Invite only.'}
                 </div>
               </div>
             </CardContent>
@@ -1888,11 +1889,14 @@ const handleDeleteProject = async () => {
 
           {/* MEMBERS CARD */}
           <Card>
-            <CardHeader>
-              <CardTitle>Members</CardTitle>
-              <CardDescription>
-                Current project members and roles.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Members</CardTitle>
+                <CardDescription>
+                  Current project members and roles.
+                </CardDescription>
+              </div>
+
               {canManageMembers && (
                 <Button
                   size="sm"
@@ -2716,6 +2720,353 @@ const handleDeleteProject = async () => {
                   )}
                 </div>
               </div>
+          </>
+        </SheetContent>
+      </Sheet>
+
+      {/* MANAGE MEMBERS SHEET */}
+      <Sheet
+        open={isManageMembersSheetOpen}
+        onOpenChange={(open) => {
+          setIsManageMembersSheetOpen(open)
+          if (!open) {
+            setMemberSearch('')
+            setMemberSearchResults([])
+            setSelectedInviteeId('')
+          }
+        }}
+      >
+        <SheetContent className="overflow-y-auto p-0 sm:max-w-2xl">
+          <>
+            <SheetHeader className="px-6 pt-6">
+              <SheetTitle>Manage Members</SheetTitle>
+              <SheetDescription>
+                Invite members, review pending invitations, and update permissions.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-6 space-y-6 px-6 pb-6">
+              {/* Invite section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Invite People</CardTitle>
+                  <CardDescription>
+                    Search by name or email and send a project invitation.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <FieldSet>
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="member-search">Search users</FieldLabel>
+                        <Input
+                          id="member-search"
+                          placeholder="Search by name or email"
+                          value={memberSearch}
+                          onChange={(e) => void handleSearchUsers(e.target.value)}
+                        />
+                      </Field>
+
+                      {memberSearchResults.length > 0 && (
+                        <div className="max-h-56 overflow-y-auto rounded-md border">
+                          {memberSearchResults.map((result) => {
+                            const candidateId = result.id ?? result._id ?? ''
+                            const displayName =
+                              result.displayName ??
+                              result.profile?.displayName ??
+                              result.email ??
+                              'Unknown User'
+
+                            const isSelected = selectedInviteeId === candidateId
+
+                            return (
+                              <button
+                                key={candidateId}
+                                type="button"
+                                onClick={() => setSelectedInviteeId(candidateId)}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted ${
+                                  isSelected ? 'bg-muted' : ''
+                                }`}
+                              >
+                                <div>
+                                  <div className="font-medium">{displayName}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {result.email ?? 'No email'}
+                                  </div>
+                                </div>
+
+                                {isSelected && (
+                                  <Badge variant="secondary">Selected</Badge>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <Field>
+                        <FieldLabel htmlFor="invite-role">Role</FieldLabel>
+                        <Input
+                          id="invite-role"
+                          value={inviteRole}
+                          onChange={(e) => setInviteRole(e.target.value)}
+                          placeholder="Member"
+                        />
+                      </Field>
+                    </FieldGroup>
+                  </FieldSet>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => void handleInviteMember()}
+                      disabled={!selectedInviteeId || isInvitingMember}
+                    >
+                      {isInvitingMember ? 'Sending...' : 'Send Invitation'}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        setMemberSearch('')
+                        setMemberSearchResults([])
+                        setSelectedInviteeId('')
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Current + pending members */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Current Members & Invitations</CardTitle>
+                  <CardDescription>
+                    Active members, pending invitations, and permission controls.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {isLoadingManageableMembers ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      Loading members...
+                    </div>
+                  ) : manageableMembers.length > 0 ? (
+                    manageableMembers.map((member) => {
+                      const displayName =
+                        member.userId?.profile?.displayName ??
+                        member.userId?.displayName ??
+                        member.userId?.email ??
+                        'Unknown User'
+
+                      const email = member.userId?.email ?? 'No email'
+                      const avatarUrl = member.userId?.profile?.profilePictureUrl
+                      const isPending = member.membershipStatus === 'pending'
+                      const isOwner = member.role === 'Owner'
+
+                      return (
+                        <div key={member._id} className="rounded-lg border p-4 space-y-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3">
+                              <NetworkAvatar
+                                displayName={displayName}
+                                profilePictureUrl={avatarUrl}
+                                size="sm"
+                              />
+
+                              <div>
+                                <div className="text-sm font-medium">{displayName}</div>
+                                <div className="text-xs text-muted-foreground">{email}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline">{member.role}</Badge>
+                              <Badge variant={isPending ? 'secondary' : 'default'}>
+                                {isPending ? 'Pending' : 'Active'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {isPending ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  void handleUpdateMember(member._id, {
+                                    membershipStatus: 'active',
+                                  })
+                                }
+                              >
+                                Approve
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={async () => {
+                                  try {
+                                    await api.delete(`/project-members/${member._id}/deny`)
+                                    const refreshed = await api.get(`/project-members/project/${project._id}/manage`)
+                                    setManageableMembers(refreshed.data ?? [])
+                                    await router.invalidate()
+                                    toast.success('Invitation or request removed.')
+                                  } catch (error) {
+                                    console.error('Failed to deny/remove pending member:', error)
+                                    toast.error('Failed to remove pending member.')
+                                  }
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {!isOwner && (
+                                <>
+                                  <div className="grid gap-3 sm:grid-cols-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canEditProject}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canEditProject: !member.permissions.canEditProject,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can edit project</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canManageMembers}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canManageMembers: !member.permissions.canManageMembers,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can manage members</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canCreateTasks}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canCreateTasks: !member.permissions.canCreateTasks,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can create tasks</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canAssignTasks}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canAssignTasks: !member.permissions.canAssignTasks,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can assign tasks</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canCompleteAnyTask}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canCompleteAnyTask: !member.permissions.canCompleteAnyTask,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can complete any task</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={member.permissions.canModerateChat}
+                                        onChange={() =>
+                                          void handleUpdateMember(member._id, {
+                                            permissions: {
+                                              ...member.permissions,
+                                              canModerateChat: !member.permissions.canModerateChat,
+                                            },
+                                          })
+                                        }
+                                      />
+                                      <span>Can moderate chat</span>
+                                    </label>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={async () => {
+                                        try {
+                                          await api.delete(`/project-members/${member._id}`)
+                                          const refreshed = await api.get(`/project-members/project/${project._id}/manage`)
+                                          setManageableMembers(refreshed.data ?? [])
+                                          await router.invalidate()
+                                          toast.success('Member removed.')
+                                        } catch (error) {
+                                          console.error('Failed to remove member:', error)
+                                          toast.error('Failed to remove member.')
+                                        }
+                                      }}
+                                    >
+                                      Remove Member
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+
+                              {isOwner && (
+                                <div className="text-sm text-muted-foreground">
+                                  Owner permissions cannot be modified here.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      No members or invitations found.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </>
         </SheetContent>
       </Sheet>

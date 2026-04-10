@@ -217,7 +217,7 @@ function Home() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                {invitations.map((invite) => (
+                {invitations.map((invite: Invitation) => (
                   <Card key={invite._id} className="border-border/50 bg-card/50">
                     <CardHeader>
                       <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
