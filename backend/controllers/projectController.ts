@@ -13,12 +13,26 @@ interface GoalInput {
   description?: string;
 }
 
+interface InviteMemberInput {
+  userId?: string;
+  role?: string;
+  permissions?: {
+    canEditProject?: boolean;
+    canManageMembers?: boolean;
+    canCreateTasks?: boolean;
+    canAssignTasks?: boolean;
+    canCompleteAnyTask?: boolean;
+    canModerateChat?: boolean;
+  };
+}
+
 interface CreateProjectBody {
   name?: string;
   description?: string;
   visibility?: 'private' | 'public';
   dueDate?: string | null;
   goals?: GoalInput[];
+  invitedMembers?: InviteMemberInput[];
 }
 
 interface UpdateProjectBody {
@@ -58,7 +72,7 @@ export const createProject = async (
   let createdProjectId: Types.ObjectId | null = null;
 
   try {
-    const { name, description, visibility, dueDate, goals } = req.body;
+    const { name, description, visibility, dueDate, goals, invitedMembers } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ message: 'Project name is required.' });
@@ -78,6 +92,23 @@ export const createProject = async (
           .map((goal) => ({
             title: goal.title!.trim(),
             description: typeof goal.description === 'string' ? goal.description.trim() : ''
+          }))
+      : [];
+    
+    const normalizedInvitedMembers = Array.isArray(invitedMembers)
+      ? invitedMembers
+          .filter((member) => member && typeof member.userId === 'string' && member.userId.trim() !== '')
+          .map((member) => ({
+            userId: member.userId!.trim(),
+            role: typeof member.role === 'string' && member.role.trim() ? member.role.trim() : 'Member',
+            permissions: {
+              canEditProject: !!member.permissions?.canEditProject,
+              canManageMembers: !!member.permissions?.canManageMembers,
+              canCreateTasks: member.permissions?.canCreateTasks ?? true,
+              canAssignTasks: !!member.permissions?.canAssignTasks,
+              canCompleteAnyTask: !!member.permissions?.canCompleteAnyTask,
+              canModerateChat: !!member.permissions?.canModerateChat
+            }
           }))
       : [];
 
@@ -127,16 +158,38 @@ export const createProject = async (
         { session }
       );
 
+      if (normalizedInvitedMembers.length > 0) {
+        const uniqueInvitedMembers = normalizedInvitedMembers.filter(
+          (member, index, self) =>
+            member.userId !== req.user._id.toString() &&
+            self.findIndex((m) => m.userId === member.userId) === index
+        );
+
+        if (uniqueInvitedMembers.length > 0) {
+          await ProjectMember.insertMany(
+            uniqueInvitedMembers.map((member) => ({
+              projectId: project._id,
+              userId: member.userId,
+              role: member.role,
+              permissions: member.permissions,
+              membershipStatus: 'active',
+              joinedBy: req.user._id
+            })),
+            { session }
+          );
+        }
+      }
+
       if (normalizedGoals.length > 0) {
-        const tasksToCreate = normalizedGoals.map((goal) => ({
+        const goalsToCreate = normalizedGoals.map((goal, index) => ({
           projectId: project._id,
           title: goal.title,
           description: goal.description,
           createdBy: req.user._id,
-          dueDate: normalizedDueDate
+          order: index, // important for your drag ordering UI
         }));
 
-        await Task.insertMany(tasksToCreate, { session });
+        await Goal.insertMany(goalsToCreate, { session });
       }
     });
 

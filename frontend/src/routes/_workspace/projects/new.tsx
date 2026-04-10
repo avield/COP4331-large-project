@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,22 @@ export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
 })
 
+interface SearchUserResult {
+  type: 'user'
+  id: string
+  displayName: string
+  email: string
+  profilePictureUrl?: string
+  href: string
+}
+
+interface InvitedMember {
+  userId: string
+  displayName: string
+  email: string
+  role: string
+}
+
 function NewProject() {
   const router = useRouter()
 
@@ -24,6 +40,11 @@ function NewProject() {
   const [error, setError] = useState<string | null>(null)
   const [visibility, setVisibility] = useState('private')
 
+  const [memberQuery, setMemberQuery] = useState('')
+  const [memberSearchResults, setMemberSearchResults] = useState<SearchUserResult[]>([])
+  const [isSearchingMembers, setIsSearchingMembers] = useState(false)
+  const [invitedMembers, setInvitedMembers] = useState<InvitedMember[]>([])
+
   const addGoal = () => setGoals([...goals, { title: '', description: '' }])
   const removeGoal = (index: number) => setGoals(goals.filter((_, i) => i !== index))
   const updateGoal = (index: number, field: 'title' | 'description', value: string) => {
@@ -31,6 +52,72 @@ function NewProject() {
     next[index][field] = value
     setGoals(next)
   }
+
+  //Helper functions for inviting members
+  const addInvitedMember = (user: SearchUserResult) => {
+    setInvitedMembers((prev) => [
+      ...prev,
+      {
+        userId: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        role: 'Member',
+      },
+    ])
+    setMemberQuery('')
+    setMemberSearchResults([])
+  }
+
+  const removeInvitedMember = (userId: string) => {
+    setInvitedMembers((prev) => prev.filter((member) => member.userId !== userId))
+  }
+
+  const updateInvitedMemberRole = (userId: string, role: string) => {
+    setInvitedMembers((prev) =>
+      prev.map((member) =>
+        member.userId === userId ? { ...member, role } : member
+      )
+    )
+  }
+
+  //Search for members to invite
+  useEffect(() => {
+    const trimmed = memberQuery.trim()
+
+    if (!trimmed) {
+      setMemberSearchResults([])
+      return
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        setIsSearchingMembers(true)
+
+        const res = await api.get('/search', {
+          params: {
+            q: trimmed,
+            type: 'users',
+          },
+        })
+
+        const users = res.data?.results?.users ?? []
+
+        const filteredUsers = users.filter(
+          (user: SearchUserResult) =>
+            !invitedMembers.some((member) => member.userId === user.id)
+        )
+
+        setMemberSearchResults(filteredUsers)
+      } catch (error) {
+        console.error('Failed to search users:', error)
+        setMemberSearchResults([])
+      } finally {
+        setIsSearchingMembers(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [memberQuery, invitedMembers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,6 +134,18 @@ function NewProject() {
           visibility,
           dueDate: dueDate || undefined,
           goals: goals.filter((g) => g.title.trim() !== ''),
+          invitedMembers: invitedMembers.map((member) => ({
+            userId: member.userId,
+            role: member.role,
+            permissions: {
+              canEditProject: false,
+              canManageMembers: false,
+              canCreateTasks: true,
+              canAssignTasks: false,
+              canCompleteAnyTask: false,
+              canModerateChat: false,
+            },
+          })),
         }
       )
 
@@ -118,8 +217,94 @@ function NewProject() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Invite Members</CardTitle>
+            <CardDescription>
+              Search for users to add to this project now. You can manage roles and permissions later.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="member-search">Search users</Label>
+              <Input
+                id="member-search"
+                placeholder="Search by display name, email, or school"
+                value={memberQuery}
+                onChange={(e) => setMemberQuery(e.target.value)}
+              />
+            </div>
+
+            {isSearchingMembers && (
+              <p className="text-sm text-muted-foreground">Searching...</p>
+            )}
+
+            {!isSearchingMembers && memberSearchResults.length > 0 && (
+              <div className="rounded-md border">
+                {memberSearchResults.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-muted/50"
+                    onClick={() => addInvitedMember(user)}
+                  >
+                    <div>
+                      <div className="text-sm font-medium">{user.displayName}</div>
+                      <div className="text-xs text-muted-foreground">{user.email}</div>
+                    </div>
+                    <span className="text-xs text-primary">Add</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {invitedMembers.length > 0 ? (
+              <div className="space-y-3">
+                <Label>Invited members</Label>
+
+                {invitedMembers.map((member) => (
+                  <div
+                    key={member.userId}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{member.displayName}</div>
+                      <div className="text-xs text-muted-foreground">{member.email}</div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={member.role}
+                        onChange={(e) => updateInvitedMemberRole(member.userId, e.target.value)}
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="Member">Member</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => removeInvitedMember(member.userId)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No members invited yet.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Project Goals</CardTitle>
-            <CardDescription>Define key objectives. Each goal becomes an initial task on the board.</CardDescription>
+            <CardDescription>Define key objectives for your project. Think of these as the big outcomes, like "Secure Venue," "Launch Website", or "User Research Phase". You can add tasks under each goal after the project is created.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {goals.map((goal, index) => (
