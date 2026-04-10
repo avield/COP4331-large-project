@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import User from '../models/User.js';
+import ProjectMember from '../models/ProjectMember.js';
 import Project from '../models/Project.js';
 import { AuthenticatedRequest } from './searchController.js';
 
@@ -33,32 +34,45 @@ export const getUserProfile = async (
         // Check if I searched my own account
         const isCurrentUser = currentUserId?.toString() === user._id.toString();
 
-        // Fetch Projects
-        // Owners see all their projects; visitors see only public ones
+        // Fetch Projects and memberships where user is active
         const projectQuery = isCurrentUser
             ? { createdBy: userId }
             : { createdBy: userId, visibility: 'public' };
 
-        const projects = await Project.find(projectQuery)
-            .select('name description visibility createdAt')
+        // Fetch memberships and populate the project details
+        const memberships = await ProjectMember.find({
+            userId: userId,
+            membershipStatus: 'active'
+        })
+            .populate({
+                path: 'projectId',
+                select: 'name description visibility createdAt'
+            })
             .sort({ createdAt: -1 })
-            .limit(10)
             .lean();
 
-        // Send Response Object
+        // Filter for Public Projects ONLY
+        const publicProjects = memberships
+            .filter((m: any) => m.projectId && m.projectId.visibility === 'public')
+            .map((m: any) => ({
+                _id: m.projectId._id,
+                name: m.projectId.name,
+                description: m.projectId.description,
+                role: m.role,
+                createdAt: m.projectId.createdAt,
+                href: `/projects/${m.projectId._id}`
+            }));
+
         return res.status(200).json({
             user: {
                 id: user._id,
-                ...user.profile, // displayName, school, aboutMe, etc.
-                email: isCurrentUser ? user.email : undefined, // Privacy guard, only show my own email
+                ...user.profile,
+                email: isCurrentUser ? user.email : undefined,
                 status: user.status,
                 createdAt: user.createdAt,
                 isCurrentUser
             },
-            projects: projects.map(p => ({
-                ...p,
-                href: `/projects/${p._id}`
-            }))
+            projects: publicProjects
         });
 
     } catch (error) {

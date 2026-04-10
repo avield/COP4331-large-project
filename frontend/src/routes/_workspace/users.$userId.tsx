@@ -7,6 +7,7 @@ interface Project {
     _id: string
     name: string
     description: string
+    role: string
     href: string
 }
 
@@ -121,17 +122,30 @@ function UserProfilePage() {
                                         className="block p-5 border rounded-xl hover:shadow-md hover:border-primary/50 transition-all bg-card text-card-foreground group"
                                     >
                                         <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                                                    {project.name}
-                                                </h3>
-                                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                                    {project.description}
-                                                </p>
+                                            <div className="space-y-3"> {/* Increased space between title and description */}
+                                                <div>
+                                                    <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                                                        {project.name}
+                                                    </h3>
+                                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                                        {project.description}
+                                                    </p>
+                                                </div>
+
+                                                {/* Role Badge placed under the description */}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                                        Role:
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                                                        {project.role}
+                                                    </span>
+                                                </div>
                                             </div>
+
                                             <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                        View Project →
-                    </span>
+                                                View Project →
+                                            </span>
                                         </div>
                                     </Link>
                                 ))
