@@ -40,10 +40,10 @@ export const getProjectMembers = async (
     const { projectId } = req.params;
 
     // Standard members list for team viewing
-    const members = await ProjectMember.find({ projectId, membershipStatus: 'active' })
+    const members = await ProjectMember.find({ projectId, membershipStatus: {$in: ['active', 'pending']} })
         .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'displayName email username')
-        .sort({ createdAt: 1 });
+        .sort({ membershipStatus: -1, createdAt: 1 });
 
     res.status(200).json(members);
   } catch (error) {

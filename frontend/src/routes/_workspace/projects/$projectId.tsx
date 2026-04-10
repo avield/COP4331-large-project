@@ -123,8 +123,11 @@ interface ApiMember {
   }
   membershipStatus: 'active' | 'pending' | 'removed'
   joinedBy?: {
-    id?: string
+    _id?: string
     email?: string
+    profile?: {
+      displayName?: string
+    }
   }
   createdAt?: string
   updatedAt?: string
@@ -2867,6 +2870,10 @@ const handleDeleteProject = async () => {
                       const avatarUrl = member.userId?.profile?.profilePictureUrl
                       const isPending = member.membershipStatus === 'pending'
                       const isOwner = member.role === 'Owner'
+                      const joinedById = member.joinedBy?._id ?? ''
+                      const memberUserId = member.userId?._id ?? ''
+                      const isJoinRequest = isPending && joinedById === memberUserId
+                      const isInvitation = isPending && joinedById !== memberUserId
 
                       return (
                         <div key={member._id} className="rounded-lg border p-4 space-y-4">
@@ -2892,7 +2899,7 @@ const handleDeleteProject = async () => {
                             </div>
                           </div>
 
-                          {isPending ? (
+                          {isJoinRequest ? (
                             <div className="flex flex-wrap gap-2">
                               <Button
                                 size="sm"
@@ -2921,7 +2928,32 @@ const handleDeleteProject = async () => {
                                   }
                                 }}
                               >
-                                Remove
+                                Deny
+                              </Button>
+                            </div>
+                          ) : isInvitation ? (
+                            <div className="space-y-2">
+                              <div className="text-sm text-muted-foreground">
+                                Invitation sent. Waiting for this user to accept or reject.
+                              </div>
+
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={async () => {
+                                  try {
+                                    await api.delete(`/project-members/${member._id}`)
+                                    const refreshed = await api.get(`/project-members/project/${project._id}/manage`)
+                                    setManageableMembers(refreshed.data ?? [])
+                                    await router.invalidate()
+                                    toast.success('Invitation cancelled.')
+                                  } catch (error) {
+                                    console.error('Failed to cancel invitation:', error)
+                                    toast.error('Failed to cancel invitation.')
+                                  }
+                                }}
+                              >
+                                Cancel Invitation
                               </Button>
                             </div>
                           ) : (
