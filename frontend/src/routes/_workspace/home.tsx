@@ -165,6 +165,40 @@ function Home() {
       </div>
 
       <div>
+        {invitations.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Invitations</h2>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {invitations.map((invite: Invitation) => (
+                  <Card key={invite._id} className="border-border/50 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
+                      <CardDescription>
+                        Invited by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-2">
+                      <Button onClick={() => api.post(`/project-members/${invite._id}/accept`)}>
+                        Accept
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => api.delete(`/project-members/${invite._id}/reject`)}
+                      >
+                        Reject
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+      </div>
+
+      <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Your Projects</h2>
           <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" asChild>
@@ -209,38 +243,6 @@ function Home() {
               </Link>
             )
           })}
-
-          {invitations.length > 0 && (
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Invitations</h2>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {invitations.map((invite: Invitation) => (
-                  <Card key={invite._id} className="border-border/50 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
-                      <CardDescription>
-                        Invited by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex gap-2">
-                      <Button onClick={() => api.post(`/project-members/${invite._id}/accept`)}>
-                        Accept
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => api.delete(`/project-members/${invite._id}/reject`)}
-                      >
-                        Reject
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
 
           <Link to="/projects/new" className="block">
             <Card className="flex min-h-[160px] cursor-pointer items-center justify-center border-dashed border-border/30 bg-card/20 transition-all duration-150 hover:border-border/60 hover:bg-card/50">
