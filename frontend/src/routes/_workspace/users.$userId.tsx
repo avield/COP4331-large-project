@@ -116,7 +116,7 @@ function UserProfilePage() {
                                 projects.map((project: Project) => (
                                     <Link
                                         key={project._id}
-                                        to="/_workspace/projects/$projectId"
+                                        to="/projects/$projectId"
                                         params={{ projectId: project._id }}
                                         className="block p-5 border rounded-xl hover:shadow-md hover:border-primary/50 transition-all bg-card text-card-foreground group"
                                     >
