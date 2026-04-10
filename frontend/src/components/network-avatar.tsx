@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 interface NetworkAvatarProps {
     displayName: string
     profilePictureUrl?: string
-    size?: "default" | "sm" | "lg"
+    size?: "default" | "sm" | "lg" | "xl" // Add "xl" here
     className?: string
 }
 
@@ -32,8 +32,8 @@ export function NetworkAvatar({
                                   className
                               }: NetworkAvatarProps) {
 
-    const getCleanUrl = (url: string | undefined) => {
-        if (!url) return '';
+    const getCleanUrl = (url: string | undefined | null) => {
+        if (!url || url.trim() === '') return null;
         if (url.startsWith('http')) return url;
 
         const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
@@ -48,15 +48,15 @@ export function NetworkAvatar({
     return (
         /* We pass size={size} here because your UI Avatar accepts it! */
         <Avatar size={size} className={className}>
-            {imageUrl ? (
+            {imageUrl && (
                 /* We use AvatarImage here to utilize your Radix primitives safely */
                 <AvatarImage
                     src={imageUrl}
                     alt={displayName}
+                    className="object-cover"
                 />
-            ) : (
-                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
             )}
+            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
         </Avatar>
     )
 }

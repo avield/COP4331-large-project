@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import api from '@/api/axios.ts'
+import {NetworkAvatar} from '@/components/network-avatar'
 
 interface Project {
     _id: string
@@ -15,8 +16,8 @@ interface UserProfileData {
         displayName: string
         school: string
         aboutMe: string
-        preferredRoles: string[] // Added
-        profilePictureUrl?: string // Added
+        preferredRoles: string[]
+        profilePictureUrl?: string
         isCurrentUser: boolean
     }
     projects: Project[]
@@ -47,10 +48,11 @@ function UserProfilePage() {
         <div className="max-w-4xl mx-auto p-6 space-y-10">
             {/* Header Section */}
             <header className="flex flex-col md:flex-row items-center gap-6">
-                <img
-                    src={user.profilePictureUrl || 'https://via.placeholder.com/150'}
-                    alt={user.displayName}
-                    className="w-32 h-32 rounded-full object-cover border-4 border-muted"
+                <NetworkAvatar
+                    displayName={user.displayName}
+                    profilePictureUrl={user.profilePictureUrl}
+                    size="xl"
+                    className="w-32 h-32 text-4xl border-4 border-background shadow-sm"
                 />
                 <div className="flex-1 text-center md:text-left space-y-1">
                     <h1 className="text-4xl font-extrabold tracking-tight">{user.displayName}</h1>
