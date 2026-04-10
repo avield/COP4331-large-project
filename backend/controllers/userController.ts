@@ -23,7 +23,7 @@ export const getUserProfile = async (
 
         // Fetch User Data
         const user = await User.findById(userId)
-            .select('profile status createdAt')
+            .select('profile status email createdAt')
             .lean();
 
         if (!user) {
