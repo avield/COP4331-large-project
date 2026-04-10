@@ -32,7 +32,7 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
 
         if (currentUser?.id === params.userId) {
             throw redirect({
-                to: '/_workspace/profile',
+                to: '/profile',
             });
         }
 
