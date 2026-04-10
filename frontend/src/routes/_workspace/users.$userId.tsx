@@ -74,7 +74,7 @@ function UserProfilePage() {
                         <span className="font-semibold text-foreground">School:</span> {school}
                     </p>
                 </div>
-                // THIS IS NOT NEEDED, LEAVING JIC WE WANT IT LATER
+                {/* THIS IS NOT NEEDED, LEAVING JIC WE WANT IT LATER*/}
                 {user.isCurrentUser && (
                     <button className="bg-primary text-primary-foreground px-6 py-2 rounded-full font-medium hover:opacity-90 transition-opacity">
                         Edit Profile
