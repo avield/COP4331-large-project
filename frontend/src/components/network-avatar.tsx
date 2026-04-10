@@ -25,12 +25,7 @@ function getInitials(name: string) {
         .slice(0, 2) || 'U';
 }
 
-export function NetworkAvatar({
-                                  displayName,
-                                  profilePictureUrl,
-                                  size = "default",
-                                  className
-                              }: NetworkAvatarProps) {
+export function NetworkAvatar({displayName, profilePictureUrl, size, className}: NetworkAvatarProps) {
 
     const getCleanUrl = (url: string | undefined | null) => {
         if (!url || url.trim() === '') return null;
@@ -46,17 +41,16 @@ export function NetworkAvatar({
     const imageUrl = getCleanUrl(profilePictureUrl);
 
     return (
-        /* We pass size={size} here because your UI Avatar accepts it! */
         <Avatar size={size} className={className}>
-            {imageUrl && (
-                /* We use AvatarImage here to utilize your Radix primitives safely */
-                <AvatarImage
-                    src={imageUrl}
-                    alt={displayName}
-                    className="object-cover"
-                />
-            )}
-            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+            {/* Always render AvatarImage; Radix handles the null src by showing Fallback */}
+            <AvatarImage
+                src={imageUrl ?? undefined}
+                alt={displayName}
+                className="object-cover"
+            />
+            <AvatarFallback delayMs={0}>
+                {getInitials(displayName)}
+            </AvatarFallback>
         </Avatar>
     )
 }
