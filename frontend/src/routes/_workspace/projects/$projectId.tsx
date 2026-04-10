@@ -375,6 +375,7 @@ function ProjectPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedGoal, setSelectedGoal] = useState<ApiGoal | null>(null)
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
+  const [goalFilter, setGoalFilter] = useState<string>('all')
 
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -478,6 +479,35 @@ function ProjectPage() {
   const memberPreview = useMemo(() => {
     return members.slice(0, 5)
   }, [members])
+
+  //Filter the kanban board by Goals
+  const filteredBoardData = useMemo(() => {
+  if (goalFilter === 'all') return data
+
+  const filteredTasks = Object.fromEntries(
+    Object.entries(data.tasks).filter(([, task]) => {
+      if (goalFilter === 'ungrouped') {
+        return !task.goalId
+      }
+
+      return task.goalId === goalFilter
+    })
+  )
+
+  return {
+    ...data,
+    columns: Object.fromEntries(
+      Object.entries(data.columns).map(([columnId, column]) => [
+        columnId,
+        {
+          ...column,
+          taskIds: column.taskIds.filter((taskId) => filteredTasks[taskId]),
+        },
+      ])
+    ),
+    tasks: filteredTasks,
+  }
+}, [data, goalFilter])
 
   
   // ********************
@@ -810,7 +840,6 @@ function ProjectPage() {
 
     setData((prev) => ({
       ...prev,
-      // ADD THIS: Update the individual task's status locally
       tasks: {
         ...prev.tasks,
         [draggableId]: {
@@ -1541,101 +1570,105 @@ const handleDeleteProject = async () => {
 
               <CardContent className="space-y-6">
                 {goalProgress.length > 0 && (
-                  <GoalsOverviewChart data={goalChartData} />
+                  <div className="w-full overflow-hidden">
+                    <GoalsOverviewChart data={goalChartData}/>
+                  </div>
                 )}
 
                 {goalProgress.length > 0 ? (
                   <DragDropContext onDragEnd={handleGoalDragEnd}>
                     <CardDescription>
-                      Drag goals to reorder radial rings from center outward.
+                      Drag goals to reorder the rings from the center outward.
                     </CardDescription>
-                    <Droppable droppableId="goals-droppable">
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className="space-y-3"
-                        >
-                          {goalProgress.map((goal, index) => (
-                            <Draggable key={goal._id} draggableId={goal._id} index={index}>
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`rounded-lg border p-4 transition-shadow ${
-                                    snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
-                                  }`}
-                                >
-                                  <div className="mb-2 flex items-start justify-between gap-3">
-                                    <div className="flex items-start gap-3">
-                                      <div
-                                        {...provided.dragHandleProps}
-                                        className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
-                                      >
-                                        <GripVertical className="size-4" />
-                                      </div>
+                    <div className="max-h-[420px] overflow-y-auto pr-2">
+                      <Droppable droppableId="goals-droppable">
+                        {(provided) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className="space-y-3"
+                          >
+                            {goalProgress.map((goal, index) => (
+                              <Draggable key={goal._id} draggableId={goal._id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    className={`rounded-lg border p-4 transition-shadow ${
+                                      snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
+                                    }`}
+                                  >
+                                    <div className="mb-2 flex items-start justify-between gap-3">
+                                      <div className="flex items-start gap-3">
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                                        >
+                                          <GripVertical className="size-4" />
+                                        </div>
 
-                                      <div>
-                                        <div className="text-sm font-medium">{goal.title}</div>
-                                        <div className="text-xs text-muted-foreground">
-                                          {goal.total > 0
-                                            ? `${goal.done}/${goal.total} tasks complete`
-                                            : 'No tasks assigned yet'}
+                                        <div>
+                                          <div className="text-sm font-medium">{goal.title}</div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {goal.total > 0
+                                              ? `${goal.done}/${goal.total} tasks complete`
+                                              : 'No tasks assigned yet'}
+                                          </div>
                                         </div>
                                       </div>
+
+                                      <div className="flex flex-wrap gap-2">
+                                        {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
+                                        {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
+                                        {canEditProject && (
+                                          <>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => {
+                                                setSelectedGoal(goal)
+                                                setGoalSheetMode('edit')
+                                                setGoalError('')
+                                                setGoalForm({
+                                                  title: goal.title,
+                                                  description: goal.description ?? '',
+                                                })
+                                                setIsGoalSheetOpen(true)
+                                              }}
+                                            >
+                                              Edit
+                                            </Button>
+
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              onClick={() => {
+                                                setSelectedGoal(goal)
+                                                setIsGoalDeleteDialogOpen(true)
+                                              }}
+                                            >
+                                              Delete
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2">
-                                      {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
-                                      {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
-                                      {canEditProject && (
-                                        <>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedGoal(goal)
-                                              setGoalSheetMode('edit')
-                                              setGoalError('')
-                                              setGoalForm({
-                                                title: goal.title,
-                                                description: goal.description ?? '',
-                                              })
-                                              setIsGoalSheetOpen(true)
-                                            }}
-                                          >
-                                            Edit
-                                          </Button>
-
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedGoal(goal)
-                                              setIsGoalDeleteDialogOpen(true)
-                                            }}
-                                          >
-                                            Delete
-                                          </Button>
-                                        </>
-                                      )}
+                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                      <span>{goal.percentComplete}% complete</span>
+                                      <span>
+                                        Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
+                                      </span>
                                     </div>
                                   </div>
-
-                                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{goal.percentComplete}% complete</span>
-                                    <span>
-                                      Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
                   </DragDropContext>
                 ) : (
                   <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
@@ -1791,7 +1824,7 @@ const handleDeleteProject = async () => {
       {/* Kanban board */}
       <Card className="min-w-0 overflow-hidden">
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Project Board</CardTitle>
               <CardDescription>
@@ -1799,18 +1832,54 @@ const handleDeleteProject = async () => {
               </CardDescription>
             </div>
 
-            <div className="text-sm text-muted-foreground">
-              {savingTaskId ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="size-4 animate-spin" />
-                  Saving...
-                </span>
-              ) : savedTaskId ? (
-                <span className="inline-flex items-center gap-2 text-green-600">
-                  <Check className="size-4" />
-                  Saved
-                </span>
-              ) : null}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:mw-[300px]">
+              <div className="flex items-center gap-2">
+                <label htmlFor="goal-filter" className="text-sm text-muted-foreground">
+                  Filter by goal
+                </label>
+                <select
+                  id="goal-filter"
+                  value={goalFilter}
+                  onChange={(e) => setGoalFilter(e.target.value)}
+                  className="h-9 w-full sm:w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">All Tasks</option>
+                  <option value="ungrouped">No Goal</option>
+                  {goals.map((goal) => (
+                    <option key={goal._id} value={goal._id}>
+                      {goal.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className='w-full sm:w-[110px] flex justify-end'>
+                {goalFilter !== 'all' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={goalFilter === 'all'}
+                    onClick={() => setGoalFilter('all')}
+                    className='w-full sm:w-auto'
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                {savingTaskId ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Saving...
+                  </span>
+                ) : savedTaskId ? (
+                  <span className="inline-flex items-center gap-2 text-green-600">
+                    <Check className="size-4" />
+                    Saved
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -1818,9 +1887,9 @@ const handleDeleteProject = async () => {
         <CardContent className="max-w-full overflow-x-auto">
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex w-max min-w-full gap-6 pb-4">
-              {data.columnOrder.map((columnId, index) => {
-                const column = data.columns[columnId]
-                const tasks = column.taskIds.map((id) => data.tasks[id]).filter(Boolean)
+              {filteredBoardData.columnOrder.map((columnId, index) => {
+                const column = filteredBoardData.columns[columnId]
+                const tasks = column.taskIds.map((id) => filteredBoardData.tasks[id]).filter(Boolean)
 
                 return (
                   <KanbanColumn

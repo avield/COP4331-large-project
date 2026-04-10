@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts"
 
 import {
@@ -53,10 +54,28 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function GoalsOverviewChart({ data }: GoalsOverviewChartProps) {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)")
+
+    const updateIsMobile = () => setIsMobile(mediaQuery.matches)
+    updateIsMobile()
+
+    mediaQuery.addEventListener("change", updateIsMobile)
+    return () => mediaQuery.removeEventListener("change", updateIsMobile)
+  }, [])
+
   const chartData = data.map((item, index) => ({
     ...item,
     fill: item.fill ?? `var(--chart-${(index % 5) + 1})`,
   }))
+
+  const chartHeight = isMobile ? 260 : 360
+  const innerRadius = isMobile ? 28 : 40
+  const outerRadius = isMobile ? 110 : 160
+  const labelFontSize = isMobile ? 10 : 12
+  const cornerRadius = isMobile ? 8 : 10
 
   return (
     <Card>
@@ -75,12 +94,13 @@ export function GoalsOverviewChart({ data }: GoalsOverviewChartProps) {
         ) : (
           <ChartContainer
             config={chartConfig}
-            className="mx-auto aspect-square h-[360px] w-full"
+            className="mx-auto aspect-square w-full max-w-[360px]"
+            style={{ height: `${chartHeight}px` }}
           >
             <RadialBarChart
               data={chartData}
-              innerRadius={40}
-              outerRadius={160}
+              innerRadius={innerRadius}
+              outerRadius={outerRadius}
               startAngle={90}
               endAngle={-270}
             >
@@ -105,11 +125,11 @@ export function GoalsOverviewChart({ data }: GoalsOverviewChartProps) {
               <RadialBar
                 dataKey="value"
                 background
-                cornerRadius={10}
+                cornerRadius={cornerRadius}
                 label={{
                   position: "insideStart",
                   fill: "white",
-                  fontSize: 12,
+                  fontSize: labelFontSize,
                 }}
               />
             </RadialBarChart>
