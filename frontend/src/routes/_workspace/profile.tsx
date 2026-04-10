@@ -171,25 +171,15 @@ function ProfilePage() {
   // Fallback engine to determine the correct URL source mapping
   const resolveProfileImage = (url: string) => {
     if (!url) return ''
-    if (url.startsWith('http')) return `${url}?t=${imgCacheBuster}`
+    // If it's a blob (preview), don't add cache busters or backend URLs
+    if (url.startsWith('blob:')) return url;
+    if (url.startsWith('http')) return `${url}${url.includes('?') ? '&' : '?'}t=${imgCacheBuster}`
 
-    // 1. Grab the variable your custom Vite setup exposed!
-    let base = import.meta.env.BACKEND_URL;
-
-    // 2. If it is somehow still empty or missing, use the standard backend port
-    if (!base) {
-      base = 'http://localhost:5000';
-    }
-
-    // 3. Clean up any accidental double slashes
+    const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
     const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
     const cleanUrl = url.startsWith('/') ? url : `/${url}`;
 
-    const fullUrl = `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
-
-    console.log("TARGET AVATAR URL:", fullUrl);
-
-    return fullUrl;
+    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
   }
 
   return (
@@ -205,17 +195,13 @@ function ProfilePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-5">
                 <div className="relative group shrink-0">
-                <Avatar
-                  key={profile.profilePictureUrl || 'no-image'}
-                  size="lg"
-                  className="size-16 text-lg"
-                >
-                  <AvatarImage
-                      src={previewUrl ? previewUrl : resolveProfileImage(formData.profilePictureUrl)}
-                      alt={formData.displayName}
-                  />
-                  <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
-                </Avatar>
+                  <Avatar size="xl" className="w-32 h-32 text-4xl border-4 border-background shadow-sm">
+                    <AvatarImage
+                        src={previewUrl || resolveProfileImage(formData.profilePictureUrl)}
+                        alt={formData.displayName}
+                    />
+                    <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
+                  </Avatar>
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -296,12 +282,13 @@ function ProfilePage() {
                 <div className="grid gap-1.5">
                   <Label htmlFor="preferredRoles">Preferred Roles</Label>
                   <Input
-                    id="preferredRoles"
-                    value={preferredRolesText}
-                    onChange={(e) => setPreferredRolesText(e.target.value)}
-                    placeholder="e.g. Frontend, Backend (comma-separated)"
-                    disabled={isSaving}
+                      id="preferredRoles"
+                      value={preferredRolesText}
+                      onChange={(e) => setPreferredRolesText(e.target.value)}
+                      placeholder="e.g. Frontend, Backend"
+                      disabled={isSaving}
                   />
+                  <p className="text-xs text-muted-foreground">Separate roles with commas. These will appear as tags on your public profile.</p>
                 </div>
 
                 <div className="grid gap-1.5">
@@ -327,12 +314,12 @@ function ProfilePage() {
             </div>
           ) : (
             <div className="flex items-center gap-5">
-              <Avatar size="lg" className="size-16 text-lg">
+              <Avatar size="xl" className="w-32 h-32 text-4xl border-4 border-background shadow-sm">
                 <AvatarImage
-                    src={resolveProfileImage(profile.profilePictureUrl)}
-                    alt={profile.displayName}
+                    src={previewUrl || resolveProfileImage(formData.profilePictureUrl)}
+                    alt={formData.displayName}
                 />
-                <AvatarFallback delayMs={600}>{getInitials(profile.displayName)}</AvatarFallback>
+                <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold truncate">{profile.displayName}</h2>

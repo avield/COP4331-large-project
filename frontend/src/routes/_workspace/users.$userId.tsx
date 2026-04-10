@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import {useAuthStore} from '@/api/authStore'
 import api from '@/api/axios.ts'
 import {NetworkAvatar} from '@/components/network-avatar'
 
@@ -24,7 +25,18 @@ interface UserProfileData {
 }
 
 export const Route = createFileRoute('/_workspace/users/$userId')({
-    loader: async ({ params }): Promise<UserProfileData | null> => {
+    loader: async ({ params }) => {
+        // Access the store state directly
+        const auth = useAuthStore.getState();
+        const currentUser = auth.user;
+
+        // Use .id to match your AuthUser type in authStore.ts
+        if (currentUser && currentUser.id === params.userId) {
+            throw redirect({
+                to: '/_workspace/profile',
+            })
+        }
+
         try {
             const { data } = await api.get<UserProfileData>(`/users/${params.userId}`)
             return data
@@ -44,6 +56,8 @@ function UserProfilePage() {
 
     const { user, projects } = data
 
+    const school = user.school || "No School Listed";
+
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-10">
             {/* Header Section */}
@@ -55,12 +69,12 @@ function UserProfilePage() {
                     className="w-32 h-32 text-4xl border-4 border-background shadow-sm"
                 />
                 <div className="flex-1 text-center md:text-left space-y-1">
-                    <h1 className="text-4xl font-extrabold tracking-tight">{user.displayName}</h1>
+                    <h1 className="text-4xl font-extrabold tracking-tight">{user.displayName || "Unknown User"}</h1>
                     <p className="text-lg text-muted-foreground">
-                        <span className="font-semibold text-foreground">School:</span> {user.school}
+                        <span className="font-semibold text-foreground">School:</span> {school}
                     </p>
                 </div>
-
+                // THIS IS NOT NEEDED, LEAVING JIC WE WANT IT LATER
                 {user.isCurrentUser && (
                     <button className="bg-primary text-primary-foreground px-6 py-2 rounded-full font-medium hover:opacity-90 transition-opacity">
                         Edit Profile
