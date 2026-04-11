@@ -539,6 +539,7 @@ export const deleteProject = async (
     }
 
     await Task.deleteMany({ projectId });
+    await Goal.deleteMany({ projectId });
     await ProjectMember.deleteMany({ projectId });
     await Project.findByIdAndDelete(projectId);
 
