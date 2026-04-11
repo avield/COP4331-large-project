@@ -55,20 +55,6 @@ export default function AuthLayout({
           {/* This is where your Email/Password inputs and the "Sign In" button will go */}
           {children} 
 
-          {/* ------------------------------------------------------------- */}
-          {/* THE SOCIAL DIVIDER - Now it appears on every auth page automatically! */}
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-          {/* ------------------------------------------------------------- */}
-
         </CardContent>
         
         <CardFooter className="flex flex-col items-center justify-center">
