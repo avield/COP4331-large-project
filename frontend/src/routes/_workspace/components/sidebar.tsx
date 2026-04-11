@@ -64,14 +64,6 @@ export default function UiSidebar() {
                         </SidebarMenuSubItem>
                       ))
                     )}
-                    <SidebarMenuSubItem className="mt-4">
-                      <SidebarMenuSubButton asChild>
-                        <Link to="/projects" className="text-blue-600 hover:text-blue-700">
-                          <LibraryIcon className="size-4 mr-2" />
-                          <span>View All Projects</span>
-                        </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenu>
