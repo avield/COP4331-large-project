@@ -1085,33 +1085,63 @@ function ProjectPage() {
       setIsUpdatingGoal(false)
     }
   }
-  
+
   const handleDeleteGoal = async (taskAction: 'unassign' | 'delete') => {
-    if (!selectedGoal) return
+    if (!selectedGoal) return;
 
     try {
-      setIsDeletingGoal(true)
+      setGoalError('');
+      setIsDeletingGoal(true);
 
+      // Backend Call: Pass the action as a query parameter
       await api.delete(`/goals/${selectedGoal._id}`, {
-        params: { taskAction },
-      })
+        params: { taskAction }
+      });
 
-      await router.invalidate()
-      setIsGoalDeleteDialogOpen(false)
-      setSelectedGoal(null)
+      // Local State Sync: Update the BoardData directly
+      setData((prev) => {
+        const nextTasks = { ...prev.tasks };
+        const nextColumns = { ...prev.columns };
 
-      toast.success(
-        taskAction === 'delete'
-          ? 'Goal and associated tasks deleted.'
-          : 'Goal deleted and tasks were unassigned.'
-      )
+        if (taskAction === 'delete') {
+          // Find tasks tied to this goal and remove them from everywhere
+          Object.keys(nextTasks).forEach((taskId) => {
+            if (nextTasks[taskId].goalId === selectedGoal._id) {
+              const colId = statusToColumnId(nextTasks[taskId].status);
+              nextColumns[colId].taskIds = nextColumns[colId].taskIds.filter(id => id !== taskId);
+              delete nextTasks[taskId];
+            }
+          });
+        } else {
+          // Just remove the goalId reference so they become "Ungrouped"
+          Object.keys(nextTasks).forEach((taskId) => {
+            if (nextTasks[taskId].goalId === selectedGoal._id) {
+              nextTasks[taskId].goalId = null;
+            }
+          });
+        }
+
+        return {
+          ...prev,
+          tasks: nextTasks,
+          columns: nextColumns
+        };
+      });
+
+      // UI Cleanup
+      await router.invalidate(); // Keeps the 'goals' list in sync with the database
+      setIsGoalDeleteDialogOpen(false);
+      setIsGoalSheetOpen(false);
+      setSelectedGoal(null);
+      toast.success(taskAction === 'delete' ? "Goal and tasks removed." : "Goal removed; tasks unassigned.");
+
     } catch (error) {
-      console.error('Failed to delete goal:', error)
-      toast.error('Failed to delete goal.')
+      console.error('Goal deletion failed:', error);
+      toast.error('Could not delete goal. Please try again.');
     } finally {
-      setIsDeletingGoal(false)
+      setIsDeletingGoal(false);
     }
-  }
+  };
 
     
   const handleGoalDragEnd = async (result: DropResult) => {
@@ -3102,6 +3132,44 @@ const handleDeleteProject = async () => {
           </>
         </SheetContent>
       </Sheet>
+      {/* GOAL DELETE DIALOG */}
+      <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Goal: {selectedGoal?.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              How would you like to handle the tasks associated with this goal? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => {
+              setIsGoalDeleteDialogOpen(false);
+              setSelectedGoal(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+
+            <Button
+                variant="secondary"
+                disabled={isDeletingGoal}
+                onClick={() => handleDeleteGoal('unassign')}
+            >
+              {isDeletingGoal && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Unassign Tasks
+            </Button>
+
+            <Button
+                variant="destructive"
+                disabled={isDeletingGoal}
+                onClick={() => handleDeleteGoal('delete')}
+            >
+              {isDeletingGoal && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Delete Goal & Tasks
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
