@@ -26,12 +26,9 @@ jobs:
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
           BACKEND_URL: ${{ vars.BACKEND_URL }}
         run: |
-          # REMOVED: rm -f package-lock.json
-
-          # Changed to npm ci for a clean, lockfile-based install
-          npm ci 
+          npm ci
           cd frontend
-          npm install # Using install here is fine if frontend is a subfolder
+          npm ci  # Change this from 'npm install' to 'npm ci'
           npm run build
 
       - name: Set up SSH key
