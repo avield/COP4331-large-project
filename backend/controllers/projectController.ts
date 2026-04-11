@@ -278,9 +278,17 @@ export const getMyProjects = async (
   }
 };
 
-export const getManageableProjects = async (req: AuthenticatedRequest, res: Response) => {
+export const getManageableProjects = async (
+    req: AuthenticatedRequest,
+    res: Response): Promise<void> => {
   try {
-    requireUser(req);
+    // Ensure user is authenticated
+    if (!req.user || !req.user._id) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+
     // Find memberships where the user can actually manage members
     const memberships = await ProjectMember.find({
       userId: req.user._id,
@@ -292,10 +300,14 @@ export const getManageableProjects = async (req: AuthenticatedRequest, res: Resp
     });
 
     const projectIds = memberships.map(m => m.projectId);
-    const projects = await Project.find({ _id: { $in: projectIds } });
+    // Fetch the actual project documents
+    const projects = await Project.find({
+      _id: { $in: projectIds }
+    }).sort({ updatedAt: -1 });
 
     res.status(200).json(projects);
   } catch (error) {
+    console.error('CRASH in getManageableProjects:', error);
     res.status(500).json({ message: 'Error fetching manageable projects' });
   }
 };
