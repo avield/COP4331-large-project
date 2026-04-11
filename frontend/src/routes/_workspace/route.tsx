@@ -6,6 +6,7 @@ import { useAuthStore } from '@/api/authStore'
 import { isTokenValid } from '@/api/jwt'
 import { env } from '@/api/env'
 import axios from '@/api/axios'
+import { ThemeProvider, useTheme } from '@/context/ThemeContext'
 
 export const Route = createFileRoute('/_workspace')({
   beforeLoad: async () => {
@@ -40,16 +41,25 @@ export const Route = createFileRoute('/_workspace')({
 
 function RouteComponent() {
   return (
-    <div className="dark min-h-screen bg-background overflow-x-hidden">
-      <SidebarProvider>
-        <UiSidebar />
-        <main className="flex-1 min-w-0 w-full flex flex-col">
-          <Navbar />
-          <div className="min-w-0 p-4 md:p-6">
-            <Outlet />
-          </div>
-        </main>
-      </SidebarProvider>
-    </div>
+    <ThemeProvider>
+      <ThemedLayout />
+    </ThemeProvider>
   )
 }
+
+function ThemedLayout() {
+  const { theme } = useTheme()
+  return (
+  <div className="min-h-screen bg-background overflow-x-hidden">
+        <SidebarProvider>
+          <UiSidebar />
+          <main className="flex-1 min-w-0 w-full flex flex-col">
+            <Navbar />
+            <div className="min-w-0 p-4 md:p-6">
+              <Outlet />
+            </div>
+          </main>
+        </SidebarProvider>
+      </div>
+    )
+  }
