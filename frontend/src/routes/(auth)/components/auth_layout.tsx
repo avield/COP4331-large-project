@@ -7,8 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { GraduationCap, Github } from 'lucide-react'
+import { GraduationCap } from 'lucide-react'
 
 interface AuthLayoutProps {
   title: string;

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import {
   GraduationCap, ArrowRight, Zap, Users, Kanban,
-  CheckCircle2, Github, Star, MoveRight, Shield, Globe
+  CheckCircle2, Star, MoveRight, Shield, Globe
 } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
