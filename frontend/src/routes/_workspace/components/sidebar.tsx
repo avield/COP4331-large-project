@@ -3,15 +3,11 @@ import { ChevronDown, FolderIcon, FolderOpen, GraduationCap, HomeIcon, LibraryIc
 import SidebarButton from './sidebar_button'
 import { Link } from '@tanstack/react-router'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-
-const RECENT_PROJECTS = [
-  { id: "1", name: "CS101 Final Exam" },
-  { id: "2", name: "Math Tutor App" },
-  { id: "3", name: "History Essay Drafts" },
-]
-
+import { useRecentProjects } from '@/hooks/use-recent-projects'
 
 export default function UiSidebar() {
+  const { data: recentProjects, isLoading } = useRecentProjects();
+
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
@@ -40,8 +36,8 @@ export default function UiSidebar() {
         <SidebarGroup />
 
         {/* Projects Dropdown */}
-        <Collapsible defaultOpen className="group/collapsible">
-          <SidebarGroup className="px-5 w-full gap-y-2 min-w-fit">
+        <Collapsible defaultOpen className="group/collapsible w-full">
+          <SidebarGroup className="px-5 w-full gap-y-2">
             <SidebarMenu>
               <CollapsibleTrigger asChild>
                 <SidebarMenuItem>
@@ -52,27 +48,30 @@ export default function UiSidebar() {
                 </SidebarMenuItem>
               </CollapsibleTrigger>
               
-              <CollapsibleContent>
-                <SidebarMenuSub className="mt-2 space-y-1 ml-2">
-                  {RECENT_PROJECTS.map((project) => (
-                    <SidebarMenuSubItem key={project.id}>
+              <CollapsibleContent className="overflow-hidden w-full">
+                <SidebarMenuSub>
+                    {isLoading ? (
+                      <p className="text-xs text-muted-foreground ml-4">Loading...</p>
+                    ) : (
+                      recentProjects?.map((project) => (
+                        <SidebarMenuSubItem className="mt-4" key={project._id}>
+                          <SidebarMenuSubButton asChild>
+                            <Link to={`/projects/${project._id}`} className="w-full min-w-0 text-blue-600 hover:text-blue-700">
+                              <PanelsTopLeft className="size-4 mr-2 shrink-0" />
+                              <span className="truncate">{project.name}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))
+                    )}
+                    <SidebarMenuSubItem className="mt-4">
                       <SidebarMenuSubButton asChild>
-                        <Link to={`/projects/${project.id}`}>
-                          <PanelsTopLeft className="size-4 mr-2" />
-                          <span className="truncate">{project.name}</span>
+                        <Link to="/projects" className="text-blue-600 hover:text-blue-700">
+                          <LibraryIcon className="size-4 mr-2" />
+                          <span>View All Projects</span>
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                  ))}
-                  
-                  <SidebarMenuSubItem className="mt-4">
-                    <SidebarMenuSubButton asChild>
-                      <Link to="/projects" className="text-blue-600 hover:text-blue-700">
-                        <LibraryIcon className="size-4 mr-2" />
-                        <span>View All Projects</span>
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenu>
