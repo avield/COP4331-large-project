@@ -53,6 +53,8 @@ import { toast } from 'sonner'
 import { GoalsOverviewChart } from "./components/goals-overview-chart"
 import { ProjectProgressAreaChart } from "./components/area-chart"
 
+const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
+
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
     const res = await api.get(`/projects/${params.projectId}/details`)
@@ -71,11 +73,11 @@ export type BoardData = {
 
 interface ApiUserSummary {
   _id: string
-  id?: string,
+  id?: string
   displayName?: string
   email?: string
-  profilePicture?: string | null
   username?: string
+  profilePictureUrl?: string | null
   profile?: {
     displayName?: string
     profilePictureUrl?: string
@@ -189,32 +191,35 @@ function mapPriority(p: string): Task['priority'] {
   return 'Medium'
 }
 
-function normalizeAssignedUsers(users?: Array<any>) {
-  const BACKEND_URL = 'http://localhost:5000'; // Ensure this matches your server port
+function normalizeAssignedUsers(
+    users?: (string | ApiUserSummary)[]
+) {
+  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
   return (users ?? [])
       .map((user) => {
+        // TypeScript now knows 'user' is either a string or an ApiUserSummary
         if (typeof user === 'string') {
           return { _id: user, displayName: '', email: '', username: '' }
         }
 
-        // 1. Extract the raw path from the nested profile object
+        // 1. Get the path safely from our Interface structure
         const rawPath = user.profile?.profilePictureUrl || user.profilePictureUrl || null;
 
-        // 2. Determine the final URL (handles Google URLs vs Local Uploads)
-        const finalUrl = rawPath
-            ? (rawPath.startsWith('http') ? rawPath : `${BACKEND_URL}${rawPath}`)
-            : null;
+        // 2. URL Construction
+        let finalUrl = null;
+        if (rawPath) {
+          const cleanPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+          finalUrl = rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${cleanPath}`;
+        }
 
         return {
-          ...user,
           _id: user._id ?? '',
           displayName:
               user.profile?.displayName ??
               user.displayName ??
               user.email ??
               '',
-          // Use the corrected URL here
           profilePictureUrl: finalUrl,
         }
       })
@@ -311,7 +316,29 @@ function ProjectPage() {
   // Data from Loader
   const loaderData = Route.useLoaderData() as ApiResponse & { isFullDetails: boolean }
   const { isFullDetails, project } = loaderData
-  const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
+
+
+  const members = useMemo(() => {
+    const rawMembers = loaderData.members ?? [];
+    return rawMembers.map(m => {
+      const rawPath = m.userId?.profile?.profilePictureUrl || m.userId?.profilePictureUrl;
+
+      // Normalize path just like we did for tasks
+      const profilePictureUrl = rawPath
+          ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+          : null;
+
+      return {
+        ...m,
+        userId: m.userId ? {
+          ...m.userId,
+          profilePictureUrl
+        } : null
+      };
+    });
+  }, [loaderData.members]);
+
+
   const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
 
   useEffect(() => {
