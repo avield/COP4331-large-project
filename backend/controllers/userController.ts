@@ -56,21 +56,25 @@ export const getUserProfile = async (
         })
             .populate({
                 path: 'projectId',
-                select: 'name description visibility createdAt'
+                select: 'name description visibility createdAt status'
             })
             .sort({ createdAt: -1 })
             .lean();
 
         // Filter and Map the data into two separate buckets
         const projects = memberships
-            .filter((m: any) => m.projectId && m.projectId.visibility === 'public')
+            .filter((m: any) => {
+                if (!m.projectId) return false;
+                // If it's me, show all. If it's a visitor, show only public.
+                return isCurrentUser || m.projectId.visibility === 'public';
+            })
             .reduce((acc, m: any) => {
                 const projectInfo: ProfileProject = {
                     _id: m.projectId._id,
                     name: m.projectId.name,
                     description: m.projectId.description,
                     role: m.role || 'Member',
-                    status: m.projectId.status,
+                    status: m.projectId.status || 'active', // Fallback
                     createdAt: m.projectId.createdAt,
                     href: `/projects/${m.projectId._id}`
                 };
