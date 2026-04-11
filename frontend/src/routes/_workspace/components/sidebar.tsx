@@ -4,6 +4,7 @@ import SidebarButton from './sidebar_button'
 import { Link } from '@tanstack/react-router'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useRecentProjects } from '@/hooks/use-recent-projects'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function UiSidebar() {
   const { data: recentProjects, isLoading } = useRecentProjects();
@@ -50,6 +51,7 @@ export default function UiSidebar() {
               
               <CollapsibleContent className="overflow-hidden w-full">
                 <SidebarMenuSub>
+                  <ScrollArea className="h-70 w-full pr-3">
                     {isLoading ? (
                       <p className="text-xs text-muted-foreground ml-4">Loading...</p>
                     ) : (
@@ -64,6 +66,7 @@ export default function UiSidebar() {
                         </SidebarMenuSubItem>
                       ))
                     )}
+                  </ScrollArea>
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenu>
