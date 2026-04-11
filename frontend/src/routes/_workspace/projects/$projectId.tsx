@@ -146,6 +146,7 @@ interface ApiProject {
   settings?: {
     allowSelfJoinRequests?: boolean
     requireApprovalToJoin?: boolean
+    inviteOnly?: boolean
   }
   createdBy?: {
     _id: string
@@ -341,7 +342,8 @@ function ProjectPage() {
     tags: (project?.tags ?? []).join(', '),
     lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
     allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+    inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
   }))
 
   // RE-SYNC
@@ -357,7 +359,8 @@ function ProjectPage() {
       tags: (project?.tags ?? []).join(', '),
       lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
       allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+      inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
     })
 
     // Re-sync the Kanban board data
@@ -1210,6 +1213,7 @@ function ProjectPage() {
         settings: {
           allowSelfJoinRequests: editForm.allowSelfJoin,
           requireApprovalToJoin: editForm.requireApprovalToJoin,
+          inviteOnly: editForm.inviteOnly,
         },
       }
 
@@ -1501,17 +1505,18 @@ const handleDeleteProject = async () => {
                       <FieldLegend>Join settings</FieldLegend>
                       <RadioGroup
                         value={
-                          editForm.allowSelfJoin
-                            ? 'self_join'
+                          editForm.inviteOnly
+                            ? 'invite_only'
                             : editForm.requireApprovalToJoin
                               ? 'approval'
-                              : 'invite_only'
+                              : 'self_join'
                         }
                         onValueChange={(value) =>
                           setEditForm((prev) => ({
                             ...prev,
-                            allowSelfJoin: value === 'self_join',
+                            allowSelfJoin: value !== 'invite_only',
                             requireApprovalToJoin: value === 'approval',
+                            inviteOnly: value === 'invite_only',
                           }))
                         }
                       >
@@ -1886,11 +1891,10 @@ const handleDeleteProject = async () => {
               <div className="flex items-start gap-2">
                 <Settings className="mt-0.5 size-4 text-muted-foreground" />
                 <div>
-                  {project.settings?.allowSelfJoinRequests
-                    ? project.settings?.requireApprovalToJoin
+                  {project.settings?.inviteOnly ? 'Invite only.' 
+                    : project.settings?.requireApprovalToJoin
                       ? 'Users can request to join and wait for approval.'
-                      : 'Users can join immediately.'
-                    : 'Invite only.'}
+                      : 'Users can join immediately.'}
                 </div>
               </div>
             </CardContent>
