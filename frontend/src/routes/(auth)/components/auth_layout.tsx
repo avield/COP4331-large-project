@@ -7,8 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { GraduationCap, Github } from 'lucide-react'
+import { GraduationCap } from 'lucide-react'
 
 interface AuthLayoutProps {
   title: string;
@@ -55,25 +54,6 @@ export default function AuthLayout({
           
           {/* This is where your Email/Password inputs and the "Sign In" button will go */}
           {children} 
-
-          {/* ------------------------------------------------------------- */}
-          {/* THE SOCIAL DIVIDER - Now it appears on every auth page automatically! */}
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          <Button variant="outline" type="button" className="w-full cursor-pointer">
-            <Github className="mr-2 h-4 w-4" />
-            GitHub
-          </Button>
-          {/* ------------------------------------------------------------- */}
 
         </CardContent>
         
