@@ -33,6 +33,11 @@ interface CreateProjectBody {
   dueDate?: string | null;
   goals?: GoalInput[];
   invitedMembers?: InviteMemberInput[];
+  settings?: {
+    allowSelfJoinRequests?: boolean;
+    requireApprovalToJoin?: boolean;
+    inviteOnly?: boolean;
+  };
 }
 
 interface UpdateProjectBody {
@@ -47,6 +52,7 @@ interface UpdateProjectBody {
   settings?: {
     allowSelfJoinRequests?: boolean;
     requireApprovalToJoin?: boolean;
+    inviteOnly?: boolean;
   };
 }
 
@@ -121,6 +127,22 @@ export const createProject = async (
           }))
       : [];
 
+    const defaultSettings =
+      normalizedVisibility === 'public'
+        ? {
+            allowSelfJoinRequests: true,
+            requireApprovalToJoin: true,
+            inviteOnly: false,
+          }
+        : {
+            allowSelfJoinRequests: false,
+            requireApprovalToJoin: false,
+            inviteOnly: true,
+          };
+    
+    const defaultRecruitingStatus =
+      normalizedVisibility === 'private' ? 'closed' : 'open';
+
     await session.withTransaction(async () => {
       requireUser(req);
       const projectData: {
@@ -129,10 +151,18 @@ export const createProject = async (
         createdBy: string;
         visibility?: 'private' | 'public';
         dueDate?: Date;
+        recruitingStatus: string;
+        settings: {
+          allowSelfJoinRequests: boolean;
+          requireApprovalToJoin: boolean;
+          inviteOnly: boolean;
+        };
       } = {
         name: normalizedName,
         description: normalizedDescription,
-        createdBy: req.user._id
+        createdBy: req.user._id,
+        settings: defaultSettings,
+        recruitingStatus: defaultRecruitingStatus,
       };
 
       if (normalizedVisibility) {
@@ -454,12 +484,19 @@ export const updateProject = async (
     }
 
     if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-      project.settings = {
-        allowSelfJoinRequests:
-          settings.allowSelfJoinRequests ?? project.settings?.allowSelfJoinRequests ?? true,
-        requireApprovalToJoin:
-          settings.requireApprovalToJoin ?? project.settings?.requireApprovalToJoin ?? true,
-      };
+      if (settings.inviteOnly === true) {
+        project.settings = {
+          allowSelfJoinRequests: false,
+          requireApprovalToJoin: false,
+          inviteOnly: true,
+        };
+      } else if (settings.allowSelfJoinRequests === true) {
+        project.settings = {
+          allowSelfJoinRequests: true,
+          requireApprovalToJoin: settings.requireApprovalToJoin ?? true,
+          inviteOnly: false,
+        };
+      }
     }
 
     await project.save();
@@ -503,6 +540,7 @@ export const deleteProject = async (
     }
 
     await Task.deleteMany({ projectId });
+    await Goal.deleteMany({ projectId });
     await ProjectMember.deleteMany({ projectId });
     await Project.findByIdAndDelete(projectId);
 

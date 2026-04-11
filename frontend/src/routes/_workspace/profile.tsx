@@ -10,6 +10,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2, Upload } from 'lucide-react'
 import api from '@/api/axios'
 import {useAuthStore} from "@/api/authStore.ts";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 // GET /api/users....../profile → raw profile object (not wrapped)
 interface UserProfile {
@@ -67,6 +78,8 @@ function ProfilePage() {
   const [preferredRolesText, setPreferredRolesText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null)
 
 
   // States for File Upload and Previews
@@ -180,6 +193,28 @@ function ProfilePage() {
     const cleanUrl = url.startsWith('/') ? url : `/${url}`;
 
     return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
+  }
+
+  //Delete account handler
+  async function handleDeleteAccount() {
+    setIsDeletingAccount(true)
+    setDeleteAccountError(null)
+
+    try {
+
+      await api.delete('/users/me')   // deletes account + clears cookie
+      useAuthStore.getState().clearAuth()
+      await router.navigate({ to: '/login' })
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+
+      setDeleteAccountError(message ?? 'Failed to delete account. Please try again.')
+    } finally {
+      setIsDeletingAccount(false)
+    }
   }
 
   return (
@@ -364,7 +399,46 @@ function ProfilePage() {
               <p className="text-sm font-medium">Delete account</p>
               <p className="text-xs text-muted-foreground">Permanently remove your account and all associated data.</p>
             </div>
-            <Button variant="destructive" size="sm" className="shrink-0 cursor-pointer" disabled>Delete</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="shrink-0 cursor-pointer"
+                  disabled={isDeletingAccount}
+                >
+                  {isDeletingAccount ? 'Deleting...' : 'Delete'}
+                </Button>
+              </AlertDialogTrigger>
+
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete account?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently deletes your account. If you own projects, ownership will be
+                    transferred to the oldest active member. Projects with no other active members
+                    will be deleted. Tasks assigned to you will be unassigned. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void handleDeleteAccount()
+                    }}
+                    disabled={isDeletingAccount}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {deleteAccountError && (
+              <p className="mt-3 text-xs text-destructive">{deleteAccountError}</p>
+            )}
           </div>
         </CardContent>
       </Card>

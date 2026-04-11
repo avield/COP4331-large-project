@@ -146,6 +146,7 @@ interface ApiProject {
   settings?: {
     allowSelfJoinRequests?: boolean
     requireApprovalToJoin?: boolean
+    inviteOnly?: boolean
   }
   createdBy?: {
     _id: string
@@ -341,7 +342,8 @@ function ProjectPage() {
     tags: (project?.tags ?? []).join(', '),
     lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
     allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+    inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
   }))
 
   // RE-SYNC
@@ -357,7 +359,8 @@ function ProjectPage() {
       tags: (project?.tags ?? []).join(', '),
       lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
       allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+      inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
     })
 
     // Re-sync the Kanban board data
@@ -372,6 +375,7 @@ function ProjectPage() {
   const [isTaskDeleteDialogOpen, setIsTaskDeleteDialogOpen] = useState(false)
   const [isDeletingTask, setIsDeletingTask] = useState(false)
   const [taskDeleteError, setTaskDeleteError] = useState('')
+  const isPrivateProject = editForm.visibility === 'private'
 
   //Member management UI States
   const [isManageMembersSheetOpen, setIsManageMembersSheetOpen] = useState(false)
@@ -1192,11 +1196,13 @@ function ProjectPage() {
       setProjectSaveError('')
       setIsSavingProject(true)
 
+      const isPrivateProject = editForm.visibility === 'private'
+
       const payload = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
         visibility: editForm.visibility,
-        recruitingStatus: editForm.recruitingStatus,
+        recruitingStatus: isPrivateProject ? 'closed' : editForm.recruitingStatus,
         status: editForm.status,
         dueDate: editForm.dueDate || null,
         tags: editForm.tags
@@ -1208,8 +1214,9 @@ function ProjectPage() {
           .map((role) => role.trim())
           .filter(Boolean),
         settings: {
-          allowSelfJoinRequests: editForm.allowSelfJoin,
-          requireApprovalToJoin: editForm.requireApprovalToJoin,
+          allowSelfJoinRequests: isPrivateProject ? false : editForm.allowSelfJoin,
+          requireApprovalToJoin: isPrivateProject ? false : editForm.requireApprovalToJoin,
+          inviteOnly: isPrivateProject ? true : editForm.inviteOnly,
         },
       }
 
@@ -1413,10 +1420,28 @@ const handleDeleteProject = async () => {
                       <RadioGroup
                         value={editForm.visibility}
                         onValueChange={(value) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            visibility: value as 'public' | 'private',
-                          }))
+                          setEditForm((prev) => {
+                            const nextVisibility = value as 'public' | 'private'
+
+                            if (nextVisibility === 'private') {
+                              return {
+                                ...prev,
+                                visibility: nextVisibility,
+                                recruitingStatus: 'closed',
+                                allowSelfJoin: false,
+                                requireApprovalToJoin: false,
+                                inviteOnly: true,
+                              }
+                            }
+
+                            return {
+                              ...prev,
+                              visibility: nextVisibility,
+                              allowSelfJoin: true,
+                              requireApprovalToJoin: true,
+                              inviteOnly: false,
+                            }
+                          })
                         }
                       >
                         <Field orientation="horizontal">
@@ -1443,6 +1468,11 @@ const handleDeleteProject = async () => {
 
                     <FieldSet>
                       <FieldLegend>Recruiting status</FieldLegend>
+                      {isPrivateProject && (
+                        <p className="text-sm text-muted-foreground">
+                          Private projects are automatically closed to new members.
+                        </p>
+                      )}
                       <RadioGroup
                         value={editForm.recruitingStatus}
                         onValueChange={(value) =>
@@ -1453,12 +1483,12 @@ const handleDeleteProject = async () => {
                         }
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="open" id="recruiting-open" />
+                          <RadioGroupItem value="open" id="recruiting-open" disabled={isPrivateProject} />
                           <FieldLabel htmlFor="recruiting-open">Open to new members</FieldLabel>
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="closed" id="recruiting-closed" />
+                          <RadioGroupItem value="closed" id="recruiting-closed" disabled={isPrivateProject} />
                           <FieldLabel htmlFor="recruiting-closed">Closed</FieldLabel>
                         </Field>
                       </RadioGroup>
@@ -1499,24 +1529,35 @@ const handleDeleteProject = async () => {
 
                     <FieldSet>
                       <FieldLegend>Join settings</FieldLegend>
+                      {isPrivateProject && (
+                        <p className="text-sm text-muted-foreground">
+                          Private projects are invite only.
+                        </p>
+                      )}
+
                       <RadioGroup
                         value={
-                          editForm.allowSelfJoin
-                            ? 'self_join'
+                          editForm.inviteOnly
+                            ? 'invite_only'
                             : editForm.requireApprovalToJoin
                               ? 'approval'
-                              : 'invite_only'
+                              : 'self_join'
                         }
                         onValueChange={(value) =>
                           setEditForm((prev) => ({
                             ...prev,
-                            allowSelfJoin: value === 'self_join',
+                            allowSelfJoin: value !== 'invite_only',
                             requireApprovalToJoin: value === 'approval',
+                            inviteOnly: value === 'invite_only',
                           }))
                         }
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="self_join" id="join-self" />
+                          <RadioGroupItem
+                            value="self_join"
+                            id="join-self"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-self">Self join</FieldLabel>
                             <FieldDescription>
@@ -1526,7 +1567,11 @@ const handleDeleteProject = async () => {
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="approval" id="join-approval" />
+                          <RadioGroupItem
+                            value="approval"
+                            id="join-approval"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-approval">Require approval</FieldLabel>
                             <FieldDescription>
@@ -1536,7 +1581,11 @@ const handleDeleteProject = async () => {
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="invite_only" id="join-invite-only" />
+                          <RadioGroupItem
+                            value="invite_only"
+                            id="join-invite-only"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-invite-only">Invite only</FieldLabel>
                             <FieldDescription>
@@ -1886,11 +1935,10 @@ const handleDeleteProject = async () => {
               <div className="flex items-start gap-2">
                 <Settings className="mt-0.5 size-4 text-muted-foreground" />
                 <div>
-                  {project.settings?.allowSelfJoinRequests
-                    ? project.settings?.requireApprovalToJoin
+                  {project.settings?.inviteOnly ? 'Invite only.' 
+                    : project.settings?.requireApprovalToJoin
                       ? 'Users can request to join and wait for approval.'
-                      : 'Users can join immediately.'
-                    : 'Invite only.'}
+                      : 'Users can join immediately.'}
                 </div>
               </div>
             </CardContent>
