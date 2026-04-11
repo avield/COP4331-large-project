@@ -35,7 +35,7 @@ interface UserProfileData {
 interface ManageableProject {
     _id: string;
     name: string;
-    status: string;
+    status: 'active' | 'completed' | 'planning' | 'on_hold';
     recruitingStatus: 'open' | 'closed';
 }
 
@@ -76,16 +76,16 @@ function UserProfilePage() {
     const [existingInvite, setExistingInvite] = useState<PendingInvite | null>(null)
     const [selectedProjectId, setSelectedProjectId] = useState('')
     const [targetRole, setTargetRole] = useState('')
-    const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingData, setIsLoadingData] = useState(true)
+    const [isActionLoading, setIsActionLoading] = useState(false)
 
-    // Filter projects that are NOT closed
+    // Derived Logic
     const eligibleProjects = myManageableProjects.filter(
-        (p) => p.recruitingStatus !== 'closed'
+        (p) => p.recruitingStatus === 'open'
     );
 
-    // Update the "disabled" logic to check ELIGIBLE projects vs total projects
     const hasNoEligibleProjects = eligibleProjects.length === 0;
-    const isInviteSectionDisabled = hasNoEligibleProjects && !existingInvite;
+    const isInviteSectionDisabled = !isLoadingData && hasNoEligibleProjects && !existingInvite;
 
     useEffect(() => {
         const fetchInvitationData = async () => {
@@ -99,6 +99,8 @@ function UserProfilePage() {
                 setExistingInvite(inviteRes.data);
             } catch (err) {
                 console.error("Error loading invitation context:", err);
+            } finally {
+                setIsLoadingData(false);
             }
         };
         void fetchInvitationData();
@@ -106,7 +108,7 @@ function UserProfilePage() {
 
     const handleSendInvite = async () => {
         if (!selectedProjectId || !targetRole || !data) return;
-        setIsLoading(true);
+        setIsActionLoading(true);
         try {
             const res = await api.post(`/project-members/project/${selectedProjectId}`, {
                 userId: data.user.id,
@@ -121,13 +123,13 @@ function UserProfilePage() {
             console.error("Invitation error:", err);
             toast.error("Failed to send invitation");
         } finally {
-            setIsLoading(false);
+            setIsActionLoading(false);
         }
     };
 
     const handleCancelInvite = async () => {
         if (!existingInvite?._id) return;
-        setIsLoading(true);
+        setIsActionLoading(true);
         try {
             await api.delete(`/project-members/${existingInvite._id}`);
             setExistingInvite(null);
@@ -136,10 +138,10 @@ function UserProfilePage() {
             toast.success("Invitation withdrawn");
             await router.invalidate();
         } catch (err) {
-            console.error("Could not cancel invitation", err);
+            console.error("Could not cancel invitation:", err);
             toast.error("Could not cancel invitation");
         } finally {
-            setIsLoading(false);
+            setIsActionLoading(false);
         }
     };
 
@@ -151,7 +153,6 @@ function UserProfilePage() {
 
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-10">
-            {/* Header Section */}
             <header className="flex flex-col md:flex-row items-center gap-6">
                 <NetworkAvatar
                     displayName={user.displayName}
@@ -168,7 +169,7 @@ function UserProfilePage() {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Left Sidebar: Combined Column */}
+                {/* Left Sidebar */}
                 <div className="md:col-span-1 space-y-8">
                     <section className="space-y-2">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">About Me</h2>
@@ -192,26 +193,29 @@ function UserProfilePage() {
                         </div>
                     </section>
 
-                    {/* UPDATED: Invitation Section with Message and Logic */}
-                    <section className={`space-y-4 pt-6 border-t transition-all duration-300 ${isInviteSectionDisabled ? 'opacity-60 grayscale-[0.3]' : ''}`}>
+                    {/* Invitation Section */}
+                    <section className={`space-y-4 pt-6 border-t transition-all ${isInviteSectionDisabled ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
                             Project Invitation
                         </h2>
 
-                        {/* Status Message for Greying Out */}
-                        {isInviteSectionDisabled && (
+                        {isLoadingData ? (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                                <Loader2 className="size-3 animate-spin" />
+                                Checking project permissions...
+                            </div>
+                        ) : isInviteSectionDisabled ? (
                             <div className="p-3 rounded-lg bg-muted/50 border border-dashed border-muted-foreground/20">
                                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                                     <span className="font-bold text-foreground block mb-1">Invitation Disabled</span>
                                     {myManageableProjects.length > 0
-                                        ? "All your manageable projects currently have recruiting set to 'Closed'."
-                                        : "You don't have any projects where you have permission to invite members."}
+                                        ? "All your manageable projects are currently 'Closed' for recruiting."
+                                        : "You don't have owner/manager permissions in any projects yet."}
                                 </p>
                             </div>
-                        )}
+                        ) : null}
 
                         {existingInvite ? (
-                            /* MODE: Invitation Sent */
                             <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Pending Invite</span>
@@ -228,13 +232,12 @@ function UserProfilePage() {
                                     size="sm"
                                     className="w-full h-8 text-xs font-semibold"
                                     onClick={handleCancelInvite}
-                                    disabled={isLoading}
+                                    disabled={isActionLoading}
                                 >
-                                    {isLoading ? <Loader2 className="animate-spin size-3" /> : "Cancel Invitation"}
+                                    {isActionLoading ? <Loader2 className="animate-spin size-3" /> : "Cancel Invitation"}
                                 </Button>
                             </div>
                         ) : (
-                            /* MODE: Send Invitation Dropdown */
                             <div className="space-y-3">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Select Project</label>
@@ -242,10 +245,10 @@ function UserProfilePage() {
                                         className="w-full p-2 text-xs rounded-lg border bg-background disabled:cursor-not-allowed outline-none"
                                         value={selectedProjectId}
                                         onChange={(e) => setSelectedProjectId(e.target.value)}
-                                        disabled={isInviteSectionDisabled || isLoading}
+                                        disabled={isInviteSectionDisabled || isActionLoading}
                                     >
                                         <option value="">
-                                            {hasNoEligibleProjects ? "No open projects" : "Choose a project..."}
+                                            {hasNoEligibleProjects && !isLoadingData ? "No open projects" : "Choose a project..."}
                                         </option>
                                         {eligibleProjects.map(p => (
                                             <option key={p._id} value={p._id}>{p.name}</option>
@@ -260,26 +263,25 @@ function UserProfilePage() {
                                         className="h-9 text-xs rounded-lg"
                                         value={targetRole}
                                         onChange={(e) => setTargetRole(e.target.value)}
-                                        disabled={isInviteSectionDisabled || isLoading}
+                                        disabled={isInviteSectionDisabled || isActionLoading}
                                     />
                                 </div>
 
                                 <Button
                                     className="w-full h-9 text-xs font-bold uppercase tracking-wider"
-                                    disabled={isInviteSectionDisabled || !selectedProjectId || !targetRole || isLoading}
+                                    disabled={isInviteSectionDisabled || !selectedProjectId || !targetRole || isActionLoading}
                                     onClick={handleSendInvite}
                                 >
-                                    {isLoading && <Loader2 className="animate-spin size-3 mr-2" />}
-                                    {hasNoEligibleProjects ? "Cannot Invite" : "Send Invitation"}
+                                    {isActionLoading && <Loader2 className="animate-spin size-3 mr-2" />}
+                                    {hasNoEligibleProjects && !isLoadingData ? "Cannot Invite" : "Send Invitation"}
                                 </Button>
                             </div>
                         )}
                     </section>
                 </div>
 
-                {/* Right Content: Projects (Takes up 2 columns) */}
+                {/* Right Content */}
                 <div className="md:col-span-2 space-y-12">
-                    {/* Active Projects List */}
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-primary">Active Projects</h2>
                         <div className="grid gap-4">
@@ -311,7 +313,6 @@ function UserProfilePage() {
                         </div>
                     </section>
 
-                    {/* Completed Projects List (Scrollable) */}
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Project History (Completed)</h2>
                         <div className="max-h-100 overflow-y-auto pr-3 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-track-transparent">
