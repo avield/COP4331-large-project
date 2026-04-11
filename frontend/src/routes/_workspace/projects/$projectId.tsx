@@ -74,6 +74,7 @@ interface ApiUserSummary {
   id?: string,
   displayName?: string
   email?: string
+  profilePicture?: string | null
   username?: string
   profile?: {
     displayName?: string
@@ -110,7 +111,7 @@ interface ApiMember {
       profilePictureUrl?: string
     }
     displayName?: string
-    avatarUrl?: string
+    profilePictureUrl?: string
   }
   role: string
   permissions: {
@@ -188,44 +189,36 @@ function mapPriority(p: string): Task['priority'] {
   return 'Medium'
 }
 
-function normalizeAssignedUsers(
-  users?: Array<
-    | string
-    | {
-        _id?: string
-        displayName?: string
-        email?: string
-        username?: string
-        profile?: {
-          displayName?: string
-          profilePictureUrl?: string
-        }
-      }
-  >
-) {
-  return (users ?? [])
-    .map((user) => {
-      if (typeof user === 'string') {
-        return {
-          _id: user,
-          displayName: '',
-          email: '',
-          username: '',
-          profile: undefined,
-        }
-      }
+function normalizeAssignedUsers(users?: Array<any>) {
+  const BACKEND_URL = 'http://localhost:5000'; // Ensure this matches your server port
 
-      return {
-        ...user,
-        _id: user._id ?? '',
-        displayName:
-          user.displayName ??
-          user.profile?.displayName ??
-          user.email ??
-          '',
-      }
-    })
-    .filter((user) => user._id)
+  return (users ?? [])
+      .map((user) => {
+        if (typeof user === 'string') {
+          return { _id: user, displayName: '', email: '', username: '' }
+        }
+
+        // 1. Extract the raw path from the nested profile object
+        const rawPath = user.profile?.profilePictureUrl || user.profilePictureUrl || null;
+
+        // 2. Determine the final URL (handles Google URLs vs Local Uploads)
+        const finalUrl = rawPath
+            ? (rawPath.startsWith('http') ? rawPath : `${BACKEND_URL}${rawPath}`)
+            : null;
+
+        return {
+          ...user,
+          _id: user._id ?? '',
+          displayName:
+              user.profile?.displayName ??
+              user.displayName ??
+              user.email ??
+              '',
+          // Use the corrected URL here
+          profilePictureUrl: finalUrl,
+        }
+      })
+      .filter((user) => user._id)
 }
 
 function buildBoardData(apiData: ApiResponse): BoardData {

@@ -73,8 +73,8 @@ type PopulatedUser = {
   _id: string
   email?: string
   profile?: {
-    displayName?: string;
-    profilePictureUrl: string;
+    displayName?: string
+    profilePictureUrl: string
   }
 }
 
