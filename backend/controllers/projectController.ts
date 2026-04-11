@@ -138,6 +138,9 @@ export const createProject = async (
             requireApprovalToJoin: false,
             inviteOnly: true,
           };
+    
+    const defaultRecruitingStatus =
+      normalizedVisibility === 'private' ? 'closed' : 'open';
 
     await session.withTransaction(async () => {
       requireUser(req);
@@ -147,6 +150,7 @@ export const createProject = async (
         createdBy: string;
         visibility?: 'private' | 'public';
         dueDate?: Date;
+        recruitingStatus: string;
         settings: {
           allowSelfJoinRequests: boolean;
           requireApprovalToJoin: boolean;
@@ -157,6 +161,7 @@ export const createProject = async (
         description: normalizedDescription,
         createdBy: req.user._id,
         settings: defaultSettings,
+        recruitingStatus: defaultRecruitingStatus,
       };
 
       if (normalizedVisibility) {
