@@ -201,9 +201,9 @@ function ProfilePage() {
     setDeleteAccountError(null)
 
     try {
-      await api.delete('/users/me')
 
-      useAuthStore.getState().logout?.()
+      await api.delete('/users/me')   // deletes account + clears cookie
+      useAuthStore.getState().clearAuth()
       await router.navigate({ to: '/login' })
     } catch (err: unknown) {
       const message =
