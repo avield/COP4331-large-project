@@ -22,6 +22,7 @@ interface Project {
   description: string
   visibility: string
   dueDate?: string
+  status?: 'planning' | 'active' | 'on_hold' | 'completed'
   memberCount: number
   taskCounts: TaskCounts
 }
@@ -76,8 +77,8 @@ type StatusKey = 'in-progress' | 'completed' | 'overdue'
 function StatusBadge({ project }: { project: Project }) {
   const now = new Date()
   const due = project.dueDate ? new Date(project.dueDate) : null
-  const isOverdue = due && due < now && project.taskCounts.done < project.taskCounts.total
-  const isCompleted = project.taskCounts.total > 0 && project.taskCounts.done === project.taskCounts.total
+  const isCompleted = project.status === 'completed'
+  const isOverdue = !isCompleted && due && due < now && project.taskCounts.done < project.taskCounts.total
   const status: StatusKey = isOverdue ? 'overdue' : isCompleted ? 'completed' : 'in-progress'
   const map: Record<StatusKey, { classes: string; label: string }> = {
     'in-progress': { classes: 'bg-blue-500/10 text-blue-400 border-blue-500/20', label: 'In Progress' },
@@ -171,7 +172,7 @@ function Home() {
                 <h2 className="text-sm font-semibold">Invitations</h2>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid max-h-[150px] overflow-y-auto gap-3 md:grid-cols-2">
                 {invitations.map((invite: Invitation) => (
                   <Link
                     key={invite._id}

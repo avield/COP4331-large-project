@@ -16,9 +16,11 @@ import { Route as WorkspaceProfileRouteImport } from './routes/_workspace/profil
 import { Route as WorkspaceHomeRouteImport } from './routes/_workspace/home'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
+import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as WorkspaceUsersUserIdRouteImport } from './routes/_workspace/users.$userId'
 import { Route as WorkspaceProjectsNewRouteImport } from './routes/_workspace/projects/new'
 import { Route as WorkspaceProjectsProjectIdRouteImport } from './routes/_workspace/projects/$projectId'
+import { Route as authResetPasswordTokenRouteImport } from './routes/(auth)/reset-password.$token'
 
 const WorkspaceRouteRoute = WorkspaceRouteRouteImport.update({
   id: '/_workspace',
@@ -53,6 +55,11 @@ const authLoginRoute = authLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => authRouteRoute,
 } as any)
+const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => authRouteRoute,
+} as any)
 const WorkspaceUsersUserIdRoute = WorkspaceUsersUserIdRouteImport.update({
   id: '/users/$userId',
   path: '/users/$userId',
@@ -69,23 +76,32 @@ const WorkspaceProjectsProjectIdRoute =
     path: '/projects/$projectId',
     getParentRoute: () => WorkspaceRouteRoute,
   } as any)
+const authResetPasswordTokenRoute = authResetPasswordTokenRouteImport.update({
+  id: '/reset-password/$token',
+  path: '/reset-password/$token',
+  getParentRoute: () => authRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
   '/home': typeof WorkspaceHomeRoute
   '/profile': typeof WorkspaceProfileRoute
+  '/reset-password/$token': typeof authResetPasswordTokenRoute
   '/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/projects/new': typeof WorkspaceProjectsNewRoute
   '/users/$userId': typeof WorkspaceUsersUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
   '/home': typeof WorkspaceHomeRoute
   '/profile': typeof WorkspaceProfileRoute
+  '/reset-password/$token': typeof authResetPasswordTokenRoute
   '/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/projects/new': typeof WorkspaceProjectsNewRoute
   '/users/$userId': typeof WorkspaceUsersUserIdRoute
@@ -95,10 +111,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_workspace': typeof WorkspaceRouteRouteWithChildren
+  '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/register': typeof authRegisterRoute
   '/_workspace/home': typeof WorkspaceHomeRoute
   '/_workspace/profile': typeof WorkspaceProfileRoute
+  '/(auth)/reset-password/$token': typeof authResetPasswordTokenRoute
   '/_workspace/projects/$projectId': typeof WorkspaceProjectsProjectIdRoute
   '/_workspace/projects/new': typeof WorkspaceProjectsNewRoute
   '/_workspace/users/$userId': typeof WorkspaceUsersUserIdRoute
@@ -107,20 +125,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/forgot-password'
     | '/login'
     | '/register'
     | '/home'
     | '/profile'
+    | '/reset-password/$token'
     | '/projects/$projectId'
     | '/projects/new'
     | '/users/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/forgot-password'
     | '/login'
     | '/register'
     | '/home'
     | '/profile'
+    | '/reset-password/$token'
     | '/projects/$projectId'
     | '/projects/new'
     | '/users/$userId'
@@ -129,10 +151,12 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_workspace'
+    | '/(auth)/forgot-password'
     | '/(auth)/login'
     | '/(auth)/register'
     | '/_workspace/home'
     | '/_workspace/profile'
+    | '/(auth)/reset-password/$token'
     | '/_workspace/projects/$projectId'
     | '/_workspace/projects/new'
     | '/_workspace/users/$userId'
@@ -195,6 +219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authLoginRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/(auth)/forgot-password': {
+      id: '/(auth)/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof authForgotPasswordRouteImport
+      parentRoute: typeof authRouteRoute
+    }
     '/_workspace/users/$userId': {
       id: '/_workspace/users/$userId'
       path: '/users/$userId'
@@ -216,17 +247,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceProjectsProjectIdRouteImport
       parentRoute: typeof WorkspaceRouteRoute
     }
+    '/(auth)/reset-password/$token': {
+      id: '/(auth)/reset-password/$token'
+      path: '/reset-password/$token'
+      fullPath: '/reset-password/$token'
+      preLoaderRoute: typeof authResetPasswordTokenRouteImport
+      parentRoute: typeof authRouteRoute
+    }
   }
 }
 
 interface authRouteRouteChildren {
+  authForgotPasswordRoute: typeof authForgotPasswordRoute
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
+  authResetPasswordTokenRoute: typeof authResetPasswordTokenRoute
 }
 
 const authRouteRouteChildren: authRouteRouteChildren = {
+  authForgotPasswordRoute: authForgotPasswordRoute,
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
+  authResetPasswordTokenRoute: authResetPasswordTokenRoute,
 }
 
 const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
