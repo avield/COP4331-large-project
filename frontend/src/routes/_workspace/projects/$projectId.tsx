@@ -103,19 +103,19 @@ interface ApiTask {
 }
 
 interface ApiMember {
-  _id: string
-  projectId: string
-  userId: {
-    _id: string
-    email?: string
+  _id: string;
+  projectId: string;
+  userId?: {
+    _id: string;
+    email?: string;
+    displayName?: string;
+    profilePictureUrl?: string | null;
     profile?: {
-      displayName?: string
-      profilePictureUrl?: string
-    }
-    displayName?: string
-    profilePictureUrl?: string
-  }
-  role: string
+      displayName?: string;
+      profilePictureUrl?: string;
+    };
+  } | null;
+  role: string;
   permissions: {
     canEditProject: boolean
     canManageMembers: boolean
@@ -320,19 +320,23 @@ function ProjectPage() {
 
   const members = useMemo(() => {
     const rawMembers = loaderData.members ?? [];
-    return rawMembers.map(m => {
+
+    return rawMembers.map((m) => {
+      // 1. Extract the nested path
       const rawPath = m.userId?.profile?.profilePictureUrl || m.userId?.profilePictureUrl;
 
-      // Normalize path just like we did for tasks
-      const profilePictureUrl = rawPath
+      // 2. Build the full URL
+      const finalUrl = rawPath
           ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
           : null;
 
+      // 3. FLATTEN the object so profilePictureUrl is at the top level of userId
       return {
         ...m,
         userId: m.userId ? {
           ...m.userId,
-          profilePictureUrl
+          // We explicitly set this so the Avatar component sees it
+          profilePictureUrl: finalUrl
         } : null
       };
     });
@@ -2040,47 +2044,55 @@ const handleDeleteProject = async () => {
 
               <div className="space-y-3">
                 {members.length > 0 ? (
-                  members.map((member) => {
-                    const displayName = member.userId?.profile?.displayName ??
-                        member.userId?.displayName ?? 'Unknown User';
-                    const email = member.userId?.email ?? 'No email'
+                    members.map((member: ApiMember) => {
+                      const displayName = member.userId?.profile?.displayName ??
+                          member.userId?.displayName ?? 'Unknown User';
+                      const email = member.userId?.email ?? 'No email';
 
-                    const isMe = member.userId?._id === user?.id
-                    const avatarUrl = isMe
-                    ? user?.profile?.profilePictureUrl
-                        : member.userId?.profile?.profilePictureUrl;
+                      const isMe = member.userId?._id === user?.id;
 
-                    return (
-                      <div
-                        key={member._id}
-                        className="flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <NetworkAvatar
-                              displayName={displayName}
-                              profilePictureUrl={avatarUrl}
-                              size="sm"
-                          />
+                      const rawPath = isMe
+                          ? user?.profile?.profilePictureUrl
+                          : member.userId?.profile?.profilePictureUrl;
 
-                          <div>
-                            <div className="text-sm font-medium">{displayName}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {email}
+                      // Use your env variable correctly
+                      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+                      const finalAvatarUrl = rawPath
+                          ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+                          : undefined;
+
+                      return (
+                          <div
+                              key={member._id}
+                              className="flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <NetworkAvatar
+                                  displayName={displayName}
+                                  profilePictureUrl={finalAvatarUrl}
+                                  size="sm"
+                              />
+
+                              <div>
+                                <div className="text-sm font-medium">{displayName}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {email}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
 
-                        <Badge variant="outline">
-                          {member.role ?? 'Member'}
-                        </Badge>
-                      </div>
-                    )
-                  })
+                            <Badge variant="outline">
+                              {member.role ?? 'Member'}
+                            </Badge>
+                          </div>
+                      ); // Ensure this semicolon is here
+                    }) // Ensure this closing paren matches .map(
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="size-4" />
-                    No members available.
-                  </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="size-4" />
+                      No members available.
+                    </div>
                 )}
               </div>
             </CardContent>
