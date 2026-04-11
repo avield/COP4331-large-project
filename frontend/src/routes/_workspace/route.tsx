@@ -6,7 +6,7 @@ import { useAuthStore } from '@/api/authStore'
 import { isTokenValid } from '@/api/jwt'
 import { env } from '@/api/env'
 import axios from '@/api/axios'
-import { ThemeProvider, useTheme } from '@/context/ThemeContext'
+import { ThemeProvider } from '@/context/ThemeContext'
 
 export const Route = createFileRoute('/_workspace')({
   beforeLoad: async () => {
@@ -48,7 +48,6 @@ function RouteComponent() {
 }
 
 function ThemedLayout() {
-  const { theme } = useTheme()
   return (
   <div className="min-h-screen bg-background overflow-x-hidden">
         <SidebarProvider>
