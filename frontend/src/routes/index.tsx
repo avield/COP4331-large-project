@@ -369,9 +369,6 @@ export default function LandingPage() {
             <Link to="/register" className="btn-primary">
               Start for free <ArrowRight className="size-4" />
             </Link>
-            <Link to="/login" className="btn-secondary">
-              <Github className="size-4" /> Continue with GitHub
-            </Link>
           </div>
 
           {/* 3D Hero Board */}

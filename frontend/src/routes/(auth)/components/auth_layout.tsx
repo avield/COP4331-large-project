@@ -68,11 +68,6 @@ export default function AuthLayout({
               </span>
             </div>
           </div>
-
-          <Button variant="outline" type="button" className="w-full cursor-pointer">
-            <Github className="mr-2 h-4 w-4" />
-            GitHub
-          </Button>
           {/* ------------------------------------------------------------- */}
 
         </CardContent>
