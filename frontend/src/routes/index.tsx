@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import {
   GraduationCap, ArrowRight, Zap, Users, Kanban,
-  CheckCircle2, Github, Star, MoveRight, Shield, Globe
+  CheckCircle2, Star, MoveRight, Shield, Globe
 } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
@@ -368,9 +368,6 @@ export default function LandingPage() {
             style={{ animationDelay: '0.5s' }}>
             <Link to="/register" className="btn-primary">
               Start for free <ArrowRight className="size-4" />
-            </Link>
-            <Link to="/login" className="btn-secondary">
-              <Github className="size-4" /> Continue with GitHub
             </Link>
           </div>
 
