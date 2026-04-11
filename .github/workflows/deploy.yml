@@ -26,10 +26,12 @@ jobs:
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
           BACKEND_URL: ${{ vars.BACKEND_URL }}
         run: |
-          rm -f package-lock.json
+          # REMOVED: rm -f package-lock.json
 
-          npm install
+          # Changed to npm ci for a clean, lockfile-based install
+          npm ci 
           cd frontend
+          npm install # Using install here is fine if frontend is a subfolder
           npm run build
 
       - name: Set up SSH key
@@ -53,10 +55,12 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            npm install
+            # Changed to npm ci for a clean, lockfile-based install
+          npm ci
 
             cd backend
-            npm install
+            # Changed to npm ci for a clean, lockfile-based install
+          npm ci
             npm run build
             pm2 restart taskademia-backend --update-env || pm2 start dist/server.js --name taskademia-backend
             pm2 save
