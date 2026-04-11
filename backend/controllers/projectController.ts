@@ -67,7 +67,8 @@ type PopulatedUser = {
   _id: string
   email?: string
   profile?: {
-    displayName?: string
+    displayName?: string;
+    profilePictureUrl: string;
   }
 }
 
@@ -564,7 +565,7 @@ export const getProjectDetails = async (
       projectId,
       membershipStatus: 'active'
     })
-        .populate('userId', 'email profile.displayName')
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'email profile.displayName')
         .sort({ createdAt: 1 });
 
@@ -576,6 +577,7 @@ export const getProjectDetails = async (
           _id: user._id,
           email: user.email,
           displayName: user.profile?.displayName ?? '',
+          profilePictureUrl: user.profile?.profilePictureUrl ?? '',
         } : null,
       };
     });
