@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react'
 import api from '@/api/axios'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
@@ -31,13 +32,12 @@ interface InvitedMember {
 
 function NewProject() {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [goals, setGoals] = useState([{ title: '', description: '' }])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [visibility, setVisibility] = useState('private')
 
   const [memberQuery, setMemberQuery] = useState('')
@@ -119,47 +119,50 @@ function NewProject() {
     return () => clearTimeout(timeout)
   }, [memberQuery, invitedMembers])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setError(null)
-
-    try {
-      // POST /api/projects/create per API guide
+  const createProjectMutation = useMutation({
+    mutationFn: async (newProjectData: any) => {
       const res = await api.post<{ message: string; project: { _id: string } }>(
         '/projects/create',
-        {
-          name,
-          description,
-          visibility,
-          dueDate: dueDate || undefined,
-          goals: goals.filter((g) => g.title.trim() !== ''),
-          invitedMembers: invitedMembers.map((member) => ({
-            userId: member.userId,
-            role: member.role,
-            permissions: {
-              canEditProject: false,
-              canManageMembers: false,
-              canCreateTasks: true,
-              canAssignTasks: false,
-              canCompleteAnyTask: false,
-              canModerateChat: false,
-            },
-          })),
-        }
+        newProjectData
       )
-
-      const projectId = res.data?.project?._id
-      if (!projectId) throw new Error('No project ID returned from server')
-
-      router.navigate({ to: '/projects/$projectId', params: { projectId } })
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Something went wrong')
-      setError(message)
-      setIsSubmitting(false)
+      
+      if (!res.data?.project?._id) {
+        throw new Error('No project ID returned from server')
+      }
+      return res.data
+    },
+    onSuccess: (data) => {
+      // Updates sidebar by invalidating old projects
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      
+      router.navigate({ 
+        to: '/projects/$projectId', 
+        params: { projectId: data.project._id } 
+      })
     }
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    createProjectMutation.mutate({
+      name,
+      description,
+      visibility,
+      dueDate: dueDate || undefined,
+      goals: goals.filter((g) => g.title.trim() !== ''),
+      invitedMembers: invitedMembers.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+        permissions: {
+          canEditProject: false,
+          canManageMembers: false,
+          canCreateTasks: true,
+          canAssignTasks: false,
+          canCompleteAnyTask: false,
+          canModerateChat: false,
+        },
+      })),
+    });
   }
 
   return (
@@ -328,11 +331,11 @@ function NewProject() {
           </CardContent>
         </Card>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {createProjectMutation.isError && <p className="text-sm text-destructive">{createProjectMutation.error.message}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-          <Button type="submit" size="lg" className="w-full cursor-pointer" disabled={isSubmitting}>
-            {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>) : 'Create Project'}
+          <Button type="submit" size="lg" className="w-full cursor-pointer" disabled={createProjectMutation.isPending}>
+            {createProjectMutation.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>) : 'Create Project'}
           </Button>
           <Button type="button" variant="outline" size="lg" className="w-full cursor-pointer" onClick={() => router.history.back()}>Cancel</Button>
         </div>
