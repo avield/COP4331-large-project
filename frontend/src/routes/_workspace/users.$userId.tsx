@@ -1,7 +1,7 @@
 import { createFileRoute, redirect, Link } from '@tanstack/react-router'
-import {useAuthStore} from '@/api/authStore'
+import { useAuthStore } from '@/api/authStore'
 import api from '@/api/axios.ts'
-import {NetworkAvatar} from '@/components/network-avatar'
+import { NetworkAvatar } from '@/components/network-avatar'
 
 interface Project {
     _id: string
@@ -11,7 +11,6 @@ interface Project {
     href: string
 }
 
-// 1. Updated Interface to include new fields
 interface UserProfileData {
     user: {
         id: string
@@ -22,19 +21,19 @@ interface UserProfileData {
         profilePictureUrl?: string
         isCurrentUser: boolean
     }
-    projects: Project[]
+    projects: {
+        active: Project[]
+        completed: Project[]
+    }
 }
 
 export const Route = createFileRoute('/_workspace/users/$userId')({
     loader: async ({ params }) => {
-        // Access the store state directly
         const auth = useAuthStore.getState();
         const currentUser = auth.user;
 
         if (currentUser?.id === params.userId) {
-            throw redirect({
-                to: '/profile',
-            });
+            throw redirect({ to: '/profile' });
         }
 
         try {
@@ -56,8 +55,6 @@ function UserProfilePage() {
 
     const { user, projects } = data
 
-    const school = user.school || "No School Listed";
-
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-10">
             {/* Header Section */}
@@ -71,15 +68,9 @@ function UserProfilePage() {
                 <div className="flex-1 text-center md:text-left space-y-1">
                     <h1 className="text-4xl font-extrabold tracking-tight">{user.displayName || "Unknown User"}</h1>
                     <p className="text-lg text-muted-foreground">
-                        <span className="font-semibold text-foreground">School:</span> {school}
+                        <span className="font-semibold text-foreground">School:</span> {user.school || "No School Listed"}
                     </p>
                 </div>
-                {/* THIS IS NOT NEEDED, LEAVING JIC WE WANT IT LATER*/}
-                {user.isCurrentUser && (
-                    <button className="bg-primary text-primary-foreground px-6 py-2 rounded-full font-medium hover:opacity-90 transition-opacity">
-                        Edit Profile
-                    </button>
-                )}
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -109,50 +100,78 @@ function UserProfilePage() {
                 </div>
 
                 {/* Right Content: Projects */}
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 space-y-12">
+
+                    {/* Active Projects List */}
                     <section className="space-y-4">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active Projects</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-primary">Active Projects</h2>
                         <div className="grid gap-4">
-                            {projects.length > 0 ? (
-                                projects.map((project: Project) => (
+                            {projects.active.length > 0 ? (
+                                projects.active.map((project: Project) => (
                                     <Link
                                         key={project._id}
-                                        to="/projects/$projectId"
+                                        to="/_workspace/projects/$projectId"
                                         params={{ projectId: project._id }}
                                         className="block p-5 border rounded-xl hover:shadow-md hover:border-primary/50 transition-all bg-card text-card-foreground group"
                                     >
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-3"> {/* Increased space between title and description */}
-                                                <div>
-                                                    <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                                                        {project.name}
-                                                    </h3>
-                                                    <p className="text-sm text-muted-foreground line-clamp-2">
-                                                        {project.description}
-                                                    </p>
-                                                </div>
-
-                                                {/* Role Badge placed under the description */}
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                                                        Role:
-                                                    </span>
-                                                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                                                        {project.role}
-                                                    </span>
-                                                </div>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                                                    {project.name}
+                                                </h3>
+                                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                                    {project.description}
+                                                </p>
                                             </div>
-
-                                            <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                                                View Project →
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Role:</span>
+                                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                                                    {project.role}
+                                                </span>
+                                            </div>
                                         </div>
                                     </Link>
                                 ))
                             ) : (
                                 <div className="p-8 border border-dashed rounded-xl text-center">
-                                    <p className="text-sm text-muted-foreground italic">No public projects found.</p>
+                                    <p className="text-sm text-muted-foreground italic">No active public projects found.</p>
                                 </div>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* Completed Projects List (Scrollable) */}
+                    <section className="space-y-4">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Project History (Completed)</h2>
+                        <div className="max-h-[400px] overflow-y-auto pr-3 space-y-4
+                            scrollbar-thin
+                            scrollbar-thumb-muted-foreground/20
+                            hover:scrollbar-thumb-muted-foreground/40
+                            scrollbar-track-transparent">
+                            {projects.completed.length > 0 ? (
+                                projects.completed.map((project: Project) => (
+                                    <div
+                                        key={project._id}
+                                        className="p-5 border rounded-xl bg-muted/20 text-muted-foreground/80 cursor-default"
+                                    >
+                                        <div className="space-y-3">
+                                            <div>
+                                                <h3 className="font-semibold text-lg opacity-90">{project.name}</h3>
+                                                <p className="text-sm line-clamp-2 italic opacity-70">
+                                                    {project.description}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Role:</span>
+                                                <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-bold uppercase tracking-wider">
+                                                    {project.role}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic pl-1">No completed projects to show.</p>
                             )}
                         </div>
                     </section>

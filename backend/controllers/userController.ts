@@ -9,6 +9,16 @@ interface UserParams {
     userId: string;
 }
 
+interface ProfileProject {
+    _id: any;
+    name: string;
+    description: string;
+    role: string;
+    status: string;
+    createdAt: Date;
+    href: string;
+}
+
 export const getUserProfile = async (
     req: AuthenticatedRequest<UserParams>,
     res: Response
@@ -51,17 +61,27 @@ export const getUserProfile = async (
             .sort({ createdAt: -1 })
             .lean();
 
-        // Filter for Public Projects ONLY
-        const publicProjects = memberships
+        // Filter and Map the data into two separate buckets
+        const projects = memberships
             .filter((m: any) => m.projectId && m.projectId.visibility === 'public')
-            .map((m: any) => ({
-                _id: m.projectId._id,
-                name: m.projectId.name,
-                description: m.projectId.description,
-                role: m.role,
-                createdAt: m.projectId.createdAt,
-                href: `/projects/${m.projectId._id}`
-            }));
+            .reduce((acc, m: any) => {
+                const projectInfo: ProfileProject = {
+                    _id: m.projectId._id,
+                    name: m.projectId.name,
+                    description: m.projectId.description,
+                    role: m.role || 'Member',
+                    status: m.projectId.status,
+                    createdAt: m.projectId.createdAt,
+                    href: `/projects/${m.projectId._id}`
+                };
+
+                if (m.projectId.status === 'completed') {
+                    acc.completed.push(projectInfo);
+                } else {
+                    acc.active.push(projectInfo);
+                }
+                return acc;
+            }, { active: [] as ProfileProject[], completed: [] as ProfileProject[] });
 
         return res.status(200).json({
             user: {
@@ -72,7 +92,7 @@ export const getUserProfile = async (
                 createdAt: user.createdAt,
                 isCurrentUser
             },
-            projects: publicProjects
+            projects: projects
         });
 
     } catch (error) {
