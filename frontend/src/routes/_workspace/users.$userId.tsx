@@ -80,9 +80,15 @@ function UserProfilePage() {
     const [isActionLoading, setIsActionLoading] = useState(false)
 
     // Derived Logic
-    const eligibleProjects = myManageableProjects.filter(
-        (p) => p.recruitingStatus === 'open'
-    );
+    const eligibleProjects = myManageableProjects.filter((p) => {
+        if (!p) return false;
+
+        // Treat as open unless it is EXPLICITLY 'closed' (case-insensitive)
+        const isClosed = p.recruitingStatus?.toLowerCase() === 'closed';
+        const isCompleted = p.status?.toLowerCase() === 'completed';
+
+        return !isClosed && !isCompleted;
+    });
 
     const hasNoEligibleProjects = eligibleProjects.length === 0;
     const isInviteSectionDisabled = !isLoadingData && hasNoEligibleProjects && !existingInvite;

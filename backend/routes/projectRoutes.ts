@@ -8,7 +8,8 @@ import {
     getProjectById,
     updateProject,
     deleteProject,
-    getProjectDetails
+    getProjectDetails,
+    getManageableProjects
 } from '../controllers/projectController.js';
 import {
     requestJoinProject,
@@ -32,6 +33,7 @@ router.get('/:projectId/details', protect, getProjectDetails);
 router.get('/:projectId', protect, getProjectById);
 router.put('/:projectId', protect, updateProject);
 router.delete('/:projectId', protect, deleteProject);
+router.get('/manageable', protect, getManageableProjects);
 
 // --- Membership & Request Routes ---
 router.post('/:projectId/join', protect, requestJoinProject);
