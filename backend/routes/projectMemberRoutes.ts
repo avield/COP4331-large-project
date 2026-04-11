@@ -4,6 +4,7 @@ import {
   // Viewer/member routes
   getProjectMembers,
   getMyProjectInvitations,
+  getSpecificPendingInvite,
 
   // Join + invitation routes
   requestJoinProject,
@@ -34,6 +35,9 @@ router.post('/:membershipId/accept', protect, acceptProjectInvitation);
 
 // Reject an invitation that was sent to the current user
 router.delete('/:membershipId/reject', protect, rejectProjectInvitation);
+
+// Checks if an invite already exists when loading a user's profile
+router.get('/check-invite/:targetUserId', protect, getSpecificPendingInvite);
 
 /**
  * =========================================================

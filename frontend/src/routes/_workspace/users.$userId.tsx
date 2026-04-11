@@ -1,7 +1,12 @@
-import { createFileRoute, redirect, Link } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
+import { createFileRoute, redirect, Link, useRouter } from '@tanstack/react-router'
 import { useAuthStore } from '@/api/authStore'
 import api from '@/api/axios.ts'
 import { NetworkAvatar } from '@/components/network-avatar'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 
 interface Project {
     _id: string
@@ -27,6 +32,23 @@ interface UserProfileData {
     }
 }
 
+interface ManageableProject {
+    _id: string;
+    name: string;
+    status: string;
+    recruitingStatus: 'open' | 'closed';
+}
+
+interface PendingInvite {
+    _id: string;
+    role: string;
+    createdAt: string;
+    projectId: {
+        _id: string;
+        name: string;
+    };
+}
+
 export const Route = createFileRoute('/_workspace/users/$userId')({
     loader: async ({ params }) => {
         const auth = useAuthStore.getState();
@@ -48,6 +70,78 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
 
 function UserProfilePage() {
     const data = Route.useLoaderData()
+    const router = useRouter()
+
+    const [myManageableProjects, setMyManageableProjects] = useState<ManageableProject[]>([])
+    const [existingInvite, setExistingInvite] = useState<PendingInvite | null>(null)
+    const [selectedProjectId, setSelectedProjectId] = useState('')
+    const [targetRole, setTargetRole] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
+
+    // Filter projects that are NOT closed
+    const eligibleProjects = myManageableProjects.filter(
+        (p) => p.recruitingStatus !== 'closed'
+    );
+
+    // Update the "disabled" logic to check ELIGIBLE projects vs total projects
+    const hasNoEligibleProjects = eligibleProjects.length === 0;
+    const isInviteSectionDisabled = hasNoEligibleProjects && !existingInvite;
+
+    useEffect(() => {
+        const fetchInvitationData = async () => {
+            if (!data?.user?.id) return;
+            try {
+                const [projectsRes, inviteRes] = await Promise.all([
+                    api.get<ManageableProject[]>('/projects/manageable'),
+                    api.get<PendingInvite | null>(`/project-members/check-invite/${data.user.id}`)
+                ]);
+                setMyManageableProjects(projectsRes.data);
+                setExistingInvite(inviteRes.data);
+            } catch (err) {
+                console.error("Error loading invitation context:", err);
+            }
+        };
+        void fetchInvitationData();
+    }, [data?.user?.id])
+
+    const handleSendInvite = async () => {
+        if (!selectedProjectId || !targetRole || !data) return;
+        setIsLoading(true);
+        try {
+            const res = await api.post(`/project-members/project/${selectedProjectId}`, {
+                userId: data.user.id,
+                role: targetRole,
+                permissions: { canCreateTasks: true }
+            });
+
+            setExistingInvite(res.data.member);
+            toast.success("Invitation sent!");
+            await router.invalidate();
+        } catch (err) {
+            console.error("Invitation error:", err);
+            toast.error("Failed to send invitation");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancelInvite = async () => {
+        if (!existingInvite?._id) return;
+        setIsLoading(true);
+        try {
+            await api.delete(`/project-members/${existingInvite._id}`);
+            setExistingInvite(null);
+            setSelectedProjectId('');
+            setTargetRole('');
+            toast.success("Invitation withdrawn");
+            await router.invalidate();
+        } catch (err) {
+            console.error("Could not cancel invitation", err);
+            toast.error("Could not cancel invitation");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     if (!data) {
         return <div className="max-w-4xl mx-auto p-6 text-center">User not found</div>
@@ -74,7 +168,7 @@ function UserProfilePage() {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Left Sidebar: About & Roles */}
+                {/* Left Sidebar: Combined Column */}
                 <div className="md:col-span-1 space-y-8">
                     <section className="space-y-2">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">About Me</h2>
@@ -97,11 +191,94 @@ function UserProfilePage() {
                             )}
                         </div>
                     </section>
+
+                    {/* UPDATED: Invitation Section with Message and Logic */}
+                    <section className={`space-y-4 pt-6 border-t transition-all duration-300 ${isInviteSectionDisabled ? 'opacity-60 grayscale-[0.3]' : ''}`}>
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                            Project Invitation
+                        </h2>
+
+                        {/* Status Message for Greying Out */}
+                        {isInviteSectionDisabled && (
+                            <div className="p-3 rounded-lg bg-muted/50 border border-dashed border-muted-foreground/20">
+                                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                                    <span className="font-bold text-foreground block mb-1">Invitation Disabled</span>
+                                    {myManageableProjects.length > 0
+                                        ? "All your manageable projects currently have recruiting set to 'Closed'."
+                                        : "You don't have any projects where you have permission to invite members."}
+                                </p>
+                            </div>
+                        )}
+
+                        {existingInvite ? (
+                            /* MODE: Invitation Sent */
+                            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Pending Invite</span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                        {new Date(existingInvite.createdAt).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold">{existingInvite.projectId?.name}</div>
+                                    <div className="text-xs text-muted-foreground">Role: {existingInvite.role}</div>
+                                </div>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="w-full h-8 text-xs font-semibold"
+                                    onClick={handleCancelInvite}
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? <Loader2 className="animate-spin size-3" /> : "Cancel Invitation"}
+                                </Button>
+                            </div>
+                        ) : (
+                            /* MODE: Send Invitation Dropdown */
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Select Project</label>
+                                    <select
+                                        className="w-full p-2 text-xs rounded-lg border bg-background disabled:cursor-not-allowed outline-none"
+                                        value={selectedProjectId}
+                                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                                        disabled={isInviteSectionDisabled || isLoading}
+                                    >
+                                        <option value="">
+                                            {hasNoEligibleProjects ? "No open projects" : "Choose a project..."}
+                                        </option>
+                                        {eligibleProjects.map(p => (
+                                            <option key={p._id} value={p._id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Assigned Role</label>
+                                    <Input
+                                        placeholder="e.g. Lead Developer"
+                                        className="h-9 text-xs rounded-lg"
+                                        value={targetRole}
+                                        onChange={(e) => setTargetRole(e.target.value)}
+                                        disabled={isInviteSectionDisabled || isLoading}
+                                    />
+                                </div>
+
+                                <Button
+                                    className="w-full h-9 text-xs font-bold uppercase tracking-wider"
+                                    disabled={isInviteSectionDisabled || !selectedProjectId || !targetRole || isLoading}
+                                    onClick={handleSendInvite}
+                                >
+                                    {isLoading && <Loader2 className="animate-spin size-3 mr-2" />}
+                                    {hasNoEligibleProjects ? "Cannot Invite" : "Send Invitation"}
+                                </Button>
+                            </div>
+                        )}
+                    </section>
                 </div>
 
-                {/* Right Content: Projects */}
+                {/* Right Content: Projects (Takes up 2 columns) */}
                 <div className="md:col-span-2 space-y-12">
-
                     {/* Active Projects List */}
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-primary">Active Projects</h2>
@@ -116,18 +293,12 @@ function UserProfilePage() {
                                     >
                                         <div className="space-y-3">
                                             <div>
-                                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                                                    {project.name}
-                                                </h3>
-                                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                                    {project.description}
-                                                </p>
+                                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{project.name}</h3>
+                                                <p className="text-sm text-muted-foreground line-clamp-2">{project.description}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Role:</span>
-                                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                                                    {project.role}
-                                                </span>
+                                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">{project.role}</span>
                                             </div>
                                         </div>
                                     </Link>
@@ -143,29 +314,18 @@ function UserProfilePage() {
                     {/* Completed Projects List (Scrollable) */}
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Project History (Completed)</h2>
-                        <div className="max-h-[400px] overflow-y-auto pr-3 space-y-4
-                            scrollbar-thin
-                            scrollbar-thumb-muted-foreground/20
-                            hover:scrollbar-thumb-muted-foreground/40
-                            scrollbar-track-transparent">
+                        <div className="max-h-100 overflow-y-auto pr-3 space-y-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-track-transparent">
                             {projects.completed.length > 0 ? (
                                 projects.completed.map((project: Project) => (
-                                    <div
-                                        key={project._id}
-                                        className="p-5 border rounded-xl bg-muted/20 text-muted-foreground/80 cursor-default"
-                                    >
+                                    <div key={project._id} className="p-5 border rounded-xl bg-muted/20 text-muted-foreground/80 cursor-default">
                                         <div className="space-y-3">
                                             <div>
                                                 <h3 className="font-semibold text-lg opacity-90">{project.name}</h3>
-                                                <p className="text-sm line-clamp-2 italic opacity-70">
-                                                    {project.description}
-                                                </p>
+                                                <p className="text-sm line-clamp-2 italic opacity-70">{project.description}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Role:</span>
-                                                <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-bold uppercase tracking-wider">
-                                                    {project.role}
-                                                </span>
+                                                <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-bold uppercase tracking-wider">{project.role}</span>
                                             </div>
                                         </div>
                                     </div>

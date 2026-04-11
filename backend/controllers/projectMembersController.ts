@@ -262,6 +262,33 @@ export const removeProjectMember = async (
   }
 };
 
+// GET /api/project-members/check-specific-invite/:targetUserId
+export const getSpecificPendingInvite = async (
+    req: AuthenticatedRequest & { params: { targetUserId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { targetUserId } = req.params;
+    const currentUserId = req.user._id;
+
+    // Find if the target user has a pending invite to ANY project
+    // that the current user has permission to manage
+    const invite = await ProjectMember.findOne({
+      userId: targetUserId,
+      membershipStatus: 'pending',
+      joinedBy: currentUserId // This ensures WE are the ones who sent it
+    })
+        .populate('projectId', 'name')
+        .lean();
+
+    res.status(200).json(invite);
+  } catch (error) {
+    console.error('getSpecificPendingInvite error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 export const denyJoinRequest = async (
     req: AuthenticatedRequest & { params: { membershipId: string } },
     res: Response

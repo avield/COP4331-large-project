@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,6 @@ export const Route = createFileRoute('/(auth)/reset-password/$token')({
 
 function ResetPassword() {
     const { token } = Route.useParams()
-    const navigate = useNavigate()
 
     const resetPasswordMutation = useMutation({
         mutationFn: async (formData: FormData) => {
