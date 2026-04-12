@@ -624,7 +624,9 @@ export const getProjectDetails = async (
     const requesterMembership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
-    }).populate('userId', 'email profile.displayName profile.profilePictureUrl');
+    })
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+      .populate('joinedBy', 'email profile.displayName');
 
     const isMember = requesterMembership?.membershipStatus === 'active';
     const isInvited = requesterMembership?.membershipStatus === 'pending';
@@ -637,12 +639,27 @@ export const getProjectDetails = async (
         // Normalize the single record so frontend sees the same structure as members list
         const visitorMember = requesterMembership ? [{
           ...requesterMembership.toObject(),
-          userId: requesterMembership.userId && typeof requesterMembership.userId === 'object' ? {
-            _id: (requesterMembership.userId as any)._id.toString(),
-            email: (requesterMembership.userId as any).email,
-            displayName: (requesterMembership.userId as any).profile?.displayName ?? '',
-            profilePictureUrl: (requesterMembership.userId as any).profile?.profilePictureUrl ?? '',
-          } : null
+          userId:
+            requesterMembership.userId && typeof requesterMembership.userId === 'object'
+              ? {
+                  _id: (requesterMembership.userId as any)._id?.toString(),
+                  email: (requesterMembership.userId as any).email,
+                  displayName: (requesterMembership.userId as any).profile?.displayName ?? '',
+                  profilePictureUrl: (requesterMembership.userId as any).profile?.profilePictureUrl ?? '',
+                }
+              : null,
+          joinedBy:
+            requesterMembership.joinedBy && typeof requesterMembership.joinedBy === 'object'
+              ? {
+                  _id: (requesterMembership.joinedBy as any)._id?.toString(),
+                  email: (requesterMembership.joinedBy as any).email,
+                  profile: {
+                    displayName: (requesterMembership.joinedBy as any).profile?.displayName ?? '',
+                  },
+                }
+              : requesterMembership.joinedBy
+              ? (requesterMembership.joinedBy as unknown as Types.ObjectId).toString()
+              : null,
         }] : [];
 
         res.status(200).json({
