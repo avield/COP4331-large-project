@@ -323,14 +323,9 @@ export const updateTask = async (
       return;
     }
 
-    const existingTask = await Task.findById(taskId);
-    if (!existingTask) {
-      res.status(404).json({ message: 'Task not found.' });
-      return;
-    }
-
+    const oldStatus = task.status;
     const previousAssignedIds = new Set(
-      (existingTask.assignedToUserIds ?? []).map((id) => String(id))
+      (task.assignedToUserIds ?? []).map((id) => String(id))
     );
 
     const membership = await ProjectMember.findOne({
@@ -461,7 +456,7 @@ export const updateTask = async (
 
     await task.save();
 
-    const oldStatus = existingTask.status;
+    //const oldStatus = existingTask.status;
     const newStatus = task.status;
 
     if (oldStatus !== newStatus) {
@@ -485,6 +480,7 @@ export const updateTask = async (
     }
 
     const nextAssignedIds = new Set<string>(toIdStrings(task.assignedToUserIds ?? []));
+    const actorUserId = req.user._id.toString();
 
     const newlyAssignedUserIds = [...nextAssignedIds].filter(
       (id: string) => !previousAssignedIds.has(id)
@@ -492,7 +488,7 @@ export const updateTask = async (
 
     await createNotifications(
       newlyAssignedUserIds
-        .filter((id: string) => id !== req.user._id)
+        .filter((id: string) => id !== actorUserId)
         .map((userId: string) => ({
           recipientUserId: userId,
           actorUserId: req.user._id,
