@@ -126,7 +126,7 @@ function Home() {
         toast.success("Invitation declined")
       }
 
-      // This re-runs the route loader to refresh the projects and invitations lists
+      // This is the magic line that re-runs the loader and removes the invite from the list
       await router.invalidate()
     } catch (error) {
       toast.error("Something went wrong")
@@ -196,17 +196,22 @@ function Home() {
                   <h2 className="text-sm font-semibold">Invitations</h2>
                 </div>
 
-                <div className="grid max-h-37.5 overflow-y-auto gap-3 md:grid-cols-2">
+                <div className="grid max-h-75 overflow-y-auto gap-3 md:grid-cols-2">
                   {invitations.map((invite: Invitation) => (
-                      <Link
-                          key={invite._id}
-                          to="/projects/$projectId"
-                          params={{ projectId: invite.projectId._id }}
-                          className="block"
-                      >
+                      <div key={invite._id} className="relative group">
                         <Card className="border-border/50 bg-card/50 transition-colors hover:bg-card/80">
                           <CardHeader className="p-4 pb-2">
-                            <CardTitle className="text-base">{invite.projectId?.name}</CardTitle>
+                            <div className="flex justify-between items-start">
+                              <CardTitle className="text-base truncate pr-4">{invite.projectId?.name}</CardTitle>
+                              {/* Optional: Add a link to the project preview if needed */}
+                              <Link
+                                  to="/projects/$projectId"
+                                  params={{ projectId: invite.projectId._id }}
+                                  className="text-xs text-blue-400 hover:underline"
+                              >
+                                View
+                              </Link>
+                            </div>
                             <CardDescription className="text-xs">
                               Invited by {invite.joinedBy?.profile?.displayName ?? invite.joinedBy?.email ?? 'Someone'}
                             </CardDescription>
@@ -234,7 +239,7 @@ function Home() {
                             </Button>
                           </CardContent>
                         </Card>
-                      </Link>
+                      </div>
                   ))}
                 </div>
               </div>
@@ -289,7 +294,7 @@ function Home() {
             })}
 
             <Link to="/projects/new" className="block">
-              <Card className="flex min-h-[160px] cursor-pointer items-center justify-center border-dashed border-border/30 bg-card/20 transition-all duration-150 hover:border-border/60 hover:bg-card/50">
+              <Card className="flex min-h-40 cursor-pointer items-center justify-center border-dashed border-border/30 bg-card/20 transition-all duration-150 hover:border-border/60 hover:bg-card/50">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <div className="flex size-8 items-center justify-center rounded-full bg-muted"><Plus className="size-4" /></div>
                   <span className="text-xs font-medium">New Project</span>
