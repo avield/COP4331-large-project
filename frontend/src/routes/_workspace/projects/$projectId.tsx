@@ -2049,14 +2049,12 @@ const handleDeleteProject = async () => {
                           member.userId?.displayName ?? 'Unknown User';
                       const email = member.userId?.email ?? 'No email';
 
-                      const isMe = member.userId?._id === user?.id;
-
+                      const isMe = member.userId?._id === user?.id
                       const rawPath = isMe
                           ? user?.profile?.profilePictureUrl
-                          : member.userId?.profile?.profilePictureUrl;
+                          : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl);
 
-                      // Use your env variable correctly
-                      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                      const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
                       const finalAvatarUrl = rawPath
                           ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
