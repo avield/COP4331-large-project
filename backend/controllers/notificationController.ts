@@ -1,6 +1,5 @@
 import { Response } from 'express';
 import { Notification } from '../models/Notification.js';
-import protect from '../middleware/authMiddleware.js';
 import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types/express.js';
 
