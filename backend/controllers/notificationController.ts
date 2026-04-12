@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Notification } from '../models/Notification.js';
 import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types/express.js';
+import { requireUser } from '../types/guards.js';
 
 export const getMyNotifications = async (
   req: AuthenticatedRequest,
@@ -110,5 +111,54 @@ export const markAllNotificationsRead = async (
   } catch (error) {
     console.error('markAllNotificationsRead error:', error);
     res.status(500).json({ message: 'Failed to mark all notifications as read.' });
+  }
+};
+
+export const deleteNotification = async (
+  req: AuthenticatedRequest & { params: { notificationId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+
+    const { notificationId } = req.params;
+
+    if (!Types.ObjectId.isValid(notificationId)) {
+      res.status(400).json({ message: 'Invalid notification id.' });
+      return;
+    }
+
+    const deleted = await Notification.findOneAndDelete({
+      _id: notificationId,
+      recipientUserId: req.user._id,
+    });
+
+    if (!deleted) {
+      res.status(404).json({ message: 'Notification not found.' });
+      return;
+    }
+
+    res.status(200).json({ message: 'Notification deleted.' });
+  } catch (error) {
+    console.error('deleteNotification error:', error);
+    res.status(500).json({ message: 'Failed to delete notification.' });
+  }
+};
+
+export const clearAllNotifications = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+
+    await Notification.deleteMany({
+      recipientUserId: req.user._id,
+    });
+
+    res.status(200).json({ message: 'All notifications cleared.' });
+  } catch (error) {
+    console.error('clearAllNotifications error:', error);
+    res.status(500).json({ message: 'Failed to clear notifications.' });
   }
 };
