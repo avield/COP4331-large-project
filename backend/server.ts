@@ -17,6 +17,7 @@ import { exit } from 'node:process';
 import path from 'path'; // for dealing with profile images
 import { fileURLToPath } from 'url';
 import profileRoutes from "./routes/profileRoutes.js"; // for dealing with profile images
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // using absolute paths for dealing with bugs due to ES modules when running server from different directory
 // This was added for dealing with profile image files (next two lines)
@@ -81,6 +82,7 @@ app.use('/api/profile', profileRoute);
 app.use('/api/users', userRoutes);
 app.use("/api/search", searchRoute);
 app.use('/api/goals', goalRoute);
+app.use('/api/notifications', notificationRoutes);
 app.use('/public/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // for dealing with profile images NOT AN ENDPOINT
 
 const PORT: number = Number(process.env.PORT) || 5000;
