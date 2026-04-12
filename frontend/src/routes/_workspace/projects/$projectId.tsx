@@ -647,20 +647,17 @@ function ProjectPage() {
     try {
       if (isPending) {
         // CANCEL REQUEST
-        await api.delete(`/project-members/${myRequest?._id}`);
+        await api.delete(`/projects/${project._id}/members/${myRequest?._id}/deny`);
         toast.success("Request cancelled.");
       } else {
         // JOIN REQUEST
-        await api.post(`/project-members/project/${project._id}/join-request`);
+        await api.post(`/projects/${project._id}/join`);
         toast.success("Request sent!");
       }
 
       await router.invalidate();
     } catch (err: unknown) {
-      // Treat the error as 'unknown' first (TS standard)
       console.error("Action failed:", err);
-
-      // Check if it's a standard error object with a message
       if (err instanceof Error) {
         toast.error(err.message);
       } else {
