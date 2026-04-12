@@ -188,8 +188,9 @@ export const createTask = async (
 
     const task = await Task.create(taskData);
 
+    const actorUserId = req.user._id.toString();
     const initialAssignedUserIds = toIdStrings(task.assignedToUserIds ?? []).filter(
-      (id: string) => id !== req.user._id
+      (id: string) => id !== actorUserId
     );
 
     await createNotifications(
