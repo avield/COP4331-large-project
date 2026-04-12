@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+
+/**
+ * Interface for the raw data coming from the backend (Express/MongoDB).
+ * This handles cases where the backend sends _id instead of id.
+ */
+interface RawBackendUser extends Partial<AuthUser> {
+    _id?: string | { toString(): string };
+}
+
 type AuthUser = {
   id: string
   email: string
@@ -34,15 +43,24 @@ export const useAuthStore = create<AuthState>()(
             user: null,
 
             setAccessToken: (token: string) => set({ accessToken: token }),
-            setUser: (user) => {
+            setUser: (user: RawBackendUser | null) => {
                 if (user) {
-                    // Look for the ID in either field provided by the backend
-                    const rawId = user.id || (user as { _id?: string })._id;
+                    // Extract ID safely: check _id first, then id, fallback to empty string
+                    const rawId = user._id || user.id;
+
+                    // Ensure we handle MongoDB ObjectIds by calling toString()
+                    const normalizedId = typeof rawId === 'object' && rawId !== null
+                        ? rawId.toString()
+                        : String(rawId || '');
 
                     const normalizedUser: AuthUser = {
-                        ...user,
-                        id: rawId?.toString() || ''
+                        // Provide defaults for required fields in AuthUser
+                        id: normalizedId,
+                        email: user.email || '',
+                        profile: user.profile || {},
+                        displayName: user.displayName || user.profile?.displayName,
                     };
+
                     set({ user: normalizedUser });
                 } else {
                     set({ user: null });
