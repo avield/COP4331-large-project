@@ -454,6 +454,27 @@ function ProjectPage() {
       (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
   ), [members, currentUserId])
 
+  // Find the specific record for the current user
+  const myPendingRecord = useMemo(() =>
+          members.find(m => m.membershipStatus === 'pending' && m.userId?._id === currentUserId),
+      [members, currentUserId]
+  );
+
+  // Determine if YOU started it (a Request)
+  const isMyPendingRequest = useMemo(() => {
+    if (!myPendingRecord) return false;
+
+    // Handle both populated object and plain ID string
+    const inviterId = typeof myPendingRecord.joinedBy === 'object'
+        ? myPendingRecord.joinedBy?._id
+        : myPendingRecord.joinedBy;
+
+    return inviterId === currentUserId;
+  }, [myPendingRecord, currentUserId]);
+
+  // 3. Determine if someone ELSE started it (an Invitation)
+  const isPendingInviteToMe = !!myPendingRecord && !isMyPendingRequest;
+
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
   const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
@@ -668,6 +689,38 @@ function ProjectPage() {
       console.error("Action failed:", err);
       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
       toast.error(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAcceptInvite = async (membershipId?: string) => {
+    if (!membershipId || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await api.post(`/project-members/${membershipId}/accept`);
+      toast.success("Welcome to the project!");
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Accept failed:", err);
+      toast.error("Failed to accept invitation.");
+    } finally {
+      setIsProcessing(true); // Keep processing true to trigger the loader/refresh
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRejectInvite = async (membershipId?: string) => {
+    if (!membershipId || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      // Uses the same 'reject' route for both cancelling a request and declining an invite
+      await api.delete(`/project-members/${membershipId}/reject`);
+      toast.success("Invitation declined.");
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Reject failed:", err);
+      toast.error("Failed to decline invitation.");
     } finally {
       setIsProcessing(false);
     }
@@ -1320,19 +1373,21 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
-    // This covers both the server's data and the current local UI state
-    const isCurrentlyPending = isPending || isProcessing;
+    // Determine the text and visual state of the main button
+    const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
 
-    // Determine button content based on that state
-    let buttonContent;
+    let buttonLabel;
     if (isProcessing) {
-      buttonContent = <Loader2 className="animate-spin h-4 w-4" />;
-    } else if (isCurrentlyPending) {
-      buttonContent = "Cancel Request to Join";
+      buttonLabel = <Loader2 className="animate-spin h-4 w-4" />;
+    } else if (isMyPendingRequest) {
+      buttonLabel = "Cancel Request to Join";
+    } else if (isAutoJoin) {
+      // If no approval is needed, it's a direct action
+      buttonLabel = "Join Project";
     } else if (editForm.inviteOnly) {
-      buttonContent = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
+      buttonLabel = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
     } else {
-      buttonContent = "Request to Join";
+      buttonLabel = "Request to Join";
     }
 
     return (
@@ -1351,21 +1406,47 @@ const handleDeleteProject = async () => {
             <Button
                 size="lg"
                 className="w-full"
-                // If they are pending (server-side) or currently cancelling/joining (isProcessing),
-                // Use the destructive red variant.
-                variant={isCurrentlyPending ? "destructive" : "default"}
-                // Logic: Disable if invite-only, but STAY ENABLED if they are already pending
-                // so they have a way to cancel their request.
-                disabled={(editForm.inviteOnly && !isPending) || isProcessing}
+                // We use isMyPendingRequest directly here instead of the unused variable
+                variant={isMyPendingRequest ? "destructive" : "default"}
+                disabled={(editForm.inviteOnly && !isMyPendingRequest) || isProcessing}
                 onClick={handleToggleJoinRequest}
             >
-              {buttonContent}
+              {buttonLabel}
             </Button>
 
-            {editForm.inviteOnly && !isPending && (
+            {editForm.inviteOnly && !isMyPendingRequest && !isPendingInviteToMe && (
                 <p className="text-xs text-muted-foreground mt-2">
                   This project is currently invite-only.
                 </p>
+            )}
+
+            {/* This card only shows if SOMEONE ELSE invited you */}
+            {isPendingInviteToMe && (
+                <Card className="mt-6 border-primary/20 bg-primary/5">
+                  <CardHeader className="p-4 pb-2 text-left">
+                    <CardTitle className="text-sm font-semibold">You've been invited!</CardTitle>
+                    <CardDescription className="text-xs">
+                      An owner has invited you to join this team.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 flex gap-2">
+                    <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleAcceptInvite(myPendingRecord?._id)}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleRejectInvite(myPendingRecord?._id)}
+                    >
+                      Decline
+                    </Button>
+                  </CardContent>
+                </Card>
             )}
           </div>
         </div>

@@ -317,9 +317,16 @@ export const acceptProjectInvitation = async (
       return
     }
 
+    // Make sure the person accepting is the actual subject of the record
     if (membership.userId.toString() !== req.user._id.toString()) {
       res.status(403).json({ message: 'You can only accept your own invitations.' })
       return
+    }
+
+    // Make sure they aren't approving a request THEY started
+    if (membership.joinedBy?.toString() === req.user._id.toString()) {
+      res.status(403).json({ message: 'You cannot approve your own join request.' });
+      return;
     }
 
     if (membership.membershipStatus !== 'pending') {
