@@ -455,30 +455,34 @@ function ProjectPage() {
   ), [members, currentUserId])
 
   // Find the specific record for the current user
-  const myPendingRecord = useMemo(() =>
-          members.find(m =>
-              m.membershipStatus === 'pending' &&
-              String(m.userId?._id) === String(currentUserId) // Force string match
-          ),
-      [members, currentUserId]
-  );
+  const myPendingRecord = useMemo(() => {
+    return members.find(m => {
+      const memberUserId = String(m.userId?._id || m.userId);
+      const isMe = memberUserId === String(currentUserId);
+      const isPending = m.membershipStatus === 'pending';
 
-  // Determine if YOU started it (a Request)
+      // This will tell you exactly which check is failing
+      console.log(`Checking Member: Me? ${isMe} (${memberUserId}), Pending? ${isPending} (${m.membershipStatus})`);
+
+      return isMe && isPending;
+    });
+  }, [members, currentUserId]);
+
+// Determine if YOU started it (a Request)
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    // 1. Extract the ID from joinedBy safely
-    // It could be a string, a populated object with _id, or undefined
+    // Extract inviter ID safely (joinedBy)
     const inviterId = typeof myPendingRecord.joinedBy === 'object'
         ? myPendingRecord.joinedBy?._id
         : myPendingRecord.joinedBy;
 
-    // 2. LOGICAL FIX: Cast both to String and compare
-    // This prevents failures where one is an object and the other is a string.
+    // If I am the inviter, it's a request I sent.
+    // If someone else (Owner) is the inviter, it's an invite to me.
     return String(inviterId) === String(currentUserId);
   }, [myPendingRecord, currentUserId]);
 
-  // Determine if someone ELSE started it (an Invitation)
+// Determine if someone ELSE started it (an Invitation)
   const isPendingInviteToMe = useMemo(() =>
           !!myPendingRecord && !isMyPendingRequest,
       [myPendingRecord, isMyPendingRequest]
