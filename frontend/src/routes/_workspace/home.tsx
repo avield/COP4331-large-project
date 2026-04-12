@@ -45,11 +45,15 @@ interface Invitation {
 // ── Route + Loader ─────────────────────────────────────────────────────────────
 // GET /api/projects returns a plain array
 export const Route = createFileRoute('/_workspace/home')({
+  // Add this line to force refetching on invalidation
+  staleTime: 0,
   loader: async (): Promise<{ projects: Project[]; invitations: Invitation[] }> => {
     try {
+      // Adding a timestamp/cache-buster is a safe fallback if your
+      // browser or a proxy is caching the GET requests
       const [projectsRes, invitationsRes] = await Promise.all([
-        api.get<Project[]>('/projects'),
-        api.get('/project-members/me/invitations'),
+        api.get<Project[]>(`/projects?t=${Date.now()}`),
+        api.get(`/project-members/me/invitations?t=${Date.now()}`),
       ])
 
       return {
@@ -57,10 +61,7 @@ export const Route = createFileRoute('/_workspace/home')({
         invitations: invitationsRes.data ?? [],
       }
     } catch {
-      return {
-        projects: [],
-        invitations: [],
-      }
+      return { projects: [], invitations: [] }
     }
   },
   component: Home,
@@ -126,8 +127,13 @@ function Home() {
         toast.success("Invitation declined")
       }
 
-      // This is the magic line that re-runs the loader and removes the invite from the list
+      // Tell the router the current data is invalid
       await router.invalidate()
+
+      // The "Hammer": Force the router to re-process the current route
+      // This often kicks the loader into gear when invalidate() is being ignored
+      await router.navigate({ from: Route.fullPath, replace: true })
+
     } catch (error) {
       toast.error("Something went wrong")
       console.error(error)
