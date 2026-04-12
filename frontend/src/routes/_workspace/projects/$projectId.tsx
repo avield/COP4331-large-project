@@ -456,7 +456,10 @@ function ProjectPage() {
 
   // Find the specific record for the current user
   const myPendingRecord = useMemo(() =>
-          members.find(m => m.membershipStatus === 'pending' && m.userId?._id === currentUserId),
+          members.find(m =>
+              m.membershipStatus === 'pending' &&
+              String(m.userId?._id) === String(currentUserId) // Force string match
+          ),
       [members, currentUserId]
   );
 
@@ -464,12 +467,15 @@ function ProjectPage() {
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    // Normalize the inviter ID (handling populated object vs string)
+    // 1. Extract the ID from joinedBy safely
+    // It could be a string, a populated object with _id, or undefined
     const inviterId = typeof myPendingRecord.joinedBy === 'object'
         ? myPendingRecord.joinedBy?._id
         : myPendingRecord.joinedBy;
 
-    return inviterId === currentUserId;
+    // 2. LOGICAL FIX: Cast both to String and compare
+    // This prevents failures where one is an object and the other is a string.
+    return String(inviterId) === String(currentUserId);
   }, [myPendingRecord, currentUserId]);
 
   // Determine if someone ELSE started it (an Invitation)
