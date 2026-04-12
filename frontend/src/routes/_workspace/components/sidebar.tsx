@@ -50,15 +50,21 @@ export default function UiSidebar() {
               </CollapsibleTrigger>
               
               <CollapsibleContent className="overflow-hidden w-full">
-                <SidebarMenuSub>
-                  <ScrollArea className="h-70 w-full pr-3">
+                <ScrollArea className="h-70 w-full pr-3">
+                  <SidebarMenuSub>
                     {isLoading ? (
-                      <p className="text-xs text-muted-foreground ml-4">Loading...</p>
+                      <SidebarMenuSubItem>
+                        <div className="text-xs text-muted-foreground ml-4">Loading...</div>
+                      </SidebarMenuSubItem>
                     ) : (
                       recentProjects?.map((project) => (
                         <SidebarMenuSubItem className="mt-4" key={project._id}>
                           <SidebarMenuSubButton asChild>
-                            <Link to={`/projects/${project._id}`} className="w-full min-w-0 text-blue-600 hover:text-blue-700">
+                            <Link
+                              to="/projects/$projectId"
+                              params={{ projectId: project._id }}
+                              className="w-full min-w-0 text-blue-600 hover:text-blue-700"
+                            >
                               <PanelsTopLeft className="size-4 mr-2 shrink-0" />
                               <span className="truncate">{project.name}</span>
                             </Link>
@@ -66,8 +72,8 @@ export default function UiSidebar() {
                         </SidebarMenuSubItem>
                       ))
                     )}
-                  </ScrollArea>
-                </SidebarMenuSub>
+                  </SidebarMenuSub>
+                </ScrollArea>
               </CollapsibleContent>
             </SidebarMenu>
           </SidebarGroup>

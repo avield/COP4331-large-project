@@ -43,7 +43,7 @@ export function NotificationsMenu() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white">
@@ -78,7 +78,7 @@ export function NotificationsMenu() {
             </div>
         </div>
 
-        <div className="max-h-96 overflow-y-auto">
+        <ul className="max-h-96 overflow-y-auto">
           {isLoading ? (
             <div className="p-4 text-sm text-muted-foreground">
               Loading notifications...
@@ -89,16 +89,24 @@ export function NotificationsMenu() {
             </div>
           ) : (
             notifications.map((notification) => (
-                <button
+                <li
                     key={notification._id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className={`w-full border-b px-4 py-3 text-left hover:bg-accent/50 ${
-                    !notification.isRead ? 'bg-accent/20' : ''
+                        !notification.isRead ? 'bg-accent/20' : ''
                     }`}
                     onClick={() =>
-                    handleNotificationClick(notification._id, notification.link)
+                        handleNotificationClick(notification._id, notification.link)
                     }
-                >
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleNotificationClick(notification._id, notification.link)
+                        }
+                    }}
+                    aria-label={`Open notification: ${notification.title}`}
+                    >
                     <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-2">
@@ -124,10 +132,10 @@ export function NotificationsMenu() {
                         <X className="h-4 w-4" />
                     </button>
                     </div>
-                </button>
+                </li>
                 ))
           )}
-        </div>
+        </ul>
       </PopoverContent>
     </Popover>
   )
