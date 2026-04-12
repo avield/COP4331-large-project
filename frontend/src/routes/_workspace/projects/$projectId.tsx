@@ -185,12 +185,6 @@ interface ApiResponse {
   }
 }
 
-interface MemberUser {
-  _id?: string;
-  id?: string;
-  // Add other properties if you use them, like email or profile
-}
-
 function mapPriority(p: string): Task['priority'] {
   if (p === 'high') return 'High'
   if (p === 'low') return 'Low'
@@ -465,16 +459,13 @@ function ProjectPage() {
       (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
   ), [members, currentUserId])
 
-  // Find the specific record for the current user
+  // 1. Find the pending record that belongs to YOU
   const myPendingRecord = useMemo(() => {
     if (!currentUserId || !members.length) return null;
 
-    return members.find(m => {
-      // Cast the userId to our interface safely
-      const userIdData = m.userId as MemberUser | null;
-
-      // Extract the ID string
-      const recordUserId = userIdData?._id || userIdData?.id || String(m.userId || '');
+    return members.find((m: ApiMember) => {
+      // Extract the ID from the userId object (which is populated in your interface)
+      const recordUserId = m.userId?._id || String(m.userId || '');
 
       const isMe = String(recordUserId) === String(currentUserId);
       const isPending = m.membershipStatus === 'pending';
@@ -483,17 +474,18 @@ function ProjectPage() {
     });
   }, [members, currentUserId]);
 
-// Determine if YOU started it (A Request)
+// 2. Check if YOU were the one who initiated the record
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    const inviter = myPendingRecord.joinedBy as MemberUser | null;
-    const inviterId = inviter?._id || inviter?.id || String(myPendingRecord.joinedBy || '');
+    // Extract the ID from the joinedBy object using your interface
+    const inviterId = myPendingRecord.joinedBy?._id || String(myPendingRecord.joinedBy || '');
 
+    // If the person who 'joined' the record is the current user, it's a request!
     return String(inviterId) === String(currentUserId);
   }, [myPendingRecord, currentUserId]);
 
-// Determine if someone ELSE started it (An Invitation)
+// 3. If it's pending but NOT your request, it's an invite to you
   const isPendingInviteToMe = useMemo(() =>
           !!myPendingRecord && !isMyPendingRequest,
       [myPendingRecord, isMyPendingRequest]
