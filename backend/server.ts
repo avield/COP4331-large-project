@@ -16,7 +16,6 @@ import { styleText } from "node:util";
 import { exit } from 'node:process';
 import path from 'path'; // for dealing with profile images
 import { fileURLToPath } from 'url';
-import profileRoutes from "./routes/profileRoutes.js"; // for dealing with profile images
 import notificationRoutes from './routes/notificationRoutes.js';
 
 // using absolute paths for dealing with bugs due to ES modules when running server from different directory
