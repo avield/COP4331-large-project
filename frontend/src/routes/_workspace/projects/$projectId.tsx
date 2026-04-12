@@ -194,7 +194,7 @@ function mapPriority(p: string): Task['priority'] {
 function normalizeAssignedUsers(
     users?: (string | ApiUserSummary)[]
 ) {
-  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
   return (users ?? [])
       .map((user) => {
@@ -214,7 +214,7 @@ function normalizeAssignedUsers(
         }
 
         return {
-          _id: user._id ?? '',
+          _id: (user._id || user.id || ''),
           displayName:
               user.profile?.displayName ??
               user.displayName ??
@@ -646,32 +646,30 @@ function ProjectPage() {
     }
   }
 
-  const [localStatus, setLocalStatus] = useState<'none' | 'pending'>(
-      isPending ? 'pending' : 'none'
-  );
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleToggleJoinRequest = async () => {
+    if (isProcessing) return; // Prevent double-clicks
+    setIsProcessing(true);
+
     try {
-      if (isPending || localStatus === 'pending') {
-        // CANCEL REQUEST
-        await api.delete(`/projects/${project._id}/members/${myRequest?._id}/deny`);
-        setLocalStatus('none'); // Update UI immediately
+      if (isPending) {
+        // Use the membership ID from your myRequest memo
+        await api.delete(`/project-members/${myRequest?._id}/reject`);
         toast.success("Request cancelled.");
       } else {
-        // JOIN REQUEST
-        await api.post(`/projects/${project._id}/join`);
-        setLocalStatus('pending'); // Update UI immediately
+        await api.post(`/project-members/project/${project._id}/join`);
         toast.success("Request sent!");
       }
 
+      // This is the most important part: tell the router to get fresh data
       await router.invalidate();
     } catch (err: unknown) {
       console.error("Action failed:", err);
-      if (err instanceof Error) {
-        toast.error(err.message);
-      } else {
-        toast.error("An unexpected error occurred.");
-      }
+      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -1322,17 +1320,19 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
-    // Calculate the state before the return
-    const isCurrentlyPending = isPending || localStatus === 'pending';
+    // This covers both the server's data and the current local UI state
+    const isCurrentlyPending = isPending || isProcessing;
 
-    // Determine button text
-    let buttonText;
-    if (isCurrentlyPending) {
-      buttonText = "Cancel Request to Join";
+    // Determine button content based on that state
+    let buttonContent;
+    if (isProcessing) {
+      buttonContent = <Loader2 className="animate-spin h-4 w-4" />;
+    } else if (isCurrentlyPending) {
+      buttonContent = "Cancel Request to Join";
     } else if (editForm.inviteOnly) {
-      buttonText = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
+      buttonContent = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
     } else {
-      buttonText = "Request to Join";
+      buttonContent = "Request to Join";
     }
 
     return (
@@ -1351,17 +1351,19 @@ const handleDeleteProject = async () => {
             <Button
                 size="lg"
                 className="w-full"
-                // If pending, it's red/destructive. Otherwise, it's default.
+                // If they are pending (server-side) or currently cancelling/joining (isProcessing),
+                // Use the destructive red variant.
                 variant={isCurrentlyPending ? "destructive" : "default"}
-                // Disable if invite-only UNLESS they are already pending (so they can cancel)
-                disabled={editForm.inviteOnly && !isCurrentlyPending}
+                // Logic: Disable if invite-only, but STAY ENABLED if they are already pending
+                // so they have a way to cancel their request.
+                disabled={(editForm.inviteOnly && !isPending) || isProcessing}
                 onClick={handleToggleJoinRequest}
             >
-              {buttonText}
+              {buttonContent}
             </Button>
 
-            {editForm.inviteOnly && !isCurrentlyPending && (
-                <p className="text-xs text-muted-foreground">
+            {editForm.inviteOnly && !isPending && (
+                <p className="text-xs text-muted-foreground mt-2">
                   This project is currently invite-only.
                 </p>
             )}
