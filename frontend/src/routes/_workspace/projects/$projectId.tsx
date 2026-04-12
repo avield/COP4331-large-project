@@ -456,22 +456,27 @@ function ProjectPage() {
 
   // Find the specific record for the current user
   const myPendingRecord = useMemo(() => {
-    return members.find(m => {
-      let memberUserId = '';
+    if (!currentUserId || !members.length) return null;
 
-      if (typeof m.userId === 'object' && m.userId !== null) {
-        // If it's that weird character-mapped object, join the values
-        if ('0' in m.userId) {
-          memberUserId = Object.values(m.userId).filter(val => typeof val === 'string').join('');
-        } else {
-          memberUserId = m.userId._id || '';
-        }
-      } else {
-        memberUserId = m.userId || '';
+    return members.find(m => {
+      let memberIdString = '';
+
+      // Handle the "character array" bug {0: '6', 1: '9'}
+      if (m.userId && typeof m.userId === 'object' && '0' in m.userId) {
+        memberIdString = Object.values(m.userId)
+            .filter(val => typeof val === 'string')
+            .join('');
+      }
+      // Handle populated object
+      else if (m.userId && typeof m.userId === 'object') {
+        memberIdString = m.userId._id || (m.userId as any).id || '';
+      }
+      // Handle raw string
+      else {
+        memberIdString = String(m.userId || '');
       }
 
-      // Now the comparison will work!
-      const isMe = String(memberUserId) === String(currentUserId);
+      const isMe = memberIdString === String(currentUserId);
       const isPending = m.membershipStatus === 'pending';
 
       return isMe && isPending;

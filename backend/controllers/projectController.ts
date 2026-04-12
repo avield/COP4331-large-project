@@ -69,6 +69,7 @@ type ProjectLike = {
   toObject: () => Record<string, unknown>;
 };
 
+// No longer needed
 type PopulatedUser = {
   _id: string
   email?: string
@@ -559,7 +560,6 @@ export const getProjectDetails = async (
     requireUser(req);
     const { projectId } = req.params;
 
-    // Fetch the project first to check visibility
     const project = await Project.findById(projectId).populate(
         'createdBy',
         'displayName email username'
@@ -570,57 +570,60 @@ export const getProjectDetails = async (
       return;
     }
 
-    // etch the user's membership regardless of status
+    // 1. Fetch membership and POPULATE immediately to avoid character-array bug
     const requesterMembership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
-    });
+    }).populate('userId', 'email profile.displayName profile.profilePictureUrl');
 
     const isMember = requesterMembership?.membershipStatus === 'active';
     const isInvited = requesterMembership?.membershipStatus === 'pending';
 
-    // SECURITY GATE
+    // 2. VISITOR / INVITED GATE
     if (!isMember) {
-      // Allow entry if it's a PUBLIC project OR if the user has a PENDING invite/request
       const canViewInfo = project.visibility === 'public' || isInvited;
 
       if (canViewInfo) {
+        // Normalize the single record so frontend sees the same structure as members list
+        const visitorMember = requesterMembership ? [{
+          ...requesterMembership.toObject(),
+          userId: requesterMembership.userId && typeof requesterMembership.userId === 'object' ? {
+            _id: (requesterMembership.userId as any)._id.toString(),
+            email: (requesterMembership.userId as any).email,
+            displayName: (requesterMembership.userId as any).profile?.displayName ?? '',
+            profilePictureUrl: (requesterMembership.userId as any).profile?.profilePictureUrl ?? '',
+          } : null
+        }] : [];
+
         res.status(200).json({
           project,
-          // Pass the pending record so the frontend sees the invitation
-          members: requesterMembership ? [requesterMembership] : [],
+          members: visitorMember,
           isFullDetails: false,
           message: isInvited ? 'Pending membership view.' : 'Public visitor view.'
         });
         return;
       }
 
-      // If it's private and there's no record (or they were removed), block them
       res.status(403).json({ message: 'Access denied.' });
       return;
     }
 
-    // MEMBER ACCESS: Fetch everything (Goals, Members, Tasks)
+    // 3. MEMBER ACCESS (Full Data)
     const goals = await Goal.find({ projectId })
         .sort({ order: 1, createdAt: 1 })
         .populate('createdBy', 'email profile.displayName');
 
-    // Fetch the members and explicitly POPULATE the userId field
-    const members = await ProjectMember.find({
-      projectId,
-      // Note: Removed the 'active' filter here so we can find the 'pending' record!
-    })
+    const members = await ProjectMember.find({ projectId })
         .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'email profile.displayName')
         .sort({ createdAt: 1 });
 
-// Now the normalization logic will work because userId is a real object, not a byte-array
     const normalizedMembers = members.map((member) => {
       const user = member.userId as any;
       return {
         ...member.toObject(),
         userId: user && typeof user === 'object' ? {
-          _id: user._id,
+          _id: user._id?.toString(),
           email: user.email,
           displayName: user.profile?.displayName ?? '',
           profilePictureUrl: user.profile?.profilePictureUrl ?? '',
@@ -634,22 +637,12 @@ export const getProjectDetails = async (
         .populate('completedBy', 'email profile.displayName profile.profilePictureUrl')
         .sort({ createdAt: -1 })) as TaskStatusOnly[];
 
-    const stats = {
-      totalTasks: tasks.length,
-      todo: tasks.filter((t: TaskStatusOnly) => t.status === 'todo').length,
-      in_progress: tasks.filter((t: TaskStatusOnly) => t.status === 'in_progress').length,
-      blocked: tasks.filter((t: TaskStatusOnly) => t.status === 'blocked').length,
-      done: tasks.filter((t: TaskStatusOnly) => t.status === 'done').length
-    };
-
-    // Return the full package for members
     res.status(200).json({
       project,
       members: normalizedMembers,
       tasks,
       goals,
-      stats,
-      isFullDetails: true // Tells frontend to show the Kanban/Member UI
+      isFullDetails: true
     });
 
   } catch (error) {
