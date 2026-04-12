@@ -518,7 +518,7 @@ export const updateProject = async (
 
       const recipientUserIds = activeMembers
         .map((member) => member.userId.toString())
-        .filter((userId: string) => userId !== req.user._id);
+        .filter((userId: string) => userId !== req.user._id.toString());
 
       await createNotifications(
         recipientUserIds.map((userId: string) => ({
