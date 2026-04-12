@@ -1402,6 +1402,15 @@ const handleDeleteProject = async () => {
   }
 }
 
+// Debugging code
+  console.table({
+    "User ID": currentUserId,
+    "Has Record": !!myPendingRecord,
+    "Inviter ID": typeof myPendingRecord?.joinedBy === 'object' ? myPendingRecord?.joinedBy?._id : myPendingRecord?.joinedBy,
+    "Is My Request": isMyPendingRequest,
+    "Is Invite to Me": isPendingInviteToMe
+  });
+
 // VISITOR VIEW
   if (!isFullDetails) {
     // 1. Guard: If project is missing, show a loading state
