@@ -459,6 +459,14 @@ function ProjectPage() {
   const canJoinProject = !!loaderData.permissions?.canJoinProject
   const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
 
+  // Find your membership status
+  const myRequest = useMemo(() =>
+          members.find(m => m.userId?._id === currentUserId),
+      [members, currentUserId]
+  );
+
+  const isPending = myRequest?.membershipStatus === 'pending';
+
   // Memos for Analytics & UI
   const goalNameById = useMemo(() => {
     return Object.fromEntries(goals.map((g) => [g._id, g.title]))
@@ -634,6 +642,32 @@ function ProjectPage() {
       setIsInvitingMember(false)
     }
   }
+
+  const handleToggleJoinRequest = async () => {
+    try {
+      if (isPending) {
+        // CANCEL REQUEST
+        await api.delete(`/project-members/${myRequest?._id}`);
+        toast.success("Request cancelled.");
+      } else {
+        // JOIN REQUEST
+        await api.post(`/project-members/project/${project._id}/join-request`);
+        toast.success("Request sent!");
+      }
+
+      await router.invalidate();
+    } catch (err: unknown) {
+      // Treat the error as 'unknown' first (TS standard)
+      console.error("Action failed:", err);
+
+      // Check if it's a standard error object with a message
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error("An unexpected error occurred.");
+      }
+    }
+  };
 
   //Approve requests, edit permissions, uninvite
   const handleUpdateMember = async (
@@ -1047,7 +1081,6 @@ function ProjectPage() {
     }
   }, [data.tasks])
 
-
   //  ********************
   //  GOAL CRUD OPERATIONS
   //  ********************
@@ -1293,14 +1326,30 @@ const handleDeleteProject = async () => {
             {project.description || "This workspace is currently private."}
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-4">
-            <Button size="lg" className="rounded-full px-8">
-              <UserPlus className="mr-2 size-4" />
-              Request to Join
+          <div className="flex flex-col gap-2">
+            <Button
+                className="w-full"
+                size="lg"
+                // Use 'destructive' variant if they are cancelling
+                variant={isPending ? "destructive" : "default"}
+                // Disable only if it's invite-only AND they haven't already requested
+                disabled={editForm.inviteOnly && !isPending}
+                onClick={handleToggleJoinRequest}
+            >
+              {isPending ? (
+                  "Cancel Request to Join"
+              ) : editForm.inviteOnly ? (
+                  <><Lock className="mr-2 h-4 w-4" /> Invite Only</>
+              ) : (
+                  "Request to Join"
+              )}
             </Button>
-            <p className="text-xs text-muted-foreground italic">
-              Managed by {project.createdBy?.displayName || 'a community member'}
-            </p>
+
+            {editForm.inviteOnly && !isPending && (
+                <p className="text-center text-xs text-muted-foreground">
+                  This project is currently invite-only.
+                </p>
+            )}
           </div>
         </div>
     )
