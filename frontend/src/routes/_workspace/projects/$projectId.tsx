@@ -478,18 +478,22 @@ function ProjectPage() {
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    // Extract the ID from the joinedBy object using your interface
-    const inviterId = myPendingRecord.joinedBy?._id || String(myPendingRecord.joinedBy || '');
+    // 1. Extract the ID from the joinedBy field
+    // It could be a string, or an object with _id (because of .populate)
+    const inviterId = typeof myPendingRecord.joinedBy === 'object'
+        ? myPendingRecord.joinedBy?._id
+        : myPendingRecord.joinedBy;
 
-    // If the person who 'joined' the record is the current user, it's a request!
+    // 2. Force both to strings and compare
+    // If this is TRUE, the UI shows "Cancel Request"
+    // If this is FALSE, the UI shows "Accept/Reject Invitation"
     return String(inviterId) === String(currentUserId);
   }, [myPendingRecord, currentUserId]);
 
-// 3. If it's pending but NOT your request, it's an invite to you
-  const isPendingInviteToMe = useMemo(() =>
-          !!myPendingRecord && !isMyPendingRequest,
-      [myPendingRecord, isMyPendingRequest]
-  );
+  const isPendingInviteToMe = useMemo(() => {
+    // If there's a pending record but I didn't start it, someone else invited me
+    return !!myPendingRecord && !isMyPendingRequest;
+  }, [myPendingRecord, isMyPendingRequest]);
 
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
