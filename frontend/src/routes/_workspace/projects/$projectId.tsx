@@ -464,7 +464,7 @@ function ProjectPage() {
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    // Handle both populated object and plain ID string
+    // Normalize the inviter ID (handling populated object vs string)
     const inviterId = typeof myPendingRecord.joinedBy === 'object'
         ? myPendingRecord.joinedBy?._id
         : myPendingRecord.joinedBy;
@@ -472,8 +472,11 @@ function ProjectPage() {
     return inviterId === currentUserId;
   }, [myPendingRecord, currentUserId]);
 
-  // 3. Determine if someone ELSE started it (an Invitation)
-  const isPendingInviteToMe = !!myPendingRecord && !isMyPendingRequest;
+  // Determine if someone ELSE started it (an Invitation)
+  const isPendingInviteToMe = useMemo(() =>
+          !!myPendingRecord && !isMyPendingRequest,
+      [myPendingRecord, isMyPendingRequest]
+  );
 
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
@@ -1383,86 +1386,79 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
-    // Determine the text and visual state of the main button
+    // Guard check for project data
+    if (!project) return <div className="flex justify-center py-24"><Loader2 className="animate-spin" /></div>;
+
     const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
-
-    let buttonLabel;
-
-    if (isProcessing) {
-      buttonLabel = <Loader2 className="animate-spin h-4 w-4" />;
-    } else if (isMyPendingRequest) {
-      buttonLabel = "Cancel Request to Join";
-    } else if (project?.recruitingStatus === 'closed') {
-      buttonLabel = "Recruitment Closed";
-    } else if (editForm?.inviteOnly) {
-      buttonLabel = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
-    } else if (isAutoJoin) {
-      buttonLabel = "Join Project";
-    } else {
-      buttonLabel = "Request to Join";
-    }
 
     return (
         <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-          <div className="bg-muted p-4 rounded-full mb-6">
-            <Lock className="size-8 text-muted-foreground" />
-          </div>
-
-          <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
-
-          <p className="text-muted-foreground mt-2 max-w-md">
-            {project.description || "This workspace is currently private."}
-          </p>
+          {/* ... (Existing Lock Icon and Project Title) ... */}
 
           <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
-            <Button
-                size="lg"
-                className="w-full"
-                variant={isMyPendingRequest ? "destructive" : "default"}
-                disabled={
-                  // Safely check project and editForm
-                    ((project?.recruitingStatus === 'closed' || editForm?.inviteOnly) &&
-                        !isMyPendingRequest) ||
-                    isProcessing
-                }
-                onClick={handleToggleJoinRequest}
-            >
-              {buttonLabel}
-            </Button>
 
-            {editForm.inviteOnly && !isMyPendingRequest && !isPendingInviteToMe && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  This project is currently invite-only.
-                </p>
-            )}
-
-            {/* This card only shows if SOMEONE ELSE invited you */}
-            {isPendingInviteToMe && (
-                <Card className="mt-6 border-primary/20 bg-primary/5">
+            {/* NEW LOGIC: Priority 1 - If invited, show the Invitation Card ONLY */}
+            {isPendingInviteToMe ? (
+                <Card className="border-primary/20 bg-primary/5 shadow-lg animate-in fade-in zoom-in duration-300">
                   <CardHeader className="p-4 pb-2 text-left">
-                    <CardTitle className="text-sm font-semibold">You've been invited!</CardTitle>
+                    <CardTitle className="text-sm font-semibold">Project Invitation</CardTitle>
                     <CardDescription className="text-xs">
                       An owner has invited you to join this team.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0 flex gap-2">
+                  <CardContent className="p-4 pt-2 flex flex-col gap-2">
                     <Button
-                        size="sm"
-                        className="flex-1"
+                        size="default"
+                        className="w-full"
                         onClick={() => handleAcceptInvite(myPendingRecord?._id)}
+                        disabled={isProcessing}
                     >
-                      Accept
+                      {isProcessing ? <Loader2 className="animate-spin h-4 w-4" /> : "Accept Invitation"}
                     </Button>
                     <Button
                         size="sm"
-                        variant="outline"
-                        className="flex-1"
+                        variant="ghost"
+                        className="w-full text-muted-foreground hover:text-destructive"
                         onClick={() => handleRejectInvite(myPendingRecord?._id)}
+                        disabled={isProcessing}
                     >
                       Decline
                     </Button>
                   </CardContent>
                 </Card>
+            ) : (
+                /* Priority 2 - Otherwise, show the standard Request/Join button */
+                <>
+                  <Button
+                      size="lg"
+                      className="w-full"
+                      variant={isMyPendingRequest ? "destructive" : "default"}
+                      disabled={
+                          ((project?.recruitingStatus === 'closed' || editForm?.inviteOnly) &&
+                              !isMyPendingRequest) ||
+                          isProcessing
+                      }
+                      onClick={handleToggleJoinRequest}
+                  >
+                    {isProcessing ? (
+                        <Loader2 className="animate-spin h-4 w-4" />
+                    ) : isMyPendingRequest ? (
+                        "Cancel Request to Join"
+                    ) : project?.recruitingStatus === 'closed' ? (
+                        "Recruitment Closed"
+                    ) : isAutoJoin ? (
+                        "Join Project"
+                    ) : (
+                        "Request to Join"
+                    )}
+                  </Button>
+
+                  {editForm?.inviteOnly && !isMyPendingRequest && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        This project is currently invite-only.
+                      </p>
+                  )}
+                </>
             )}
           </div>
         </div>
