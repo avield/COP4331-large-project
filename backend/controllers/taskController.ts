@@ -465,8 +465,9 @@ export const updateTask = async (
     const newStatus = task.status;
 
     if (oldStatus !== newStatus) {
+      const actorUserId = req.user._id.toString();
       const assignedUserIds = toIdStrings(task.assignedToUserIds ?? []).filter(
-        (id: string) => id !== req.user._id
+        (id: string) => id !== actorUserId
       );
 
       await createNotifications(
