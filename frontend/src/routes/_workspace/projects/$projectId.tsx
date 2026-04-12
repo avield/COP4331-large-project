@@ -922,7 +922,13 @@ function ProjectPage() {
       tags: (task.tags ?? []).join(', '),
       goalId: task.goalId ?? '',
       assignedToUserIds:
-        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+          task.assignedToUserIds?.map((user: unknown) => {
+            if (typeof user === 'string') return user;
+            if (user && typeof user === 'object' && '_id' in user) {
+              return (user as { _id: string })._id;
+            }
+            return '';
+          }).filter(Boolean) ?? [],
     })
     setTaskSheetMode('view')
     setIsTaskSheetOpen(true)
@@ -940,7 +946,13 @@ function ProjectPage() {
       tags: (task.tags ?? []).join(', '),
       goalId: task.goalId ?? '',
       assignedToUserIds:
-        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+          task.assignedToUserIds?.map((user: unknown) => {
+            if (typeof user === 'string') return user;
+            if (user && typeof user === 'object' && '_id' in user) {
+              return (user as { _id: string })._id;
+            }
+            return '';
+          }).filter(Boolean) ?? [],
     })
     setTaskSheetMode('edit')
     setIsTaskSheetOpen(true)
@@ -2016,7 +2028,7 @@ const handleDeleteProject = async () => {
                     <CardDescription>
                       Drag goals to reorder the rings from the center outward.
                     </CardDescription>
-                    <div className="max-h-[420px] overflow-y-auto pr-2">
+                    <div className="max-h-105 overflow-y-auto pr-2">
                       <Droppable droppableId="goals-droppable">
                         {(provided) => (
                           <div
@@ -2188,7 +2200,7 @@ const handleDeleteProject = async () => {
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
+            <CardContent className="min-w-0 max-h-105 space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>
                 {memberPreview.map((member) => {
                   const userSummary = member.userId;
@@ -2286,7 +2298,7 @@ const handleDeleteProject = async () => {
                   id="goal-filter"
                   value={goalFilter}
                   onChange={(e) => setGoalFilter(e.target.value)}
-                  className="h-9 w-full sm:w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-9 w-full sm:w-45 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="all">All Tasks</option>
                   <option value="ungrouped">No Goal</option>
@@ -2298,7 +2310,7 @@ const handleDeleteProject = async () => {
                 </select>
               </div>
 
-              <div className='w-full sm:w-[110px] flex justify-end'>
+              <div className='w-full sm:w-27.5 flex justify-end'>
                 {goalFilter !== 'all' && (
                   <Button
                     variant="outline"
