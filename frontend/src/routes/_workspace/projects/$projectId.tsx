@@ -185,6 +185,12 @@ interface ApiResponse {
   }
 }
 
+interface MemberUser {
+  _id?: string;
+  id?: string;
+  // Add other properties if you use them, like email or profile
+}
+
 function mapPriority(p: string): Task['priority'] {
   if (p === 'high') return 'High'
   if (p === 'low') return 'Low'
@@ -464,28 +470,28 @@ function ProjectPage() {
     if (!currentUserId || !members.length) return null;
 
     return members.find(m => {
-      // Standardize ID extraction
-      const memberUserId = typeof m.userId === 'object'
-          ? m.userId?._id
-          : m.userId;
+      // Cast the userId to our interface safely
+      const userIdData = m.userId as MemberUser | null;
 
-      return String(memberUserId) === String(currentUserId) && m.membershipStatus === 'pending';
+      // Extract the ID string
+      const recordUserId = userIdData?._id || userIdData?.id || String(m.userId || '');
+
+      const isMe = String(recordUserId) === String(currentUserId);
+      const isPending = m.membershipStatus === 'pending';
+
+      return isMe && isPending;
     });
   }, [members, currentUserId]);
 
 // Determine if YOU started it (A Request)
   const isMyPendingRequest = useMemo(() => {
-  if (!myPendingRecord || !currentUserId) return false
+    if (!myPendingRecord) return false;
 
-  const joinedByValue =
-    myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object'
-      ? myPendingRecord.joinedBy._id
-      : myPendingRecord.joinedBy
+    const inviter = myPendingRecord.joinedBy as MemberUser | null;
+    const inviterId = inviter?._id || inviter?.id || String(myPendingRecord.joinedBy || '');
 
-  if (!joinedByValue) return false
-
-  return String(joinedByValue) === String(currentUserId)
-}, [myPendingRecord, currentUserId])
+    return String(inviterId) === String(currentUserId);
+  }, [myPendingRecord, currentUserId]);
 
 // Determine if someone ELSE started it (An Invitation)
   const isPendingInviteToMe = useMemo(() =>
