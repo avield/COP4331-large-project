@@ -328,7 +328,7 @@ function ProjectPage() {
       // 2. Build the full URL
       const finalUrl = rawPath
           ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
-          : null;
+          : undefined;
 
       // 3. FLATTEN the object so profilePictureUrl is at the top level of userId
       return {
@@ -341,7 +341,6 @@ function ProjectPage() {
       };
     });
   }, [loaderData.members]);
-
 
   const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
 
@@ -458,6 +457,18 @@ function ProjectPage() {
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
   const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
+
+  // Find your membership status
+  const myRequest = useMemo(() =>
+          members.find(m => m.userId?._id === currentUserId),
+      [members, currentUserId]
+  );
+
+  const isPending = myRequest?.membershipStatus === 'pending';
+
+  // FOR DEBUGGING
+  console.log("Current Members List:", members);
+  console.log("Am I pending?:", isPending);
 
   // Memos for Analytics & UI
   const goalNameById = useMemo(() => {
@@ -634,6 +645,35 @@ function ProjectPage() {
       setIsInvitingMember(false)
     }
   }
+
+  const [localStatus, setLocalStatus] = useState<'none' | 'pending'>(
+      isPending ? 'pending' : 'none'
+  );
+
+  const handleToggleJoinRequest = async () => {
+    try {
+      if (isPending || localStatus === 'pending') {
+        // CANCEL REQUEST
+        await api.delete(`/projects/${project._id}/members/${myRequest?._id}/deny`);
+        setLocalStatus('none'); // Update UI immediately
+        toast.success("Request cancelled.");
+      } else {
+        // JOIN REQUEST
+        await api.post(`/projects/${project._id}/join`);
+        setLocalStatus('pending'); // Update UI immediately
+        toast.success("Request sent!");
+      }
+
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Action failed:", err);
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error("An unexpected error occurred.");
+      }
+    }
+  };
 
   //Approve requests, edit permissions, uninvite
   const handleUpdateMember = async (
@@ -1047,7 +1087,6 @@ function ProjectPage() {
     }
   }, [data.tasks])
 
-
   //  ********************
   //  GOAL CRUD OPERATIONS
   //  ********************
@@ -1283,27 +1322,52 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
+    // Calculate the state before the return
+    const isCurrentlyPending = isPending || localStatus === 'pending';
+
+    // Determine button text
+    let buttonText;
+    if (isCurrentlyPending) {
+      buttonText = "Cancel Request to Join";
+    } else if (editForm.inviteOnly) {
+      buttonText = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
+    } else {
+      buttonText = "Request to Join";
+    }
+
     return (
         <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
           <div className="bg-muted p-4 rounded-full mb-6">
             <Lock className="size-8 text-muted-foreground" />
           </div>
+
           <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
+
           <p className="text-muted-foreground mt-2 max-w-md">
             {project.description || "This workspace is currently private."}
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-4">
-            <Button size="lg" className="rounded-full px-8">
-              <UserPlus className="mr-2 size-4" />
-              Request to Join
+          <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
+            <Button
+                size="lg"
+                className="w-full"
+                // If pending, it's red/destructive. Otherwise, it's default.
+                variant={isCurrentlyPending ? "destructive" : "default"}
+                // Disable if invite-only UNLESS they are already pending (so they can cancel)
+                disabled={editForm.inviteOnly && !isCurrentlyPending}
+                onClick={handleToggleJoinRequest}
+            >
+              {buttonText}
             </Button>
-            <p className="text-xs text-muted-foreground italic">
-              Managed by {project.createdBy?.displayName || 'a community member'}
-            </p>
+
+            {editForm.inviteOnly && !isCurrentlyPending && (
+                <p className="text-xs text-muted-foreground">
+                  This project is currently invite-only.
+                </p>
+            )}
           </div>
         </div>
-    )
+    );
   }
 // MEMBER VIEW
   return (
@@ -2014,29 +2078,20 @@ const handleDeleteProject = async () => {
             <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>
                 {memberPreview.map((member) => {
-                  const displayName = member.userId?.profile?.displayName ?? 'User'
-                  const isMe = member.userId?._id === user?.id
-
-                  // Always fallback to the fresh user store if it's the active session!
-                  const avatarUrl = isMe
-                      ? user?.profile?.profilePictureUrl
-                      : member.userId?.profile?.profilePictureUrl
+                  const userSummary = member.userId;
+                  const displayName = userSummary?.profile?.displayName ?? userSummary?.displayName ?? 'User';
 
                   return (
                       <NetworkAvatar
                           key={member._id}
+                          profilePictureUrl={userSummary?.profilePictureUrl ?? undefined}
                           displayName={displayName}
-                          profilePictureUrl={avatarUrl}
                           size="sm"
                       />
-                  )
+                  );
                 })}
-
-                {/* Show the remainder count if there are more than 5 members */}
                 {members.length > 5 && (
-                    <AvatarGroupCount>
-                      +{members.length - 5}
-                    </AvatarGroupCount>
+                    <AvatarGroupCount>+{members.length - 5}</AvatarGroupCount>
                 )}
               </AvatarGroup>
 
@@ -2049,14 +2104,12 @@ const handleDeleteProject = async () => {
                           member.userId?.displayName ?? 'Unknown User';
                       const email = member.userId?.email ?? 'No email';
 
-                      const isMe = member.userId?._id === user?.id;
-
+                      const isMe = member.userId?._id === user?.id
                       const rawPath = isMe
                           ? user?.profile?.profilePictureUrl
-                          : member.userId?.profile?.profilePictureUrl;
+                          : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl);
 
-                      // Use your env variable correctly
-                      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                      const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
                       const finalAvatarUrl = rawPath
                           ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
