@@ -137,7 +137,7 @@ export const addProjectMember = async (
       message: `You were invited to join ${project.name}.`,
       projectId: member.projectId,
       projectMemberId: member._id,
-      link: `/projects/${member.projectId}/visitor`,
+      link: `/projects/${member.projectId}`,
     });
 
     const populatedMember = await ProjectMember.findById(member._id)
@@ -384,7 +384,7 @@ export const denyJoinRequest = async (
       message: `Your request to join ${project?.name ?? 'the project'} was denied.`,
       projectId: membership.projectId,
       projectMemberId: membership._id,
-      link: `/projects/${membership.projectId}/visitor`,
+      link: `/projects/${membership.projectId}`,
     });
 
     await ProjectMember.findByIdAndDelete(membershipId);
