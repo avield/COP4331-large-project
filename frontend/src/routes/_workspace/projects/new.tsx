@@ -9,10 +9,31 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Plus, Trash2, Globe, Lock, Loader2 } from 'lucide-react'
 import api from '@/api/axios'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 
 export const Route = createFileRoute('/_workspace/projects/new')({
   component: NewProject,
 })
+
+interface CreateProjectRequest {
+  name: string
+  description: string
+  visibility: string
+  dueDate?: string
+  goals: { title: string }[]
+  invitedMembers: {
+    userId: string
+    role: string
+    permissions: {
+      canEditProject: boolean
+      canManageMembers: boolean
+      canCreateTasks: boolean
+      canAssignTasks: boolean
+      canCompleteAnyTask: boolean
+      canModerateChat: boolean
+    }
+  }[]
+}
 
 interface SearchUserResult {
   type: 'user'
@@ -120,7 +141,7 @@ function NewProject() {
   }, [memberQuery, invitedMembers])
 
   const createProjectMutation = useMutation({
-    mutationFn: async (newProjectData: any) => {
+    mutationFn: async (newProjectData: CreateProjectRequest) => {
       const res = await api.post<{ message: string; project: { _id: string } }>(
         '/projects/create',
         newProjectData
@@ -142,7 +163,19 @@ function NewProject() {
     }
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  let errorMessage = null
+
+  if (createProjectMutation.isError) {
+    const err = createProjectMutation.error
+
+    if (isAxiosError(err)) {
+      errorMessage = err.response?.data?.message || err.message
+    } else {
+      errorMessage = err instanceof Error ? err.message : 'Something went wrong'
+    }
+  }
+
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     createProjectMutation.mutate({
       name,
@@ -162,7 +195,7 @@ function NewProject() {
           canModerateChat: false,
         },
       })),
-    });
+    } as CreateProjectRequest);
   }
 
   return (
@@ -331,7 +364,7 @@ function NewProject() {
           </CardContent>
         </Card>
 
-        {createProjectMutation.isError && <p className="text-sm text-destructive">{createProjectMutation.error.message}</p>}
+        {createProjectMutation.isError && <p className="text-sm text-destructive">{errorMessage}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
           <Button type="submit" size="lg" className="w-full cursor-pointer" disabled={createProjectMutation.isPending}>

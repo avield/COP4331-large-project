@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar'
-import { ChevronDown, FolderIcon, FolderOpen, GraduationCap, HomeIcon, LibraryIcon, PanelsTopLeft, PlusIcon } from 'lucide-react'
+import { ChevronDown, GraduationCap, HomeIcon, PanelsTopLeft, PlusIcon } from 'lucide-react'
 import SidebarButton from './sidebar_button'
 import { Link } from '@tanstack/react-router'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
