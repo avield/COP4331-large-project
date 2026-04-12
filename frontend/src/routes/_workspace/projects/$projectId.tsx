@@ -328,7 +328,7 @@ function ProjectPage() {
       // 2. Build the full URL
       const finalUrl = rawPath
           ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
-          : null;
+          : undefined;
 
       // 3. FLATTEN the object so profilePictureUrl is at the top level of userId
       return {
@@ -2014,29 +2014,20 @@ const handleDeleteProject = async () => {
             <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>
                 {memberPreview.map((member) => {
-                  const displayName = member.userId?.profile?.displayName ?? 'User'
-                  const isMe = member.userId?._id === user?.id
-
-                  // Always fallback to the fresh user store if it's the active session!
-                  const avatarUrl = isMe
-                      ? user?.profile?.profilePictureUrl
-                      : member.userId?.profile?.profilePictureUrl
+                  const userSummary = member.userId;
+                  const displayName = userSummary?.profile?.displayName ?? userSummary?.displayName ?? 'User';
 
                   return (
                       <NetworkAvatar
                           key={member._id}
+                          profilePictureUrl={userSummary?.profilePictureUrl ?? undefined}
                           displayName={displayName}
-                          profilePictureUrl={avatarUrl}
                           size="sm"
                       />
-                  )
+                  );
                 })}
-
-                {/* Show the remainder count if there are more than 5 members */}
                 {members.length > 5 && (
-                    <AvatarGroupCount>
-                      +{members.length - 5}
-                    </AvatarGroupCount>
+                    <AvatarGroupCount>+{members.length - 5}</AvatarGroupCount>
                 )}
               </AvatarGroup>
 
