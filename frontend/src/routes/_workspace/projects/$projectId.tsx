@@ -679,8 +679,18 @@ function ProjectPage() {
         await api.delete(`/project-members/${myRequest?._id}/reject`);
         toast.success("Request cancelled.");
       } else {
+        // JOIN REQUEST
         await api.post(`/project-members/project/${project._id}/join`);
-        toast.success("Request sent!");
+
+        // Determine if the join was immediate or needs approval
+        const isAutoJoin = project.settings?.allowSelfJoinRequests &&
+            !project.settings?.requireApprovalToJoin;
+
+        if (isAutoJoin) {
+          toast.success("Joined project successfully!");
+        } else {
+          toast.success("Join request sent");
+        }
       }
 
       // This is the most important part: tell the router to get fresh data
@@ -1377,15 +1387,17 @@ const handleDeleteProject = async () => {
     const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
 
     let buttonLabel;
+
     if (isProcessing) {
       buttonLabel = <Loader2 className="animate-spin h-4 w-4" />;
     } else if (isMyPendingRequest) {
       buttonLabel = "Cancel Request to Join";
-    } else if (isAutoJoin) {
-      // If no approval is needed, it's a direct action
-      buttonLabel = "Join Project";
-    } else if (editForm.inviteOnly) {
+    } else if (project?.recruitingStatus === 'closed') {
+      buttonLabel = "Recruitment Closed";
+    } else if (editForm?.inviteOnly) {
       buttonLabel = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
+    } else if (isAutoJoin) {
+      buttonLabel = "Join Project";
     } else {
       buttonLabel = "Request to Join";
     }
@@ -1406,9 +1418,13 @@ const handleDeleteProject = async () => {
             <Button
                 size="lg"
                 className="w-full"
-                // We use isMyPendingRequest directly here instead of the unused variable
                 variant={isMyPendingRequest ? "destructive" : "default"}
-                disabled={(editForm.inviteOnly && !isMyPendingRequest) || isProcessing}
+                disabled={
+                  // Safely check project and editForm
+                    ((project?.recruitingStatus === 'closed' || editForm?.inviteOnly) &&
+                        !isMyPendingRequest) ||
+                    isProcessing
+                }
                 onClick={handleToggleJoinRequest}
             >
               {buttonLabel}

@@ -144,8 +144,14 @@ export const requestJoinProject = async (
     const userId = req.user._id;
 
     const project = await Project.findById(projectId);
+
     if (!project || !project.settings?.allowSelfJoinRequests) {
       res.status(403).json({ message: 'Joining is disabled.' });
+      return;
+    }
+
+    if (project.recruitingStatus === 'closed') {
+      res.status(403).json({ message: 'Recruitment for this project is currently closed.' });
       return;
     }
 
