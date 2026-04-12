@@ -342,7 +342,6 @@ function ProjectPage() {
     });
   }, [loaderData.members]);
 
-
   const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
 
   useEffect(() => {
@@ -466,6 +465,10 @@ function ProjectPage() {
   );
 
   const isPending = myRequest?.membershipStatus === 'pending';
+
+  // FOR DEBUGGING
+  console.log("Current Members List:", members);
+  console.log("Am I pending?:", isPending);
 
   // Memos for Analytics & UI
   const goalNameById = useMemo(() => {
@@ -643,15 +646,21 @@ function ProjectPage() {
     }
   }
 
+  const [localStatus, setLocalStatus] = useState<'none' | 'pending'>(
+      isPending ? 'pending' : 'none'
+  );
+
   const handleToggleJoinRequest = async () => {
     try {
-      if (isPending) {
+      if (isPending || localStatus === 'pending') {
         // CANCEL REQUEST
         await api.delete(`/projects/${project._id}/members/${myRequest?._id}/deny`);
+        setLocalStatus('none'); // Update UI immediately
         toast.success("Request cancelled.");
       } else {
         // JOIN REQUEST
         await api.post(`/projects/${project._id}/join`);
+        setLocalStatus('pending'); // Update UI immediately
         toast.success("Request sent!");
       }
 
@@ -1313,43 +1322,52 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
+    // Calculate the state before the return
+    const isCurrentlyPending = isPending || localStatus === 'pending';
+
+    // Determine button text
+    let buttonText;
+    if (isCurrentlyPending) {
+      buttonText = "Cancel Request to Join";
+    } else if (editForm.inviteOnly) {
+      buttonText = <><Lock className="mr-2 h-4 w-4" /> Invite Only</>;
+    } else {
+      buttonText = "Request to Join";
+    }
+
     return (
         <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
           <div className="bg-muted p-4 rounded-full mb-6">
             <Lock className="size-8 text-muted-foreground" />
           </div>
+
           <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
+
           <p className="text-muted-foreground mt-2 max-w-md">
             {project.description || "This workspace is currently private."}
           </p>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
             <Button
-                className="w-full"
                 size="lg"
-                // Use 'destructive' variant if they are cancelling
-                variant={isPending ? "destructive" : "default"}
-                // Disable only if it's invite-only AND they haven't already requested
-                disabled={editForm.inviteOnly && !isPending}
+                className="w-full"
+                // If pending, it's red/destructive. Otherwise, it's default.
+                variant={isCurrentlyPending ? "destructive" : "default"}
+                // Disable if invite-only UNLESS they are already pending (so they can cancel)
+                disabled={editForm.inviteOnly && !isCurrentlyPending}
                 onClick={handleToggleJoinRequest}
             >
-              {isPending ? (
-                  "Cancel Request to Join"
-              ) : editForm.inviteOnly ? (
-                  <><Lock className="mr-2 h-4 w-4" /> Invite Only</>
-              ) : (
-                  "Request to Join"
-              )}
+              {buttonText}
             </Button>
 
-            {editForm.inviteOnly && !isPending && (
-                <p className="text-center text-xs text-muted-foreground">
+            {editForm.inviteOnly && !isCurrentlyPending && (
+                <p className="text-xs text-muted-foreground">
                   This project is currently invite-only.
                 </p>
             )}
           </div>
         </div>
-    )
+    );
   }
 // MEMBER VIEW
   return (
