@@ -309,7 +309,7 @@ function columnIdToStatus(columnId: string): ApiTask['status'] {
 function ProjectPage() {
   // Core Auth & Router
   const user = useAuthStore((state) => state.user)
-  const currentUserId = user?.id
+  const currentUserId = user?.id ?? ((user as unknown as {_id?: string} | null)?._id)
   const navigate = useNavigate()
   const router = useRouter()
 

@@ -589,6 +589,7 @@ export const getMyProjectInvitations = async (
     const invitations = await ProjectMember.find({
       userId: req.user._id,
       membershipStatus: 'pending',
+      joinedBy: { $ne: req.user._id },
     })
       .populate('projectId', 'name description visibility recruitingStatus')
       .populate('joinedBy', 'email profile.displayName profile.profilePictureUrl')
