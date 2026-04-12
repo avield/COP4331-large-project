@@ -5,6 +5,7 @@ import {
   getProjectMembers,
   getMyProjectInvitations,
   getSpecificPendingInvite,
+  leaveProject,
 
   // Join + invitation routes
   requestJoinProject,
@@ -17,6 +18,7 @@ import {
   updateProjectMember,
   removeProjectMember,
   denyJoinRequest,
+  transferProjectOwnership,
 } from '../controllers/projectMembersController.js';
 
 const router = express.Router();
@@ -51,6 +53,8 @@ router.get('/project/:projectId', protect, getProjectMembers);
 // Request to join a project
 router.post('/project/:projectId/join', protect, requestJoinProject);
 
+router.post('/project/:projectId/leave', protect, leaveProject)
+
 /**
  * =========================================================
  * Owner / manager membership management routes
@@ -71,5 +75,7 @@ router.delete('/:membershipId/deny', protect, denyJoinRequest);
 
 // Remove a member from a project
 router.delete('/:membershipId', protect, removeProjectMember);
+
+router.post('/project/:projectId/transfer-ownership', protect, transferProjectOwnership)
 
 export default router;

@@ -410,6 +410,11 @@ function ProjectPage() {
   const [selectedInviteeId, setSelectedInviteeId] = useState('')
   const [inviteRole, setInviteRole] = useState('Member')
   const [isInvitingMember, setIsInvitingMember] = useState(false)
+  const [isLeavingProject, setIsLeavingProject] = useState(false)
+  const [leaveProjectError, setLeaveProjectError] = useState('')
+  const [isTransferringOwnership, setIsTransferringOwnership] = useState(false)
+  const [transferOwnershipError, setTransferOwnershipError] = useState('')
+  const [selectedNewOwnerMembershipId, setSelectedNewOwnerMembershipId] = useState('')
 
   // Mode & Selection States
   const [taskSheetMode, setTaskSheetMode] = useState<'view' | 'edit' | 'create'>('view')
@@ -614,6 +619,16 @@ function ProjectPage() {
   //  Member Add/Invite/Remove
   //  *************************
 
+  //Memo for who can be an owner
+  const ownershipCandidates = useMemo(() => {
+    return members.filter(
+      (member) =>
+        member.membershipStatus === 'active' &&
+        member.role !== 'Owner' &&
+        member.userId?._id
+    )
+  }, [members])
+
   //Fetch members
   useEffect(() => {
     const loadManageableMembers = async () => {
@@ -779,6 +794,63 @@ function ProjectPage() {
     } catch (error) {
       console.error('Failed to update member:', error)
       toast.error('Failed to update member.')
+    }
+  }
+
+  //Leave a project
+  const handleLeaveProject = async () => {
+    try {
+      setLeaveProjectError('')
+      setIsLeavingProject(true)
+
+      await api.post(`/project-members/project/${project._id}/leave`)
+
+      toast.success('You left the project.')
+      setIsManageMembersSheetOpen(false)
+      await navigate({ to: '/home' })
+    } catch (error: unknown) {
+      console.error('Failed to leave project:', error)
+
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+
+      setLeaveProjectError(message ?? 'Failed to leave project.')
+      toast.error(message ?? 'Failed to leave project.')
+    } finally {
+      setIsLeavingProject(false)
+    }
+  }
+
+  //Transfer ownership
+  const handleTransferOwnership = async () => {
+    if (!selectedNewOwnerMembershipId) return
+
+    try {
+      setTransferOwnershipError('')
+      setIsTransferringOwnership(true)
+
+      await api.post(`/project-members/project/${project._id}/transfer-ownership`, {
+        targetMembershipId: selectedNewOwnerMembershipId,
+      })
+
+      toast.success('Ownership transferred successfully.')
+      setSelectedNewOwnerMembershipId('')
+      await router.invalidate()
+      setIsEditSheetOpen(false)
+    } catch (error: unknown) {
+      console.error('Failed to transfer ownership:', error)
+
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+
+      setTransferOwnershipError(message ?? 'Failed to transfer ownership.')
+      toast.error(message ?? 'Failed to transfer ownership.')
+    } finally {
+      setIsTransferringOwnership(false)
     }
   }
 
@@ -1864,6 +1936,56 @@ const handleDeleteProject = async () => {
                         </h3>
                       </div>
 
+                      {/* Transfer ownership */}
+                      {myMembership?.role === 'Owner' && (
+                        <div className="px-4 pb-4">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm font-medium">Transfer Ownership</p>
+                              <p className="text-xs text-muted-foreground">
+                                Assign this project to another active member.
+                              </p>
+                            </div>
+
+                            <select
+                              value={selectedNewOwnerMembershipId}
+                              onChange={(e) => setSelectedNewOwnerMembershipId(e.target.value)}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                              <option value="">Select a new owner</option>
+                              {ownershipCandidates.map((member) => {
+                                const displayName =
+                                  member.userId?.profile?.displayName ??
+                                  member.userId?.displayName ??
+                                  member.userId?.email ??
+                                  'Unknown User'
+
+                                return (
+                                  <option key={member._id} value={member._id}>
+                                    {displayName}
+                                  </option>
+                                )
+                              })}
+                            </select>
+
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                onClick={handleTransferOwnership}
+                                disabled={!selectedNewOwnerMembershipId || isTransferringOwnership}
+                              >
+                                {isTransferringOwnership ? 'Transferring...' : 'Transfer Ownership'}
+                              </Button>
+                            </div>
+
+                            {transferOwnershipError ? (
+                              <p className="text-xs text-destructive">{transferOwnershipError}</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delete Project */}
                       <div className="px-4">
                         <div className="flex items-center justify-between gap-4">
                           <div>
@@ -2398,6 +2520,7 @@ const handleDeleteProject = async () => {
         </CardContent>
       </Card>
 
+      {/* GOAL SHEET */}
       <Sheet
         open={isGoalSheetOpen}
         onOpenChange={(open) => {
@@ -2593,6 +2716,7 @@ const handleDeleteProject = async () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* TASK SHEET */}
       <Sheet open={isTaskSheetOpen} onOpenChange={setIsTaskSheetOpen}>
         <SheetContent className="overflow-y-auto p-0 sm:max-w-xl">
           <>
@@ -3417,10 +3541,63 @@ const handleDeleteProject = async () => {
                   )}
                 </CardContent>
               </Card>
+
+              {/* LEAVE PROJECT CARD */}
+              <Card className="border-destructive/20 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="text-base text-destructive">Leave Project</CardTitle>
+                  <CardDescription>
+                    Remove yourself from this project.
+                    {myMembership?.role === 'Owner'
+                      ? ' Ownership will transfer to the oldest active member automatically.'
+                      : ''}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  {leaveProjectError ? (
+                    <p className="text-sm text-destructive">{leaveProjectError}</p>
+                  ) : null}
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" disabled={isLeavingProject}>
+                        {isLeavingProject ? 'Leaving...' : 'Leave Project'}
+                      </Button>
+                    </AlertDialogTrigger>
+
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave project?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {myMembership?.role === 'Owner'
+                            ? 'You are the owner. If another active member exists, ownership will transfer automatically before you leave.'
+                            : 'You will lose access to this project.'}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isLeavingProject}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(e) => {
+                            e.preventDefault()
+                            void handleLeaveProject()
+                          }}
+                          disabled={isLeavingProject}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {isLeavingProject ? 'Leaving...' : 'Leave Project'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
             </div>
           </>
         </SheetContent>
       </Sheet>
+
       {/* GOAL DELETE DIALOG */}
       <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
         <AlertDialogContent>

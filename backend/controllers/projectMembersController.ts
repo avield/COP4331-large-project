@@ -517,3 +517,174 @@ export const getMyProjectInvitations = async (
     res.status(500).json({ message: 'Internal server error.' })
   }
 }
+
+//Leave a project
+export const leaveProject = async (
+  req: AuthenticatedRequest & { params: { projectId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { projectId } = req.params
+
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active',
+    })
+
+    if (!membership) {
+      res.status(404).json({ message: 'Active membership not found.' })
+      return
+    }
+
+    if (membership.role !== 'Owner') {
+      await ProjectMember.findByIdAndDelete(membership._id)
+      res.status(200).json({ message: 'You left the project.' })
+      return
+    }
+
+    const nextOwner = await ProjectMember.findOne({
+      projectId,
+      membershipStatus: 'active',
+      userId: { $ne: req.user._id },
+    }).sort({ createdAt: 1 })
+
+    if (!nextOwner) {
+      res.status(400).json({
+        message: 'You cannot leave this project because there are no other active members to transfer ownership to.',
+      })
+      return
+    }
+
+    nextOwner.role = 'Owner'
+    nextOwner.permissions = {
+      canEditProject: true,
+      canManageMembers: true,
+      canCreateTasks: true,
+      canAssignTasks: true,
+      canCompleteAnyTask: true,
+      canModerateChat: true,
+    }
+    await nextOwner.save()
+
+    await Project.findByIdAndUpdate(projectId, {
+      createdBy: nextOwner.userId,
+    })
+
+    await ProjectMember.findByIdAndDelete(membership._id)
+
+    const project = await Project.findById(projectId).select('name')
+
+    await createNotification({
+      recipientUserId: nextOwner.userId,
+      actorUserId: req.user._id,
+      type: 'ownership_transferred',
+      title: 'Project ownership transferred',
+      message: `You are now the owner of ${project?.name ?? 'this project'}.`,
+      projectId,
+      link: `/projects/${projectId}`,
+    })
+
+    res.status(200).json({
+      message: 'Ownership transferred and you left the project.',
+      newOwnerUserId: nextOwner.userId,
+    })
+  } catch (error) {
+    console.error('leaveProject error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Transfer Ownership
+export const transferProjectOwnership = async (
+  req: AuthenticatedRequest & {
+    params: { projectId: string }
+    body: { targetMembershipId?: string }
+  },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { projectId } = req.params
+    const { targetMembershipId } = req.body
+
+    if (!targetMembershipId) {
+      res.status(400).json({ message: 'targetMembershipId is required.' })
+      return
+    }
+
+    const currentOwner = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active',
+    })
+
+    if (!currentOwner || currentOwner.role !== 'Owner') {
+      res.status(403).json({ message: 'Only the project owner can transfer ownership.' })
+      return
+    }
+
+    const targetMember = await ProjectMember.findById(targetMembershipId)
+
+    if (
+      !targetMember ||
+      targetMember.projectId.toString() !== projectId ||
+      targetMember.membershipStatus !== 'active'
+    ) {
+      res.status(404).json({ message: 'Target member not found.' })
+      return
+    }
+
+    if (targetMember.userId.toString() === req.user._id.toString()) {
+      res.status(400).json({ message: 'You already own this project.' })
+      return
+    }
+
+    currentOwner.role = 'Member'
+    currentOwner.permissions = {
+      canEditProject: false,
+      canManageMembers: false,
+      canCreateTasks: true,
+      canAssignTasks: false,
+      canCompleteAnyTask: false,
+      canModerateChat: false,
+    }
+
+    targetMember.role = 'Owner'
+    targetMember.permissions = {
+      canEditProject: true,
+      canManageMembers: true,
+      canCreateTasks: true,
+      canAssignTasks: true,
+      canCompleteAnyTask: true,
+      canModerateChat: true,
+    }
+
+    await currentOwner.save()
+    await targetMember.save()
+
+    await Project.findByIdAndUpdate(projectId, {
+      createdBy: targetMember.userId,
+    })
+
+    const project = await Project.findById(projectId).select('name')
+
+    await createNotification({
+      recipientUserId: targetMember.userId,
+      actorUserId: req.user._id,
+      type: 'ownership_transferred',
+      title: 'Project ownership transferred',
+      message: `You are now the owner of ${project?.name ?? 'this project'}.`,
+      projectId,
+      link: `/projects/${projectId}`,
+    })
+
+    res.status(200).json({ message: 'Ownership transferred successfully.' })
+  } catch (error) {
+    console.error('transferProjectOwnership error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
