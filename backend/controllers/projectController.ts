@@ -91,6 +91,7 @@ export const createProject = async (
   const session = await mongoose.startSession();
 
   let createdProjectId: Types.ObjectId | null = null;
+  let invitedNotificationUserIds: string[] = [];
 
   try {
     const { name, description, visibility, dueDate, goals, invitedMembers } = req.body;
@@ -222,6 +223,8 @@ export const createProject = async (
             })),
             { session }
           );
+
+          invitedNotificationUserIds = uniqueInvitedMembers.map((member) => member.userId);
         }
       }
 
@@ -249,6 +252,21 @@ export const createProject = async (
       'createdBy',
       'displayName email'
     );
+
+    requireUser(req);
+    if (invitedNotificationUserIds.length > 0) {
+      await createNotifications(
+        invitedNotificationUserIds.map((userId) => ({
+          recipientUserId: userId,
+          actorUserId: req.user._id,
+          type: 'project_invitation',
+          title: 'Project invitation',
+          message: `You were invited to join "${projectWithCreator?.name ?? normalizedName}".`,
+          projectId,
+          link: `/projects/${projectId}`,
+        }))
+      );
+    }
 
     res.status(201).json({
       message: 'Project created successfully.',
@@ -645,10 +663,10 @@ export const getProjectDetails = async (
         .sort({ order: 1, createdAt: 1 })
         .populate('createdBy', 'email profile.displayName');
 
-    const members = await ProjectMember.find({ projectId })
-        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
-        .populate('joinedBy', 'email profile.displayName')
-        .sort({ createdAt: 1 });
+    const members = await ProjectMember.find({ projectId, membershipStatus: 'active', })
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+      .populate('joinedBy', 'email profile.displayName')
+      .sort({ createdAt: 1 });
 
     const normalizedMembers = members.map((member) => {
       const user = member.userId as any;
