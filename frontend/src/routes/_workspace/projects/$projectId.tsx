@@ -464,42 +464,30 @@ function ProjectPage() {
     if (!currentUserId || !members.length) return null;
 
     return members.find(m => {
-      let memberIdString = '';
-      const userIdData = m.userId;
+      // Standardize ID extraction
+      const memberUserId = typeof m.userId === 'object'
+          ? m.userId?._id
+          : m.userId;
 
-      // Reconstruct the ID from the character-mapped object
-      if (userIdData && typeof userIdData === 'object' && '0' in userIdData) {
-        const charMap = userIdData as Record<string, string>;
-        memberIdString = Object.values(charMap).join('');
-      }
-      // Handle standard populated object (local type override for _id)
-      else if (userIdData && typeof userIdData === 'object') {
-        memberIdString = (userIdData as { _id?: string })._id || '';
-      }
-      // Fallback for raw string
-      else {
-        memberIdString = String(userIdData || '');
-      }
-
-      const isMe = memberIdString === String(currentUserId);
-      const isPending = m.membershipStatus === 'pending';
-
-      return isMe && isPending;
+      return String(memberUserId) === String(currentUserId) && m.membershipStatus === 'pending';
     });
   }, [members, currentUserId]);
 
-// Determine if YOU started it (a Request)
+// Determine if YOU started it (A Request)
   const isMyPendingRequest = useMemo(() => {
-    if (!myPendingRecord) return false;
+    if (!myPendingRecord || !currentUserId) return false;
 
-    const inviterId = myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object'
+    // 1. Extract the ID from joinedBy (handles both string and populated object)
+    const inviterId = (myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object')
         ? myPendingRecord.joinedBy._id
         : myPendingRecord.joinedBy;
 
-    return String(inviterId) === String(currentUserId);
+    // 2. STRICTER COMPARISON: Force both to strings and trim them
+    // This prevents issues where one is an ObjectId and one is a String
+    return String(inviterId).trim() === String(currentUserId).trim();
   }, [myPendingRecord, currentUserId]);
 
-// Determine if someone ELSE started it (an Invitation)
+// Determine if someone ELSE started it (An Invitation)
   const isPendingInviteToMe = useMemo(() =>
           !!myPendingRecord && !isMyPendingRequest,
       [myPendingRecord, isMyPendingRequest]
@@ -1501,7 +1489,6 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
-    // 1. Guard: If project is missing, show a loading state
     if (!project) {
       return (
           <div className="flex h-[80vh] items-center justify-center">
@@ -1510,86 +1497,103 @@ const handleDeleteProject = async () => {
       );
     }
 
-    // 2. Derive settings directly from project object for accuracy
     const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
     const isInviteOnly = project.settings?.inviteOnly || project.visibility === 'private';
 
     return (
-        <div className="flex flex-col items-center justify-center py-24 px-6 text-center animate-in fade-in duration-500">
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
           <div className="bg-muted p-4 rounded-full mb-6 ring-1 ring-border">
             <Lock className="size-8 text-muted-foreground" />
           </div>
 
-          {/* Use project directly from loaderData to prevent empty text */}
           <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
-          <p className="text-muted-foreground mt-2 max-w-md">
+          <p className="text-muted-foreground mt-2 max-w-xl text-balance">
             {project.description || "No description provided for this project."}
           </p>
 
+          {/* Project Meta Info Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 w-full max-w-2xl text-left border rounded-xl p-6 bg-card/50 shadow-sm">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Looking for Roles</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {project.lookingForRoles?.length ? project.lookingForRoles.map(role => (
+                    <Badge key={role} variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[11px] py-0">{role}</Badge>
+                )) : <span className="text-xs text-muted-foreground italic">None listed</span>}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <UserPlus className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Recruiting Status</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`size-2 rounded-full ${project.recruitingStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className="text-sm font-medium capitalize">{project.recruitingStatus ?? 'Closed'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Settings className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Join Settings</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[11px] py-0 capitalize">
+                  {project.settings?.inviteOnly ? 'Invite Only' : project.settings?.requireApprovalToJoin ? 'Application Required' : 'Open Access'}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CalendarDays className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Project Due Date</span>
+              </div>
+              <div className="text-sm font-medium">
+                {project.dueDate ? new Date(project.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
           <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
-            {/* PRIORITY 1: The Invitation Card */}
             {isPendingInviteToMe ? (
                 <Card className="border-primary/20 bg-primary/5 shadow-lg border-2">
                   <CardHeader className="p-4 pb-2 text-left">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <UserPlus className="size-4 text-primary" />
-                      Project Invitation
+                      <UserPlus className="size-4 text-primary" /> Project Invitation
                     </CardTitle>
-                    <CardDescription className="text-xs">
-                      An owner has invited you to join this team.
-                    </CardDescription>
+                    <CardDescription className="text-xs">An owner has invited you to join.</CardDescription>
                   </CardHeader>
                   <CardContent className="p-4 pt-2 flex flex-col gap-2">
-                    <Button
-                        size="default"
-                        className="w-full"
-                        onClick={() => handleAcceptInvite(myPendingRecord?._id)}
-                        disabled={isProcessing}
-                    >
+                    <Button className="w-full" onClick={() => handleAcceptInvite(myPendingRecord?._id)} disabled={isProcessing}>
                       {isProcessing ? <Loader2 className="animate-spin h-4 w-4" /> : "Accept Invitation"}
                     </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="w-full text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRejectInvite(myPendingRecord?._id)}
-                        disabled={isProcessing}
-                    >
+                    <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => handleRejectInvite(myPendingRecord?._id)} disabled={isProcessing}>
                       Decline
                     </Button>
                   </CardContent>
                 </Card>
             ) : (
-                /* PRIORITY 2: Standard Join/Request Logic */
                 <>
                   <Button
                       size="lg"
                       className="w-full"
                       variant={isMyPendingRequest ? "destructive" : "default"}
-                      disabled={
-                          ((project.recruitingStatus === 'closed' || isInviteOnly) &&
-                              !isMyPendingRequest) ||
-                          isProcessing
-                      }
+                      disabled={((project.recruitingStatus === 'closed' || isInviteOnly) && !isMyPendingRequest) || isProcessing}
                       onClick={handleToggleJoinRequest}
                   >
-                    {isProcessing ? (
-                        <Loader2 className="animate-spin h-4 w-4" />
-                    ) : isMyPendingRequest ? (
-                        "Cancel Request to Join"
-                    ) : project.recruitingStatus === 'closed' ? (
-                        "Recruitment Closed"
-                    ) : isAutoJoin ? (
-                        "Join Project"
-                    ) : (
-                        "Request to Join"
-                    )}
+                    {isProcessing ? <Loader2 className="animate-spin h-4 w-4" /> :
+                        isMyPendingRequest ? "Cancel Request to Join" :
+                            project.recruitingStatus === 'closed' ? "Recruitment Closed" :
+                                isAutoJoin ? "Join Project" : "Request to Join"}
                   </Button>
-
                   {isInviteOnly && !isMyPendingRequest && (
-                      <p className="text-xs text-muted-foreground mt-2 italic">
-                        This project is currently invite-only.
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-2 italic">This project is currently invite-only.</p>
                   )}
                 </>
             )}
