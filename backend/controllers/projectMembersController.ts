@@ -245,7 +245,7 @@ export const requestJoinProject = async (
           { role: 'Owner' },
           { 'permissions.canManageMembers': true }
         ]
-      }).select('userId');
+      });
 
       const managerNotifications = managers
         .map((manager) => manager.userId)
