@@ -459,39 +459,41 @@ function ProjectPage() {
       (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
   ), [members, currentUserId])
 
-  // Find the specific record for the current user
+  // 1. Find the pending record that belongs to YOU
   const myPendingRecord = useMemo(() => {
     if (!currentUserId || !members.length) return null;
 
-    return members.find(m => {
-      // Standardize ID extraction
-      const memberUserId = typeof m.userId === 'object'
-          ? m.userId?._id
-          : m.userId;
+    return members.find((m: ApiMember) => {
+      // Extract the ID from the userId object (which is populated in your interface)
+      const recordUserId = m.userId?._id || String(m.userId || '');
 
-      return String(memberUserId) === String(currentUserId) && m.membershipStatus === 'pending';
+      const isMe = String(recordUserId) === String(currentUserId);
+      const isPending = m.membershipStatus === 'pending';
+
+      return isMe && isPending;
     });
   }, [members, currentUserId]);
 
-// Determine if YOU started it (A Request)
+// 2. Check if YOU were the one who initiated the record
   const isMyPendingRequest = useMemo(() => {
-  if (!myPendingRecord || !currentUserId) return false
+    if (!myPendingRecord) return false;
 
-  const joinedByValue =
-    myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object'
-      ? myPendingRecord.joinedBy._id
-      : myPendingRecord.joinedBy
+    // 1. Extract the ID from the joinedBy field
+    // It could be a string, or an object with _id (because of .populate)
+    const inviterId = typeof myPendingRecord.joinedBy === 'object'
+        ? myPendingRecord.joinedBy?._id
+        : myPendingRecord.joinedBy;
 
-  if (!joinedByValue) return false
+    // 2. Force both to strings and compare
+    // If this is TRUE, the UI shows "Cancel Request"
+    // If this is FALSE, the UI shows "Accept/Reject Invitation"
+    return String(inviterId) === String(currentUserId);
+  }, [myPendingRecord, currentUserId]);
 
-  return String(joinedByValue) === String(currentUserId)
-}, [myPendingRecord, currentUserId])
-
-// Determine if someone ELSE started it (An Invitation)
-  const isPendingInviteToMe = useMemo(() =>
-          !!myPendingRecord && !isMyPendingRequest,
-      [myPendingRecord, isMyPendingRequest]
-  );
+  const isPendingInviteToMe = useMemo(() => {
+    // If there's a pending record but I didn't start it, someone else invited me
+    return !!myPendingRecord && !isMyPendingRequest;
+  }, [myPendingRecord, isMyPendingRequest]);
 
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
