@@ -1,9 +1,14 @@
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader } from '@/components/ui/sidebar'
-import { GraduationCap, HomeIcon, PlusIcon } from 'lucide-react'
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar'
+import { ChevronDown, GraduationCap, HomeIcon, PanelsTopLeft, PlusIcon } from 'lucide-react'
 import SidebarButton from './sidebar_button'
 import { Link } from '@tanstack/react-router'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useRecentProjects } from '@/hooks/use-recent-projects'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function UiSidebar() {
+  const { data: recentProjects, isLoading } = useRecentProjects();
+
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
@@ -30,6 +35,43 @@ export default function UiSidebar() {
           </SidebarButton>
         </SidebarGroup>
         <SidebarGroup />
+
+        {/* Projects Dropdown */}
+        <Collapsible defaultOpen className="group/collapsible w-full">
+          <SidebarGroup className="px-5 w-full gap-y-2">
+            <SidebarMenu>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="w-full justify-between font-semibold text-xs tracking-wider text-muted-foreground hover:bg-transparent">
+                    PROJECTS
+                    <ChevronDown className="transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="overflow-hidden w-full">
+                <SidebarMenuSub>
+                  <ScrollArea className="h-70 w-full pr-3">
+                    {isLoading ? (
+                      <p className="text-xs text-muted-foreground ml-4">Loading...</p>
+                    ) : (
+                      recentProjects?.map((project) => (
+                        <SidebarMenuSubItem className="mt-4" key={project._id}>
+                          <SidebarMenuSubButton asChild>
+                            <Link to={`/projects/${project._id}`} className="w-full min-w-0 text-blue-600 hover:text-blue-700">
+                              <PanelsTopLeft className="size-4 mr-2 shrink-0" />
+                              <span className="truncate">{project.name}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))
+                    )}
+                  </ScrollArea>
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </SidebarMenu>
+          </SidebarGroup>
+        </Collapsible>
       </SidebarContent>
       <hr />
       <SidebarFooter />

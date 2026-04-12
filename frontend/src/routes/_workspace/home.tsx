@@ -17,7 +17,7 @@ interface TaskCounts {
   done: number
 }
 
-interface Project {
+export interface Project {
   _id: string
   name: string
   description: string
