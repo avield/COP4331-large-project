@@ -1515,17 +1515,83 @@ const handleDeleteProject = async () => {
     const isInviteOnly = project.settings?.inviteOnly || project.visibility === 'private';
 
     return (
-        <div className="flex flex-col items-center justify-center py-24 px-6 text-center animate-in fade-in duration-500">
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
           <div className="bg-muted p-4 rounded-full mb-6 ring-1 ring-border">
             <Lock className="size-8 text-muted-foreground" />
           </div>
 
-          {/* Use project directly from loaderData to prevent empty text */}
+          {/* Title & Description */}
           <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
-          <p className="text-muted-foreground mt-2 max-w-md">
+          <p className="text-muted-foreground mt-2 max-w-xl text-balance">
             {project.description || "No description provided for this project."}
           </p>
 
+          {/* NEW SECTION: Project Information Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 w-full max-w-2xl text-left border rounded-xl p-6 bg-card/50 shadow-sm">
+
+            {/* Looking for Roles */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Looking for Roles</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {project.lookingForRoles && project.lookingForRoles.length > 0 ? (
+                    project.lookingForRoles.map((role) => (
+                        <Badge key={role} variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[11px] py-0">
+                          {role}
+                        </Badge>
+                    ))
+                ) : (
+                    <span className="text-xs text-muted-foreground italic">None listed</span>
+                )}
+              </div>
+            </div>
+
+            {/* Recruiting Status */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <UserPlus className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Recruiting Status</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`size-2 rounded-full ${project.recruitingStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className="text-sm font-medium capitalize">{project.recruitingStatus ?? 'Closed'}</span>
+              </div>
+            </div>
+
+            {/* Join Settings */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Settings className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Join Settings</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[11px] py-0 capitalize">
+                  {project.settings?.inviteOnly
+                      ? 'Invite Only'
+                      : project.settings?.requireApprovalToJoin
+                          ? 'Application Required'
+                          : 'Open Access'}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Project Due Date */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CalendarDays className="size-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Project Due Date</span>
+              </div>
+              <div className="text-sm font-medium">
+                {project.dueDate
+                    ? new Date(project.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : <span className="text-muted-foreground italic">TBD</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* ACTION BUTTONS */}
           <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
             {/* PRIORITY 1: The Invitation Card */}
             {isPendingInviteToMe ? (
