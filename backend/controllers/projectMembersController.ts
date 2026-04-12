@@ -144,8 +144,14 @@ export const requestJoinProject = async (
     const userId = req.user._id;
 
     const project = await Project.findById(projectId);
+
     if (!project || !project.settings?.allowSelfJoinRequests) {
       res.status(403).json({ message: 'Joining is disabled.' });
+      return;
+    }
+
+    if (project.recruitingStatus === 'closed') {
+      res.status(403).json({ message: 'Recruitment for this project is currently closed.' });
       return;
     }
 
@@ -317,9 +323,16 @@ export const acceptProjectInvitation = async (
       return
     }
 
+    // Make sure the person accepting is the actual subject of the record
     if (membership.userId.toString() !== req.user._id.toString()) {
       res.status(403).json({ message: 'You can only accept your own invitations.' })
       return
+    }
+
+    // Make sure they aren't approving a request THEY started
+    if (membership.joinedBy?.toString() === req.user._id.toString()) {
+      res.status(403).json({ message: 'You cannot approve your own join request.' });
+      return;
     }
 
     if (membership.membershipStatus !== 'pending') {

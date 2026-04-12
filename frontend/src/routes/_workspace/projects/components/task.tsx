@@ -9,6 +9,7 @@ type AssignedUser = {
   displayName?: string
   email?: string
   username?: string
+  profilePictureUrl?: string | null
   profile?: {
     displayName?: string
     profilePictureUrl?: string
@@ -146,23 +147,26 @@ export function KanbanTask({
               <div className="flex -space-x-2">
                 {task.assignedToUserIds.slice(0, 4).map((user) => {
                   const displayName =
-                    user.displayName ||
-                    user.profile?.displayName ||
-                    user.email ||
-                    'User'
+                      user.displayName ||
+                      user.profile?.displayName ||
+                      user.email ||
+                      'User'
+
+                  // Look for the URL in the flat property FIRST, then fall back to nested
+                  const avatarUrl = user.profilePictureUrl || user.profile?.profilePictureUrl
 
                   return (
-                    <div
-                      key={user._id}
-                      className="rounded-full ring-2 ring-background"
-                      title={displayName}
-                    >
-                      <NetworkAvatar
-                        displayName={displayName}
-                        profilePictureUrl={user.profile?.profilePictureUrl}
-                        size="sm"
-                      />
-                    </div>
+                      <div
+                          key={user._id}
+                          className="rounded-full ring-2 ring-background"
+                          title={displayName}
+                      >
+                        <NetworkAvatar
+                            displayName={displayName}
+                            profilePictureUrl={avatarUrl}
+                            size="sm"
+                        />
+                      </div>
                   )
                 })}
               </div>

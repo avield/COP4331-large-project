@@ -7,11 +7,12 @@ import { useRouter } from "@tanstack/react-router"
 import { useAuthStore } from "@/api/authStore"
 import api from "@/api/axios"
 import { NetworkAvatar } from '@/components/network-avatar'
+import { useTheme } from "@/context/ThemeContext"
 
 export default function NavbarAvatar() {
   const router = useRouter()
   const clearAuth = useAuthStore((s) => s.clearAuth)
-
+  const { theme, toggleTheme } = useTheme()
   const user = useAuthStore((s) => s.user);
   const avatarUrl = user?.profile?.profilePictureUrl;
   const displayName = user?.profile?.displayName ?? 'User';
@@ -42,8 +43,23 @@ export default function NavbarAvatar() {
             <DropdownMenuItem className="cursor-pointer" onSelect={() => router.navigate({ to: '/profile' })}>
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
-              Settings
+            <DropdownMenuItem
+              className="flex items-center justify-between gap-4 cursor-pointer"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <span>Toggle theme</span>
+              <button
+                onClick={toggleTheme}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  theme === 'dark' ? 'bg-brand' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                    theme === 'dark' ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

@@ -33,6 +33,11 @@ interface CreateProjectBody {
   dueDate?: string | null;
   goals?: GoalInput[];
   invitedMembers?: InviteMemberInput[];
+  settings?: {
+    allowSelfJoinRequests?: boolean;
+    requireApprovalToJoin?: boolean;
+    inviteOnly?: boolean;
+  };
 }
 
 interface UpdateProjectBody {
@@ -47,6 +52,7 @@ interface UpdateProjectBody {
   settings?: {
     allowSelfJoinRequests?: boolean;
     requireApprovalToJoin?: boolean;
+    inviteOnly?: boolean;
   };
 }
 
@@ -63,11 +69,13 @@ type ProjectLike = {
   toObject: () => Record<string, unknown>;
 };
 
+// No longer needed
 type PopulatedUser = {
   _id: string
   email?: string
   profile?: {
     displayName?: string
+    profilePictureUrl: string
   }
 }
 
@@ -120,6 +128,22 @@ export const createProject = async (
           }))
       : [];
 
+    const defaultSettings =
+      normalizedVisibility === 'public'
+        ? {
+            allowSelfJoinRequests: true,
+            requireApprovalToJoin: true,
+            inviteOnly: false,
+          }
+        : {
+            allowSelfJoinRequests: false,
+            requireApprovalToJoin: false,
+            inviteOnly: true,
+          };
+    
+    const defaultRecruitingStatus =
+      normalizedVisibility === 'private' ? 'closed' : 'open';
+
     await session.withTransaction(async () => {
       requireUser(req);
       const projectData: {
@@ -128,10 +152,18 @@ export const createProject = async (
         createdBy: string;
         visibility?: 'private' | 'public';
         dueDate?: Date;
+        recruitingStatus: string;
+        settings: {
+          allowSelfJoinRequests: boolean;
+          requireApprovalToJoin: boolean;
+          inviteOnly: boolean;
+        };
       } = {
         name: normalizedName,
         description: normalizedDescription,
-        createdBy: req.user._id
+        createdBy: req.user._id,
+        settings: defaultSettings,
+        recruitingStatus: defaultRecruitingStatus,
       };
 
       if (normalizedVisibility) {
@@ -453,12 +485,19 @@ export const updateProject = async (
     }
 
     if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-      project.settings = {
-        allowSelfJoinRequests:
-          settings.allowSelfJoinRequests ?? project.settings?.allowSelfJoinRequests ?? true,
-        requireApprovalToJoin:
-          settings.requireApprovalToJoin ?? project.settings?.requireApprovalToJoin ?? true,
-      };
+      if (settings.inviteOnly === true) {
+        project.settings = {
+          allowSelfJoinRequests: false,
+          requireApprovalToJoin: false,
+          inviteOnly: true,
+        };
+      } else if (settings.allowSelfJoinRequests === true) {
+        project.settings = {
+          allowSelfJoinRequests: true,
+          requireApprovalToJoin: settings.requireApprovalToJoin ?? true,
+          inviteOnly: false,
+        };
+      }
     }
 
     await project.save();
@@ -502,6 +541,7 @@ export const deleteProject = async (
     }
 
     await Task.deleteMany({ projectId });
+    await Goal.deleteMany({ projectId });
     await ProjectMember.deleteMany({ projectId });
     await Project.findByIdAndDelete(projectId);
 
@@ -520,7 +560,6 @@ export const getProjectDetails = async (
     requireUser(req);
     const { projectId } = req.params;
 
-    // Fetch the project first to check visibility
     const project = await Project.findById(projectId).populate(
         'createdBy',
         'displayName email username'
@@ -531,51 +570,63 @@ export const getProjectDetails = async (
       return;
     }
 
-    // Check if the current user is a member
+    // 1. Fetch membership and POPULATE immediately to avoid character-array bug
     const requesterMembership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
-      membershipStatus: 'active'
-    });
+    }).populate('userId', 'email profile.displayName profile.profilePictureUrl');
 
-    // SECURITY CHECK: If NOT a member...
-    if (!requesterMembership) {
-      if (project.visibility === 'public') {
-        // Return 200 OK but with restricted data for the Visitor View
+    const isMember = requesterMembership?.membershipStatus === 'active';
+    const isInvited = requesterMembership?.membershipStatus === 'pending';
+
+    // 2. VISITOR / INVITED GATE
+    if (!isMember) {
+      const canViewInfo = project.visibility === 'public' || isInvited;
+
+      if (canViewInfo) {
+        // Normalize the single record so frontend sees the same structure as members list
+        const visitorMember = requesterMembership ? [{
+          ...requesterMembership.toObject(),
+          userId: requesterMembership.userId && typeof requesterMembership.userId === 'object' ? {
+            _id: (requesterMembership.userId as any)._id.toString(),
+            email: (requesterMembership.userId as any).email,
+            displayName: (requesterMembership.userId as any).profile?.displayName ?? '',
+            profilePictureUrl: (requesterMembership.userId as any).profile?.profilePictureUrl ?? '',
+          } : null
+        }] : [];
+
         res.status(200).json({
           project,
-          isFullDetails: false, // Tells frontend to show the "Locked" UI
-          message: 'Limited visitor view for public project.'
+          members: visitorMember,
+          isFullDetails: false,
+          message: isInvited ? 'Pending membership view.' : 'Public visitor view.'
         });
         return;
       }
 
-      // If project is private and user isn't a member, block it
       res.status(403).json({ message: 'Access denied.' });
       return;
     }
 
-    // MEMBER ACCESS: Fetch everything (Goals, Members, Tasks)
+    // 3. MEMBER ACCESS (Full Data)
     const goals = await Goal.find({ projectId })
         .sort({ order: 1, createdAt: 1 })
         .populate('createdBy', 'email profile.displayName');
 
-    const members = await ProjectMember.find({
-      projectId,
-      membershipStatus: 'active'
-    })
-        .populate('userId', 'email profile.displayName')
+    const members = await ProjectMember.find({ projectId })
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'email profile.displayName')
         .sort({ createdAt: 1 });
 
     const normalizedMembers = members.map((member) => {
-      const user = member.userId as unknown as PopulatedUser | null;
+      const user = member.userId as any;
       return {
         ...member.toObject(),
-        userId: user ? {
-          _id: user._id,
+        userId: user && typeof user === 'object' ? {
+          _id: user._id?.toString(),
           email: user.email,
           displayName: user.profile?.displayName ?? '',
+          profilePictureUrl: user.profile?.profilePictureUrl ?? '',
         } : null,
       };
     });
@@ -586,22 +637,12 @@ export const getProjectDetails = async (
         .populate('completedBy', 'email profile.displayName profile.profilePictureUrl')
         .sort({ createdAt: -1 })) as TaskStatusOnly[];
 
-    const stats = {
-      totalTasks: tasks.length,
-      todo: tasks.filter((t: TaskStatusOnly) => t.status === 'todo').length,
-      in_progress: tasks.filter((t: TaskStatusOnly) => t.status === 'in_progress').length,
-      blocked: tasks.filter((t: TaskStatusOnly) => t.status === 'blocked').length,
-      done: tasks.filter((t: TaskStatusOnly) => t.status === 'done').length
-    };
-
-    // Return the full package for members
     res.status(200).json({
       project,
       members: normalizedMembers,
       tasks,
       goals,
-      stats,
-      isFullDetails: true // Tells frontend to show the Kanban/Member UI
+      isFullDetails: true
     });
 
   } catch (error) {

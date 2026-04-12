@@ -1,9 +1,14 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response } from 'express';
+import mongoose from 'mongoose';
 import { Types } from 'mongoose';
+import Task from '../models/Task.js';
+import Goal from '../models/Goal.js';
 import User from '../models/User.js';
 import ProjectMember from '../models/ProjectMember.js';
 import Project from '../models/Project.js';
-import { AuthenticatedRequest } from './searchController.js';
+import { requireUser } from '../types/guards.js';
+import type { AuthenticatedRequest } from '../types/express.js';
+
 
 interface UserParams {
     userId: string;
@@ -20,7 +25,7 @@ interface ProfileProject {
 }
 
 export const getUserProfile = async (
-    req: AuthenticatedRequest<UserParams>,
+    req: AuthenticatedRequest & { params: UserParams },
     res: Response
 ): Promise<Response> => {
     try {
@@ -103,4 +108,99 @@ export const getUserProfile = async (
         console.error('getUserProfile error:', error);
         return res.status(500).json({ message: 'Server error fetching profile.' });
     }
+};
+
+export const deleteMyAccount = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const session = await mongoose.startSession();
+
+  try {
+    requireUser(req);
+    const userId = req.user._id;
+
+    await session.withTransaction(async () => {
+      // 1) Find every active membership for this user
+      const memberships = await ProjectMember.find({
+        userId,
+        membershipStatus: 'active',
+      }).session(session);
+
+      for (const membership of memberships) {
+        const projectId = membership.projectId;
+        const isOwner = membership.role === 'Owner';
+
+        if (isOwner) {
+          // Find other active members ordered by seniority
+          const replacementMember = await ProjectMember.findOne({
+            projectId,
+            userId: { $ne: userId },
+            membershipStatus: 'active',
+          })
+            .sort({ createdAt: 1, _id: 1 })
+            .session(session);
+
+          if (replacementMember) {
+            // Transfer project ownership
+            await Project.findByIdAndUpdate(
+              projectId,
+              { createdBy: replacementMember.userId },
+              { session }
+            );
+
+            replacementMember.role = 'Owner';
+            replacementMember.permissions = {
+              canEditProject: true,
+              canManageMembers: true,
+              canCreateTasks: true,
+              canAssignTasks: true,
+              canCompleteAnyTask: true,
+              canModerateChat: true,
+            };
+            await replacementMember.save({ session });
+
+            // Remove old owner's membership row
+            await ProjectMember.deleteOne({ _id: membership._id }).session(session);
+          } else {
+            // No other active members: delete the whole project
+            await Task.deleteMany({ projectId }).session(session);
+            await Goal.deleteMany({ projectId }).session(session);
+            await ProjectMember.deleteMany({ projectId }).session(session);
+            await Project.deleteOne({ _id: projectId }).session(session);
+          }
+        } else {
+          // Non-owner: just remove their membership
+          await ProjectMember.deleteOne({ _id: membership._id }).session(session);
+        }
+      }
+
+      // 2) Unassign this user from all tasks
+      await Task.updateMany(
+        { assignedToUserIds: userId },
+        { $pull: { assignedToUserIds: userId } },
+        { session }
+      );
+
+      // 3) In case there are pending invitations / requests for this user, remove those too
+      await ProjectMember.deleteMany({ userId }).session(session);
+
+      // 4) Delete the user
+      await User.deleteOne({ _id: userId }).session(session);
+    });
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/api/auth/refresh',
+    });
+
+    res.status(200).json({ message: 'Account deleted successfully.' });
+  } catch (error) {
+    console.error('deleteMyAccount error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  } finally {
+    await session.endSession();
+  }
 };

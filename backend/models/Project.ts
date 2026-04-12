@@ -52,11 +52,15 @@ const projectSchema = new Schema(
     settings: {
       allowSelfJoinRequests: {
         type: Boolean,
-        default: true
+        default: false
       },
       requireApprovalToJoin: {
         type: Boolean,
-        default: true
+        default: false,
+      },
+      inviteOnly: {
+        type: Boolean,
+        default: true,
       }
     }
   },
@@ -67,7 +71,7 @@ projectSchema.index({ name: 'text', description: 'text', tags: 'text' });
 
 export type ProjectVisibility = 'public' | 'private';
 export type RecruitingStatus = 'open' | 'closed';
-export type ProjectStatus = 'active' | 'completed' | 'archived';
+export type ProjectStatus = 'active' | 'completed' | 'planning' | 'on_hold';
 
 export type Project = InferSchemaType<typeof projectSchema>;
 export type ProjectDocument = HydratedDocument<Project>;

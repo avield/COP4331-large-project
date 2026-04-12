@@ -53,6 +53,8 @@ import { toast } from 'sonner'
 import { GoalsOverviewChart } from "./components/goals-overview-chart"
 import { ProjectProgressAreaChart } from "./components/area-chart"
 
+const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
+
 export const Route = createFileRoute('/_workspace/projects/$projectId')({
   loader: async ({ params }) => {
     const res = await api.get(`/projects/${params.projectId}/details`)
@@ -71,10 +73,11 @@ export type BoardData = {
 
 interface ApiUserSummary {
   _id: string
-  id?: string,
+  id?: string
   displayName?: string
   email?: string
   username?: string
+  profilePictureUrl?: string | null
   profile?: {
     displayName?: string
     profilePictureUrl?: string
@@ -100,19 +103,19 @@ interface ApiTask {
 }
 
 interface ApiMember {
-  _id: string
-  projectId: string
-  userId: {
-    _id: string
-    email?: string
+  _id: string;
+  projectId: string;
+  userId?: {
+    _id: string;
+    email?: string;
+    displayName?: string;
+    profilePictureUrl?: string | null;
     profile?: {
-      displayName?: string
-      profilePictureUrl?: string
-    }
-    displayName?: string
-    avatarUrl?: string
-  }
-  role: string
+      displayName?: string;
+      profilePictureUrl?: string;
+    };
+  } | null;
+  role: string;
   permissions: {
     canEditProject: boolean
     canManageMembers: boolean
@@ -146,6 +149,7 @@ interface ApiProject {
   settings?: {
     allowSelfJoinRequests?: boolean
     requireApprovalToJoin?: boolean
+    inviteOnly?: boolean
   }
   createdBy?: {
     _id: string
@@ -188,43 +192,38 @@ function mapPriority(p: string): Task['priority'] {
 }
 
 function normalizeAssignedUsers(
-  users?: Array<
-    | string
-    | {
-        _id?: string
-        displayName?: string
-        email?: string
-        username?: string
-        profile?: {
-          displayName?: string
-          profilePictureUrl?: string
-        }
-      }
-  >
+    users?: (string | ApiUserSummary)[]
 ) {
-  return (users ?? [])
-    .map((user) => {
-      if (typeof user === 'string') {
-        return {
-          _id: user,
-          displayName: '',
-          email: '',
-          username: '',
-          profile: undefined,
-        }
-      }
+  const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
-      return {
-        ...user,
-        _id: user._id ?? '',
-        displayName:
-          user.displayName ??
-          user.profile?.displayName ??
-          user.email ??
-          '',
-      }
-    })
-    .filter((user) => user._id)
+  return (users ?? [])
+      .map((user) => {
+        // TypeScript now knows 'user' is either a string or an ApiUserSummary
+        if (typeof user === 'string') {
+          return { _id: user, displayName: '', email: '', username: '' }
+        }
+
+        // 1. Get the path safely from our Interface structure
+        const rawPath = user.profile?.profilePictureUrl || user.profilePictureUrl || null;
+
+        // 2. URL Construction
+        let finalUrl = null;
+        if (rawPath) {
+          const cleanPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+          finalUrl = rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${cleanPath}`;
+        }
+
+        return {
+          _id: (user._id || user.id || ''),
+          displayName:
+              user.profile?.displayName ??
+              user.displayName ??
+              user.email ??
+              '',
+          profilePictureUrl: finalUrl,
+        }
+      })
+      .filter((user) => user._id)
 }
 
 function buildBoardData(apiData: ApiResponse): BoardData {
@@ -317,7 +316,32 @@ function ProjectPage() {
   // Data from Loader
   const loaderData = Route.useLoaderData() as ApiResponse & { isFullDetails: boolean }
   const { isFullDetails, project } = loaderData
-  const members = useMemo(() => loaderData.members ?? [], [loaderData.members])
+
+
+  const members = useMemo(() => {
+    const rawMembers = loaderData.members ?? [];
+
+    return rawMembers.map((m) => {
+      // 1. Extract the nested path
+      const rawPath = m.userId?.profile?.profilePictureUrl || m.userId?.profilePictureUrl;
+
+      // 2. Build the full URL
+      const finalUrl = rawPath
+          ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+          : undefined;
+
+      // 3. FLATTEN the object so profilePictureUrl is at the top level of userId
+      return {
+        ...m,
+        userId: m.userId ? {
+          ...m.userId,
+          // We explicitly set this so the Avatar component sees it
+          profilePictureUrl: finalUrl
+        } : null
+      };
+    });
+  }, [loaderData.members]);
+
   const [orderedGoals, setOrderedGoals] = useState<ApiGoal[]>(() => loaderData.goals ?? [])
 
   useEffect(() => {
@@ -341,7 +365,8 @@ function ProjectPage() {
     tags: (project?.tags ?? []).join(', '),
     lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
     allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+    requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+    inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
   }))
 
   // RE-SYNC
@@ -357,7 +382,8 @@ function ProjectPage() {
       tags: (project?.tags ?? []).join(', '),
       lookingForRoles: (project?.lookingForRoles ?? []).join(', '),
       allowSelfJoin: project?.settings?.allowSelfJoinRequests ?? false,
-      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? true,
+      requireApprovalToJoin: project?.settings?.requireApprovalToJoin ?? false,
+      inviteOnly: project?.settings?.inviteOnly ?? (project?.visibility === 'private'),
     })
 
     // Re-sync the Kanban board data
@@ -372,6 +398,7 @@ function ProjectPage() {
   const [isTaskDeleteDialogOpen, setIsTaskDeleteDialogOpen] = useState(false)
   const [isDeletingTask, setIsDeletingTask] = useState(false)
   const [taskDeleteError, setTaskDeleteError] = useState('')
+  const isPrivateProject = editForm.visibility === 'private'
 
   //Member management UI States
   const [isManageMembersSheetOpen, setIsManageMembersSheetOpen] = useState(false)
@@ -427,9 +454,67 @@ function ProjectPage() {
       (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
   ), [members, currentUserId])
 
+  // Find the specific record for the current user
+  const myPendingRecord = useMemo(() => {
+    if (!currentUserId || !members.length) return null;
+
+    return members.find(m => {
+      let memberIdString = '';
+      const userIdData = m.userId;
+
+      // Reconstruct the ID from the character-mapped object
+      if (userIdData && typeof userIdData === 'object' && '0' in userIdData) {
+        const charMap = userIdData as Record<string, string>;
+        memberIdString = Object.values(charMap).join('');
+      }
+      // Handle standard populated object (local type override for _id)
+      else if (userIdData && typeof userIdData === 'object') {
+        memberIdString = (userIdData as { _id?: string })._id || '';
+      }
+      // Fallback for raw string
+      else {
+        memberIdString = String(userIdData || '');
+      }
+
+      const isMe = memberIdString === String(currentUserId);
+      const isPending = m.membershipStatus === 'pending';
+
+      return isMe && isPending;
+    });
+  }, [members, currentUserId]);
+
+// Determine if YOU started it (a Request)
+  const isMyPendingRequest = useMemo(() => {
+    if (!myPendingRecord) return false;
+
+    const inviterId = myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object'
+        ? myPendingRecord.joinedBy._id
+        : myPendingRecord.joinedBy;
+
+    return String(inviterId) === String(currentUserId);
+  }, [myPendingRecord, currentUserId]);
+
+// Determine if someone ELSE started it (an Invitation)
+  const isPendingInviteToMe = useMemo(() =>
+          !!myPendingRecord && !isMyPendingRequest,
+      [myPendingRecord, isMyPendingRequest]
+  );
+
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
   const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
+
+  // Find your membership status
+  const myRequest = useMemo(() =>
+          members.find(m => m.userId?._id === currentUserId),
+      [members, currentUserId]
+  );
+
+  const isPending = myRequest?.membershipStatus === 'pending';
+
+  // FOR DEBUGGING
+  console.log("Current Members List:", members);
+  console.log("Am I pending?:", isPending);
 
   // Memos for Analytics & UI
   const goalNameById = useMemo(() => {
@@ -606,6 +691,75 @@ function ProjectPage() {
       setIsInvitingMember(false)
     }
   }
+
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleToggleJoinRequest = async () => {
+    if (isProcessing) return; // Prevent double-clicks
+    setIsProcessing(true);
+
+    try {
+      if (isPending) {
+        // Use the membership ID from your myRequest memo
+        await api.delete(`/project-members/${myRequest?._id}/reject`);
+        toast.success("Request cancelled.");
+      } else {
+        // JOIN REQUEST
+        await api.post(`/project-members/project/${project._id}/join`);
+
+        // Determine if the join was immediate or needs approval
+        const isAutoJoin = project.settings?.allowSelfJoinRequests &&
+            !project.settings?.requireApprovalToJoin;
+
+        if (isAutoJoin) {
+          toast.success("Joined project successfully!");
+        } else {
+          toast.success("Join request sent");
+        }
+      }
+
+      // This is the most important part: tell the router to get fresh data
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Action failed:", err);
+      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAcceptInvite = async (membershipId?: string) => {
+    if (!membershipId || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await api.post(`/project-members/${membershipId}/accept`);
+      toast.success("Welcome to the project!");
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Accept failed:", err);
+      toast.error("Failed to accept invitation.");
+    } finally {
+      setIsProcessing(true); // Keep processing true to trigger the loader/refresh
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRejectInvite = async (membershipId?: string) => {
+    if (!membershipId || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      // Uses the same 'reject' route for both cancelling a request and declining an invite
+      await api.delete(`/project-members/${membershipId}/reject`);
+      toast.success("Invitation declined.");
+      await router.invalidate();
+    } catch (err: unknown) {
+      console.error("Reject failed:", err);
+      toast.error("Failed to decline invitation.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   //Approve requests, edit permissions, uninvite
   const handleUpdateMember = async (
@@ -790,7 +944,13 @@ function ProjectPage() {
       tags: (task.tags ?? []).join(', '),
       goalId: task.goalId ?? '',
       assignedToUserIds:
-        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+          task.assignedToUserIds?.map((user: unknown) => {
+            if (typeof user === 'string') return user;
+            if (user && typeof user === 'object' && '_id' in user) {
+              return (user as { _id: string })._id;
+            }
+            return '';
+          }).filter(Boolean) ?? [],
     })
     setTaskSheetMode('view')
     setIsTaskSheetOpen(true)
@@ -808,7 +968,13 @@ function ProjectPage() {
       tags: (task.tags ?? []).join(', '),
       goalId: task.goalId ?? '',
       assignedToUserIds:
-        task.assignedToUserIds?.map((user) => (typeof user === 'string' ? user : user._id)).filter(Boolean) ?? [],
+          task.assignedToUserIds?.map((user: unknown) => {
+            if (typeof user === 'string') return user;
+            if (user && typeof user === 'object' && '_id' in user) {
+              return (user as { _id: string })._id;
+            }
+            return '';
+          }).filter(Boolean) ?? [],
     })
     setTaskSheetMode('edit')
     setIsTaskSheetOpen(true)
@@ -1019,7 +1185,6 @@ function ProjectPage() {
     }
   }, [data.tasks])
 
-
   //  ********************
   //  GOAL CRUD OPERATIONS
   //  ********************
@@ -1192,11 +1357,13 @@ function ProjectPage() {
       setProjectSaveError('')
       setIsSavingProject(true)
 
+      const isPrivateProject = editForm.visibility === 'private'
+
       const payload = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
         visibility: editForm.visibility,
-        recruitingStatus: editForm.recruitingStatus,
+        recruitingStatus: isPrivateProject ? 'closed' : editForm.recruitingStatus,
         status: editForm.status,
         dueDate: editForm.dueDate || null,
         tags: editForm.tags
@@ -1208,8 +1375,9 @@ function ProjectPage() {
           .map((role) => role.trim())
           .filter(Boolean),
         settings: {
-          allowSelfJoinRequests: editForm.allowSelfJoin,
-          requireApprovalToJoin: editForm.requireApprovalToJoin,
+          allowSelfJoinRequests: isPrivateProject ? false : editForm.allowSelfJoin,
+          requireApprovalToJoin: isPrivateProject ? false : editForm.requireApprovalToJoin,
+          inviteOnly: isPrivateProject ? true : editForm.inviteOnly,
         },
       }
 
@@ -1250,29 +1418,112 @@ const handleDeleteProject = async () => {
   }
 }
 
+// Debugging code
+  console.table({
+    "User ID": currentUserId,
+    "Has Record": !!myPendingRecord,
+    "Inviter ID": typeof myPendingRecord?.joinedBy === 'object' ? myPendingRecord?.joinedBy?._id : myPendingRecord?.joinedBy,
+    "Is My Request": isMyPendingRequest,
+    "Is Invite to Me": isPendingInviteToMe
+  });
+
 // VISITOR VIEW
   if (!isFullDetails) {
+    // 1. Guard: If project is missing, show a loading state
+    if (!project) {
+      return (
+          <div className="flex h-[80vh] items-center justify-center">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          </div>
+      );
+    }
+
+    // 2. Derive settings directly from project object for accuracy
+    const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
+    const isInviteOnly = project.settings?.inviteOnly || project.visibility === 'private';
+
     return (
-        <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-          <div className="bg-muted p-4 rounded-full mb-6">
+        <div className="flex flex-col items-center justify-center py-24 px-6 text-center animate-in fade-in duration-500">
+          <div className="bg-muted p-4 rounded-full mb-6 ring-1 ring-border">
             <Lock className="size-8 text-muted-foreground" />
           </div>
+
+          {/* Use project directly from loaderData to prevent empty text */}
           <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
           <p className="text-muted-foreground mt-2 max-w-md">
-            {project.description || "This workspace is currently private."}
+            {project.description || "No description provided for this project."}
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-4">
-            <Button size="lg" className="rounded-full px-8">
-              <UserPlus className="mr-2 size-4" />
-              Request to Join
-            </Button>
-            <p className="text-xs text-muted-foreground italic">
-              Managed by {project.createdBy?.displayName || 'a community member'}
-            </p>
+          <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
+            {/* PRIORITY 1: The Invitation Card */}
+            {isPendingInviteToMe ? (
+                <Card className="border-primary/20 bg-primary/5 shadow-lg border-2">
+                  <CardHeader className="p-4 pb-2 text-left">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <UserPlus className="size-4 text-primary" />
+                      Project Invitation
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      An owner has invited you to join this team.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-2 flex flex-col gap-2">
+                    <Button
+                        size="default"
+                        className="w-full"
+                        onClick={() => handleAcceptInvite(myPendingRecord?._id)}
+                        disabled={isProcessing}
+                    >
+                      {isProcessing ? <Loader2 className="animate-spin h-4 w-4" /> : "Accept Invitation"}
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-full text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRejectInvite(myPendingRecord?._id)}
+                        disabled={isProcessing}
+                    >
+                      Decline
+                    </Button>
+                  </CardContent>
+                </Card>
+            ) : (
+                /* PRIORITY 2: Standard Join/Request Logic */
+                <>
+                  <Button
+                      size="lg"
+                      className="w-full"
+                      variant={isMyPendingRequest ? "destructive" : "default"}
+                      disabled={
+                          ((project.recruitingStatus === 'closed' || isInviteOnly) &&
+                              !isMyPendingRequest) ||
+                          isProcessing
+                      }
+                      onClick={handleToggleJoinRequest}
+                  >
+                    {isProcessing ? (
+                        <Loader2 className="animate-spin h-4 w-4" />
+                    ) : isMyPendingRequest ? (
+                        "Cancel Request to Join"
+                    ) : project.recruitingStatus === 'closed' ? (
+                        "Recruitment Closed"
+                    ) : isAutoJoin ? (
+                        "Join Project"
+                    ) : (
+                        "Request to Join"
+                    )}
+                  </Button>
+
+                  {isInviteOnly && !isMyPendingRequest && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        This project is currently invite-only.
+                      </p>
+                  )}
+                </>
+            )}
           </div>
         </div>
-    )
+    );
   }
 // MEMBER VIEW
   return (
@@ -1413,10 +1664,28 @@ const handleDeleteProject = async () => {
                       <RadioGroup
                         value={editForm.visibility}
                         onValueChange={(value) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            visibility: value as 'public' | 'private',
-                          }))
+                          setEditForm((prev) => {
+                            const nextVisibility = value as 'public' | 'private'
+
+                            if (nextVisibility === 'private') {
+                              return {
+                                ...prev,
+                                visibility: nextVisibility,
+                                recruitingStatus: 'closed',
+                                allowSelfJoin: false,
+                                requireApprovalToJoin: false,
+                                inviteOnly: true,
+                              }
+                            }
+
+                            return {
+                              ...prev,
+                              visibility: nextVisibility,
+                              allowSelfJoin: true,
+                              requireApprovalToJoin: true,
+                              inviteOnly: false,
+                            }
+                          })
                         }
                       >
                         <Field orientation="horizontal">
@@ -1443,6 +1712,11 @@ const handleDeleteProject = async () => {
 
                     <FieldSet>
                       <FieldLegend>Recruiting status</FieldLegend>
+                      {isPrivateProject && (
+                        <p className="text-sm text-muted-foreground">
+                          Private projects are automatically closed to new members.
+                        </p>
+                      )}
                       <RadioGroup
                         value={editForm.recruitingStatus}
                         onValueChange={(value) =>
@@ -1453,12 +1727,12 @@ const handleDeleteProject = async () => {
                         }
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="open" id="recruiting-open" />
+                          <RadioGroupItem value="open" id="recruiting-open" disabled={isPrivateProject} />
                           <FieldLabel htmlFor="recruiting-open">Open to new members</FieldLabel>
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="closed" id="recruiting-closed" />
+                          <RadioGroupItem value="closed" id="recruiting-closed" disabled={isPrivateProject} />
                           <FieldLabel htmlFor="recruiting-closed">Closed</FieldLabel>
                         </Field>
                       </RadioGroup>
@@ -1499,24 +1773,35 @@ const handleDeleteProject = async () => {
 
                     <FieldSet>
                       <FieldLegend>Join settings</FieldLegend>
+                      {isPrivateProject && (
+                        <p className="text-sm text-muted-foreground">
+                          Private projects are invite only.
+                        </p>
+                      )}
+
                       <RadioGroup
                         value={
-                          editForm.allowSelfJoin
-                            ? 'self_join'
+                          editForm.inviteOnly
+                            ? 'invite_only'
                             : editForm.requireApprovalToJoin
                               ? 'approval'
-                              : 'invite_only'
+                              : 'self_join'
                         }
                         onValueChange={(value) =>
                           setEditForm((prev) => ({
                             ...prev,
-                            allowSelfJoin: value === 'self_join',
+                            allowSelfJoin: value !== 'invite_only',
                             requireApprovalToJoin: value === 'approval',
+                            inviteOnly: value === 'invite_only',
                           }))
                         }
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="self_join" id="join-self" />
+                          <RadioGroupItem
+                            value="self_join"
+                            id="join-self"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-self">Self join</FieldLabel>
                             <FieldDescription>
@@ -1526,7 +1811,11 @@ const handleDeleteProject = async () => {
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="approval" id="join-approval" />
+                          <RadioGroupItem
+                            value="approval"
+                            id="join-approval"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-approval">Require approval</FieldLabel>
                             <FieldDescription>
@@ -1536,7 +1825,11 @@ const handleDeleteProject = async () => {
                         </Field>
 
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="invite_only" id="join-invite-only" />
+                          <RadioGroupItem
+                            value="invite_only"
+                            id="join-invite-only"
+                            disabled={isPrivateProject}
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="join-invite-only">Invite only</FieldLabel>
                             <FieldDescription>
@@ -1766,7 +2059,7 @@ const handleDeleteProject = async () => {
                     <CardDescription>
                       Drag goals to reorder the rings from the center outward.
                     </CardDescription>
-                    <div className="max-h-[420px] overflow-y-auto pr-2">
+                    <div className="max-h-105 overflow-y-auto pr-2">
                       <Droppable droppableId="goals-droppable">
                         {(provided) => (
                           <div
@@ -1886,11 +2179,10 @@ const handleDeleteProject = async () => {
               <div className="flex items-start gap-2">
                 <Settings className="mt-0.5 size-4 text-muted-foreground" />
                 <div>
-                  {project.settings?.allowSelfJoinRequests
-                    ? project.settings?.requireApprovalToJoin
+                  {project.settings?.inviteOnly ? 'Invite only.' 
+                    : project.settings?.requireApprovalToJoin
                       ? 'Users can request to join and wait for approval.'
-                      : 'Users can join immediately.'
-                    : 'Invite only.'}
+                      : 'Users can join immediately.'}
                 </div>
               </div>
             </CardContent>
@@ -1939,32 +2231,23 @@ const handleDeleteProject = async () => {
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="min-w-0 max-h-[420px] space-y-4 overflow-y-auto pr-2">
+            <CardContent className="min-w-0 max-h-105 space-y-4 overflow-y-auto pr-2">
               <AvatarGroup>
                 {memberPreview.map((member) => {
-                  const displayName = member.userId?.profile?.displayName ?? 'User'
-                  const isMe = member.userId?._id === user?.id
-
-                  // Always fallback to the fresh user store if it's the active session!
-                  const avatarUrl = isMe
-                      ? user?.profile?.profilePictureUrl
-                      : member.userId?.profile?.profilePictureUrl
+                  const userSummary = member.userId;
+                  const displayName = userSummary?.profile?.displayName ?? userSummary?.displayName ?? 'User';
 
                   return (
                       <NetworkAvatar
                           key={member._id}
+                          profilePictureUrl={userSummary?.profilePictureUrl ?? undefined}
                           displayName={displayName}
-                          profilePictureUrl={avatarUrl}
                           size="sm"
                       />
-                  )
+                  );
                 })}
-
-                {/* Show the remainder count if there are more than 5 members */}
                 {members.length > 5 && (
-                    <AvatarGroupCount>
-                      +{members.length - 5}
-                    </AvatarGroupCount>
+                    <AvatarGroupCount>+{members.length - 5}</AvatarGroupCount>
                 )}
               </AvatarGroup>
 
@@ -1972,47 +2255,53 @@ const handleDeleteProject = async () => {
 
               <div className="space-y-3">
                 {members.length > 0 ? (
-                  members.map((member) => {
-                    const displayName = member.userId?.profile?.displayName ??
-                        member.userId?.displayName ?? 'Unknown User';
-                    const email = member.userId?.email ?? 'No email'
+                    members.map((member: ApiMember) => {
+                      const displayName = member.userId?.profile?.displayName ??
+                          member.userId?.displayName ?? 'Unknown User';
+                      const email = member.userId?.email ?? 'No email';
 
-                    const isMe = member.userId?._id === user?.id
-                    const avatarUrl = isMe
-                    ? user?.profile?.profilePictureUrl
-                        : member.userId?.profile?.profilePictureUrl;
+                      const isMe = member.userId?._id === user?.id
+                      const rawPath = isMe
+                          ? user?.profile?.profilePictureUrl
+                          : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl);
 
-                    return (
-                      <div
-                        key={member._id}
-                        className="flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <NetworkAvatar
-                              displayName={displayName}
-                              profilePictureUrl={avatarUrl}
-                              size="sm"
-                          />
+                      const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
-                          <div>
-                            <div className="text-sm font-medium">{displayName}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {email}
+                      const finalAvatarUrl = rawPath
+                          ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+                          : undefined;
+
+                      return (
+                          <div
+                              key={member._id}
+                              className="flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <NetworkAvatar
+                                  displayName={displayName}
+                                  profilePictureUrl={finalAvatarUrl}
+                                  size="sm"
+                              />
+
+                              <div>
+                                <div className="text-sm font-medium">{displayName}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {email}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
 
-                        <Badge variant="outline">
-                          {member.role ?? 'Member'}
-                        </Badge>
-                      </div>
-                    )
-                  })
+                            <Badge variant="outline">
+                              {member.role ?? 'Member'}
+                            </Badge>
+                          </div>
+                      ); // Ensure this semicolon is here
+                    }) // Ensure this closing paren matches .map(
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="size-4" />
-                    No members available.
-                  </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="size-4" />
+                      No members available.
+                    </div>
                 )}
               </div>
             </CardContent>
@@ -2040,7 +2329,7 @@ const handleDeleteProject = async () => {
                   id="goal-filter"
                   value={goalFilter}
                   onChange={(e) => setGoalFilter(e.target.value)}
-                  className="h-9 w-full sm:w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-9 w-full sm:w-45 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="all">All Tasks</option>
                   <option value="ungrouped">No Goal</option>
@@ -2052,7 +2341,7 @@ const handleDeleteProject = async () => {
                 </select>
               </div>
 
-              <div className='w-full sm:w-[110px] flex justify-end'>
+              <div className='w-full sm:w-27.5 flex justify-end'>
                 {goalFilter !== 'all' && (
                   <Button
                     variant="outline"
