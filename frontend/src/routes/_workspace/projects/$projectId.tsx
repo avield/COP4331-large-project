@@ -1386,21 +1386,42 @@ const handleDeleteProject = async () => {
 
 // VISITOR VIEW
   if (!isFullDetails) {
-    if (!project) return <div className="flex justify-center py-24"><Loader2 className="animate-spin" /></div>;
+    // 1. Guard: If project is missing, show a loading state
+    if (!project) {
+      return (
+          <div className="flex h-[80vh] items-center justify-center">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          </div>
+      );
+    }
+
+    // 2. Derive settings directly from project object for accuracy
+    const isAutoJoin = project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin;
+    const isInviteOnly = project.settings?.inviteOnly || project.visibility === 'private';
 
     return (
-        <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-          {/* ... Project Name & Description ... */}
+        <div className="flex flex-col items-center justify-center py-24 px-6 text-center animate-in fade-in duration-500">
+          <div className="bg-muted p-4 rounded-full mb-6 ring-1 ring-border">
+            <Lock className="size-8 text-muted-foreground" />
+          </div>
+
+          {/* Use project directly from loaderData to prevent empty text */}
+          <h2 className="text-3xl font-bold tracking-tight">{project.name}</h2>
+          <p className="text-muted-foreground mt-2 max-w-md">
+            {project.description || "No description provided for this project."}
+          </p>
 
           <div className="flex flex-col gap-2 mt-8 w-full max-w-xs">
-
-            {/* Check if there is an invite waiting for the user */}
+            {/* PRIORITY 1: The Invitation Card */}
             {isPendingInviteToMe ? (
-                <Card className="border-primary/20 bg-primary/5 shadow-lg">
+                <Card className="border-primary/20 bg-primary/5 shadow-lg border-2">
                   <CardHeader className="p-4 pb-2 text-left">
-                    <CardTitle className="text-sm font-semibold">Project Invitation</CardTitle>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <UserPlus className="size-4 text-primary" />
+                      Project Invitation
+                    </CardTitle>
                     <CardDescription className="text-xs">
-                      You've been invited to join this project!
+                      An owner has invited you to join this team.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-4 pt-2 flex flex-col gap-2">
@@ -1424,30 +1445,38 @@ const handleDeleteProject = async () => {
                   </CardContent>
                 </Card>
             ) : (
-                /* Show the standard Request/Join button if no invite exists */
-                <Button
-                    size="lg"
-                    className="w-full"
-                    variant={isMyPendingRequest ? "destructive" : "default"}
-                    disabled={
-                        ((project.recruitingStatus === 'closed' || project.settings?.inviteOnly) &&
-                            !isMyPendingRequest) ||
-                        isProcessing
-                    }
-                    onClick={handleToggleJoinRequest}
-                >
-                  {isProcessing ? (
-                      <Loader2 className="animate-spin h-4 w-4" />
-                  ) : isMyPendingRequest ? (
-                      "Cancel Request to Join"
-                  ) : project.recruitingStatus === 'closed' ? (
-                      "Recruitment Closed"
-                  ) : (project.settings?.allowSelfJoinRequests && !project.settings?.requireApprovalToJoin) ? (
-                      "Join Project"
-                  ) : (
-                      "Request to Join"
+                /* PRIORITY 2: Standard Join/Request Logic */
+                <>
+                  <Button
+                      size="lg"
+                      className="w-full"
+                      variant={isMyPendingRequest ? "destructive" : "default"}
+                      disabled={
+                          ((project.recruitingStatus === 'closed' || isInviteOnly) &&
+                              !isMyPendingRequest) ||
+                          isProcessing
+                      }
+                      onClick={handleToggleJoinRequest}
+                  >
+                    {isProcessing ? (
+                        <Loader2 className="animate-spin h-4 w-4" />
+                    ) : isMyPendingRequest ? (
+                        "Cancel Request to Join"
+                    ) : project.recruitingStatus === 'closed' ? (
+                        "Recruitment Closed"
+                    ) : isAutoJoin ? (
+                        "Join Project"
+                    ) : (
+                        "Request to Join"
+                    )}
+                  </Button>
+
+                  {isInviteOnly && !isMyPendingRequest && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        This project is currently invite-only.
+                      </p>
                   )}
-                </Button>
+                </>
             )}
           </div>
         </div>
