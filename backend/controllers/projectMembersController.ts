@@ -37,13 +37,24 @@ const notifyActiveProjectMembers = async ({
   type,
   title,
   message,
+  excludeUserIds = [],
 }: {
   projectId: string;
   actorUserId: string;
-  type: 'join_request_approved' | 'join_request_denied' | 'invitation_accepted' | 'ownership_transferred' | 'project_status_changed' | 'project_member_joined' | 'project_member_left';
+  type:
+    | 'join_request_approved'
+    | 'join_request_denied'
+    | 'invitation_accepted'
+    | 'ownership_transferred'
+    | 'project_status_changed'
+    | 'project_member_joined'
+    | 'project_member_left';
   title: string;
   message: string;
+  excludeUserIds?: string[];
 }): Promise<void> => {
+  const excluded = new Set([actorUserId, ...excludeUserIds]);
+
   const activeMembers = await ProjectMember.find({
     projectId,
     membershipStatus: 'active',
@@ -51,7 +62,7 @@ const notifyActiveProjectMembers = async ({
 
   const recipientUserIds = activeMembers
     .map((member) => member.userId?.toString())
-    .filter((userId): userId is string => !!userId && userId !== actorUserId);
+    .filter((userId): userId is string => !!userId && !excluded.has(userId));
 
   if (recipientUserIds.length === 0) return;
 
@@ -339,6 +350,7 @@ export const updateProjectMember = async (
         type: 'project_member_joined',
         title: 'Member joined project',
         message: `${joinedUserName} joined ${project?.name ?? 'the project'}.`,
+        excludeUserIds: [membership.userId.toString()],
       });
     }
     const updated = await ProjectMember.findById(membership._id).populate('userId', 'email profile.displayName');
@@ -518,6 +530,7 @@ export const acceptProjectInvitation = async (
       type: 'project_member_joined',
       title: 'Member joined project',
       message: `${req.user.profile?.displayName ?? req.user.email} joined ${project?.name ?? 'the project'}.`,
+      excludeUserIds: [membership.joinedBy.toString()],
     });
 
     const updated = await ProjectMember.findById(membership._id)
