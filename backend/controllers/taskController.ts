@@ -7,6 +7,7 @@ import ProjectMember from '../models/ProjectMember.js';
 import Goal from '../models/Goal.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { requireUser } from '../types/guards.js';
+import { createNotifications } from '../services/notificationService.js';
 
 interface TaskBody {
   projectId?: string;
@@ -19,6 +20,11 @@ interface TaskBody {
   tags?: string[];
   roleRequired?: string;
   goalId?: string | null;
+}
+
+//Helper
+function toIdStrings(ids: unknown[] = []): string[] {
+  return ids.map((id) => String(id));
 }
 
 export const createTask = async (
@@ -182,6 +188,24 @@ export const createTask = async (
 
     const task = await Task.create(taskData);
 
+    const actorUserId = req.user._id.toString();
+    const initialAssignedUserIds = toIdStrings(task.assignedToUserIds ?? []).filter(
+      (id: string) => id !== actorUserId
+    );
+
+    await createNotifications(
+      initialAssignedUserIds.map((userId: string) => ({
+        recipientUserId: userId,
+        actorUserId: req.user._id,
+        type: 'task_assigned' as const,
+        title: 'Assigned to task',
+        message: `You were assigned to "${task.title}".`,
+        projectId: task.projectId,
+        taskId: task._id,
+        link: `/projects/${task.projectId}`,
+      }))
+    );
+
     const populatedTask = await Task.findById(task._id)
       .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')
       .populate('assignedToUserIds', 'email profile.displayName profile.profilePictureUrl')
@@ -298,6 +322,11 @@ export const updateTask = async (
       res.status(404).json({ message: 'Task not found.' });
       return;
     }
+
+    const oldStatus = task.status;
+    const previousAssignedIds = new Set(
+      (task.assignedToUserIds ?? []).map((id) => String(id))
+    );
 
     const membership = await ProjectMember.findOne({
       projectId: task.projectId,
@@ -426,6 +455,51 @@ export const updateTask = async (
     }
 
     await task.save();
+
+    //const oldStatus = existingTask.status;
+    const newStatus = task.status;
+
+    if (oldStatus !== newStatus) {
+      const actorUserId = req.user._id.toString();
+      const assignedUserIds = toIdStrings(task.assignedToUserIds ?? []).filter(
+        (id: string) => id !== actorUserId
+      );
+
+      await createNotifications(
+        assignedUserIds.map((userId: string) => ({
+          recipientUserId: userId,
+          actorUserId: req.user._id,
+          type: 'task_status_changed' as const,
+          title: 'Task status updated',
+          message: `"${task.title}" changed from ${oldStatus} to ${newStatus}.`,
+          projectId: task.projectId,
+          taskId: task._id,
+          link: `/projects/${task.projectId}`,
+        }))
+      );
+    }
+
+    const nextAssignedIds = new Set<string>(toIdStrings(task.assignedToUserIds ?? []));
+    const actorUserId = req.user._id.toString();
+
+    const newlyAssignedUserIds = [...nextAssignedIds].filter(
+      (id: string) => !previousAssignedIds.has(id)
+    );
+
+    await createNotifications(
+      newlyAssignedUserIds
+        .filter((id: string) => id !== actorUserId)
+        .map((userId: string) => ({
+          recipientUserId: userId,
+          actorUserId: req.user._id,
+          type: 'task_assigned' as const,
+          title: 'Assigned to task',
+          message: `You were assigned to "${task.title}".`,
+          projectId: task.projectId,
+          taskId: task._id,
+          link: `/projects/${task.projectId}`,
+        }))
+    );
 
     const populatedTask = await Task.findById(task._id)
       .populate('createdBy', 'email profile.displayName profile.profilePictureUrl')

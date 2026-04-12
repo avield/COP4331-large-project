@@ -4,6 +4,7 @@ import Project from '../models/Project.js';
 import ProjectMember from '../models/ProjectMember.js';
 import User from '../models/User.js';
 import type { AuthenticatedRequest } from '../types/express.js';
+import { createNotification, createNotifications } from '../services/notificationService.js';
 
 interface PermissionsInput {
   canEditProject: boolean;
@@ -99,6 +100,12 @@ export const addProjectMember = async (
       return;
     }
 
+    const project = await Project.findById(projectId).select('name');
+    if (!project) {
+      res.status(404).json({ message: 'Project not found.' });
+      return;
+    }
+
     const existingMembership = await ProjectMember.findOne({ projectId, userId });
     if (existingMembership) {
       res.status(400).json({ message: 'User is already in this project.' });
@@ -121,10 +128,22 @@ export const addProjectMember = async (
       membershipStatus: 'pending',
       joinedBy: req.user._id
     });
+    
+    await createNotification({
+      recipientUserId: member.userId,
+      actorUserId: req.user._id,
+      type: 'project_invitation',
+      title: 'New project invitation',
+      message: `You were invited to join ${project.name}.`,
+      projectId: member.projectId,
+      projectMemberId: member._id,
+      link: `/projects/${member.projectId}/visitor`,
+    });
 
     const populatedMember = await ProjectMember.findById(member._id)
         .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'displayName email username');
+    
 
     //Changed the message sent.
     res.status(201).json({ message: 'Invitation sent.', member: populatedMember });
@@ -180,6 +199,33 @@ export const requestJoinProject = async (
       }
     });
 
+    if (status === 'pending') {
+      const managers = await ProjectMember.find({
+        projectId,
+        membershipStatus: 'active',
+        $or: [
+          { role: 'Owner' },
+          { 'permissions.canManageMembers': true }
+        ]
+      }).select('userId');
+
+      const managerNotifications = managers
+        .map((manager) => manager.userId)
+        .filter((managerUserId) => managerUserId && managerUserId.toString() !== req.user._id.toString())
+        .map((managerUserId) => ({
+          recipientUserId: managerUserId,
+          actorUserId: req.user._id,
+          type: 'join_request_received' as const,
+          title: 'New join request',
+          message: `${req.user.profile?.displayName ?? req.user.email} requested to join ${project.name}.`,
+          projectId: member.projectId,
+          projectMemberId: member._id,
+          link: `/projects/${projectId}`
+        }));
+
+      await createNotifications(managerNotifications);
+    }
+
     res.status(201).json({ message: needsApproval ? 'Request sent!' : 'Joined!', status, member });
   } catch (error) {
     console.error('requestJoinProject error:', error);
@@ -203,6 +249,9 @@ export const updateProjectMember = async (
       res.status(404).json({ message: 'Member not found.' });
       return;
     }
+
+    requireUser(req);
+    const previousStatus = membership.membershipStatus;
 
     // Owner protection is a business rule, keep it here
     if (membership.role === 'Owner' && role && role !== 'Owner') {
@@ -228,6 +277,21 @@ export const updateProjectMember = async (
     }
 
     await membership.save();
+    
+    if (previousStatus === 'pending' && membership.membershipStatus === 'active') {
+      const project = await Project.findById(membership.projectId).select('name');
+
+      await createNotification({
+        recipientUserId: membership.userId,
+        actorUserId: req.user?._id,
+        type: 'join_request_approved',
+        title: 'Join request approved',
+        message: `Your request to join ${project?.name ?? 'the project'} was approved.`,
+        projectId: membership.projectId,
+        projectMemberId: membership._id,
+        link: `/projects/${membership.projectId}`,
+      });
+    }
     const updated = await ProjectMember.findById(membership._id).populate('userId', 'email profile.displayName');
 
     res.status(200).json({ message: 'Member updated.', member: updated });
@@ -296,13 +360,38 @@ export const getSpecificPendingInvite = async (
 };
 
 export const denyJoinRequest = async (
-    req: AuthenticatedRequest & { params: { membershipId: string } },
-    res: Response
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
 ): Promise<void> => {
   try {
-    await ProjectMember.findByIdAndDelete(req.params.membershipId);
+    requireUser(req);
+
+    const { membershipId } = req.params;
+
+    const membership = await ProjectMember.findById(membershipId);
+    if (!membership) {
+      res.status(404).json({ message: 'Request not found.' });
+      return;
+    }
+
+    const project = await Project.findById(membership.projectId).select('name');
+
+    await createNotification({
+      recipientUserId: membership.userId,
+      actorUserId: req.user._id,
+      type: 'join_request_denied',
+      title: 'Join request denied',
+      message: `Your request to join ${project?.name ?? 'the project'} was denied.`,
+      projectId: membership.projectId,
+      projectMemberId: membership._id,
+      link: `/projects/${membership.projectId}/visitor`,
+    });
+
+    await ProjectMember.findByIdAndDelete(membershipId);
+
     res.status(200).json({ message: 'Request denied.' });
   } catch (error) {
+    console.error('denyJoinRequest error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
@@ -340,8 +429,26 @@ export const acceptProjectInvitation = async (
       return
     }
 
+    if (!membership.joinedBy) {
+      console.error('Missing joinedBy on membership:', membership._id)
+      res.status(500).json({ message: 'Unable to accept invitation due to invalid membership data.' })
+      return
+    }
+
     membership.membershipStatus = 'active'
     await membership.save()
+    const project = await Project.findById(membership.projectId).select('name');
+
+    await createNotification({
+      recipientUserId: membership.joinedBy,
+      actorUserId: req.user._id,
+      type: 'invitation_accepted',
+      title: 'Invitation accepted',
+      message: `${req.user.profile?.displayName ?? req.user.email} accepted your invitation to ${project?.name ?? 'the project'}.`,
+      projectId: membership.projectId,
+      projectMemberId: membership._id,
+      link: `/projects/${membership.projectId}`,
+    });
 
     const updated = await ProjectMember.findById(membership._id)
       .populate('userId', 'email profile.displayName profile.profilePictureUrl')
