@@ -570,26 +570,32 @@ export const getProjectDetails = async (
       return;
     }
 
-    // Check if the current user is a member
+    // etch the user's membership regardless of status
     const requesterMembership = await ProjectMember.findOne({
       projectId,
       userId: req.user._id,
-      membershipStatus: 'active'
     });
 
-    // SECURITY CHECK: If NOT a member...
-    if (!requesterMembership) {
-      if (project.visibility === 'public') {
-        // Return 200 OK but with restricted data for the Visitor View
+    const isMember = requesterMembership?.membershipStatus === 'active';
+    const isInvited = requesterMembership?.membershipStatus === 'pending';
+
+    // SECURITY GATE
+    if (!isMember) {
+      // Allow entry if it's a PUBLIC project OR if the user has a PENDING invite/request
+      const canViewInfo = project.visibility === 'public' || isInvited;
+
+      if (canViewInfo) {
         res.status(200).json({
           project,
-          isFullDetails: false, // Tells frontend to show the "Locked" UI
-          message: 'Limited visitor view for public project.'
+          // Pass the pending record so the frontend sees the invitation
+          members: requesterMembership ? [requesterMembership] : [],
+          isFullDetails: false,
+          message: isInvited ? 'Pending membership view.' : 'Public visitor view.'
         });
         return;
       }
 
-      // If project is private and user isn't a member, block it
+      // If it's private and there's no record (or they were removed), block them
       res.status(403).json({ message: 'Access denied.' });
       return;
     }
