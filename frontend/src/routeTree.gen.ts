@@ -14,6 +14,7 @@ import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorkspaceProfileRouteImport } from './routes/_workspace/profile'
 import { Route as WorkspaceHomeRouteImport } from './routes/_workspace/home'
+import { Route as authResendVerificationRouteImport } from './routes/(auth)/resend-verification'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
@@ -44,6 +45,11 @@ const WorkspaceHomeRoute = WorkspaceHomeRouteImport.update({
   id: '/home',
   path: '/home',
   getParentRoute: () => WorkspaceRouteRoute,
+} as any)
+const authResendVerificationRoute = authResendVerificationRouteImport.update({
+  id: '/resend-verification',
+  path: '/resend-verification',
+  getParentRoute: () => authRouteRoute,
 } as any)
 const authRegisterRoute = authRegisterRouteImport.update({
   id: '/register',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
+  '/resend-verification': typeof authResendVerificationRoute
   '/home': typeof WorkspaceHomeRoute
   '/profile': typeof WorkspaceProfileRoute
   '/reset-password/$token': typeof authResetPasswordTokenRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
+  '/resend-verification': typeof authResendVerificationRoute
   '/home': typeof WorkspaceHomeRoute
   '/profile': typeof WorkspaceProfileRoute
   '/reset-password/$token': typeof authResetPasswordTokenRoute
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/register': typeof authRegisterRoute
+  '/(auth)/resend-verification': typeof authResendVerificationRoute
   '/_workspace/home': typeof WorkspaceHomeRoute
   '/_workspace/profile': typeof WorkspaceProfileRoute
   '/(auth)/reset-password/$token': typeof authResetPasswordTokenRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
+    | '/resend-verification'
     | '/home'
     | '/profile'
     | '/reset-password/$token'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
+    | '/resend-verification'
     | '/home'
     | '/profile'
     | '/reset-password/$token'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/(auth)/forgot-password'
     | '/(auth)/login'
     | '/(auth)/register'
+    | '/(auth)/resend-verification'
     | '/_workspace/home'
     | '/_workspace/profile'
     | '/(auth)/reset-password/$token'
@@ -204,6 +216,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/home'
       preLoaderRoute: typeof WorkspaceHomeRouteImport
       parentRoute: typeof WorkspaceRouteRoute
+    }
+    '/(auth)/resend-verification': {
+      id: '/(auth)/resend-verification'
+      path: '/resend-verification'
+      fullPath: '/resend-verification'
+      preLoaderRoute: typeof authResendVerificationRouteImport
+      parentRoute: typeof authRouteRoute
     }
     '/(auth)/register': {
       id: '/(auth)/register'
@@ -261,6 +280,7 @@ interface authRouteRouteChildren {
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
+  authResendVerificationRoute: typeof authResendVerificationRoute
   authResetPasswordTokenRoute: typeof authResetPasswordTokenRoute
 }
 
@@ -268,6 +288,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authForgotPasswordRoute: authForgotPasswordRoute,
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
+  authResendVerificationRoute: authResendVerificationRoute,
   authResetPasswordTokenRoute: authResetPasswordTokenRoute,
 }
 

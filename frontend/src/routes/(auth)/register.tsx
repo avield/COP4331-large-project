@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -102,10 +102,22 @@ export default function Register() {
         }
       </p> : null }
 
-      { registerMutation.isSuccess ? 
-      <p className="text-green-500 text-center">
-        {registerMutation.data?.message}
-      </p> : null }
+      { registerMutation.isSuccess ? (
+        <div className='space-y-2 text-center'>
+          <p className="text-green-500 text-center">
+            {registerMutation.data?.message}
+          </p>
+
+          <Link
+            to="/resend-verification"
+            search={{ email: '' }}
+            className="text-sm font-medium text-muted-foreground hover:text-primary"
+          >
+            Need a new verification email?
+          </Link>
+        </div>
+      )
+      : null }
     </AuthLayout>
   )
 }

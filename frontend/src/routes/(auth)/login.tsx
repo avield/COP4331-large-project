@@ -35,10 +35,20 @@ export default function Login() {
     },
   });
 
-  const handleSubmit = (event: React.SubmitEvent) => {
-    event.preventDefault(); // Stops auto-clear
-    loginMutation.mutate(new FormData(event.target));
-  };
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    loginMutation.mutate(new FormData(event.currentTarget))
+  }
+
+  const backendErrorMessage =
+    loginMutation.isError
+      ? isAxiosError(loginMutation.error)
+        ? loginMutation.error.response?.data?.message || loginMutation.error.message
+        : loginMutation.error.message
+      : ''
+
+  const showResendVerificationLink =
+    backendErrorMessage === 'Please verify your email before logging in.'
 
   return (
     <AuthLayout
@@ -85,15 +95,25 @@ export default function Login() {
         </Button>
 
       </form>
-      { loginMutation.isError ? 
-      <p className="text-red-500 text-center">
-        {isAxiosError(loginMutation.error) 
-          // If it's an Axios error, try to get the backend's custom message first
-          ? loginMutation.error.response?.data?.message || loginMutation.error.message
-          // If it's a normal JS error, just show the message
-          : loginMutation.error.message
-        }
-      </p> : null }
+      {loginMutation.isError ? (
+        <div className="space-y-2 text-center">
+          <p className="text-red-500">
+            {backendErrorMessage}
+          </p>
+
+          {showResendVerificationLink ? (
+            <Link
+              to="/resend-verification"
+              search={{
+                email: String(loginMutation.variables?.get('email') ?? ''),
+              }}
+              className="text-sm font-medium text-muted-foreground hover:text-primary"
+            >
+              Resend verification email
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
     </AuthLayout>
   )
 }
