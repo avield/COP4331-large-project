@@ -605,19 +605,21 @@ export const getProjectDetails = async (
         .sort({ order: 1, createdAt: 1 })
         .populate('createdBy', 'email profile.displayName');
 
+    // Fetch the members and explicitly POPULATE the userId field
     const members = await ProjectMember.find({
       projectId,
-      membershipStatus: 'active'
+      // Note: Removed the 'active' filter here so we can find the 'pending' record!
     })
         .populate('userId', 'email profile.displayName profile.profilePictureUrl')
         .populate('joinedBy', 'email profile.displayName')
         .sort({ createdAt: 1 });
 
+// Now the normalization logic will work because userId is a real object, not a byte-array
     const normalizedMembers = members.map((member) => {
-      const user = member.userId as unknown as PopulatedUser | null;
+      const user = member.userId as any;
       return {
         ...member.toObject(),
-        userId: user ? {
+        userId: user && typeof user === 'object' ? {
           _id: user._id,
           email: user.email,
           displayName: user.profile?.displayName ?? '',

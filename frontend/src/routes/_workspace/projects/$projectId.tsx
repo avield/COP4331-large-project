@@ -457,12 +457,20 @@ function ProjectPage() {
   // Find the specific record for the current user
   const myPendingRecord = useMemo(() => {
     return members.find(m => {
-      // SAFELY extract the ID from the populated userId object
-      const memberUserId = m.userId && typeof m.userId === 'object'
-          ? m.userId._id
-          : m.userId;
+      let memberUserId = '';
 
-      // Perform the string comparison
+      if (typeof m.userId === 'object' && m.userId !== null) {
+        // If it's that weird character-mapped object, join the values
+        if ('0' in m.userId) {
+          memberUserId = Object.values(m.userId).filter(val => typeof val === 'string').join('');
+        } else {
+          memberUserId = m.userId._id || '';
+        }
+      } else {
+        memberUserId = m.userId || '';
+      }
+
+      // Now the comparison will work!
       const isMe = String(memberUserId) === String(currentUserId);
       const isPending = m.membershipStatus === 'pending';
 
