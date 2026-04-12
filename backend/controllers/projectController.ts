@@ -7,6 +7,7 @@ import Task from '../models/Task.js';
 import ProjectMember from '../models/ProjectMember.js';
 import Goal from '../models/Goal.js';
 import type { AuthenticatedRequest } from '../types/express.js';
+import { createNotifications } from '../services/notificationService.js';
 
 interface GoalInput {
   title?: string;
@@ -76,6 +77,10 @@ type PopulatedUser = {
     displayName?: string
     profilePictureUrl: string
   }
+}
+
+function formatProjectStatusLabel(status: string): string {
+  return status.replace(/_/g, ' ');
 }
 
 export const createProject = async (
@@ -435,6 +440,8 @@ export const updateProject = async (
       return;
     }
 
+    const oldStatus = project.status;
+
     if (typeof name === 'string' && name.trim()) {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -500,6 +507,31 @@ export const updateProject = async (
     }
 
     await project.save();
+
+    const newStatus = project.status;
+
+    if (oldStatus !== newStatus) {
+      const activeMembers = await ProjectMember.find({
+        projectId: project._id,
+        membershipStatus: 'active',
+      }).select('userId');
+
+      const recipientUserIds = activeMembers
+        .map((member) => member.userId.toString())
+        .filter((userId: string) => userId !== req.user._id);
+
+      await createNotifications(
+        recipientUserIds.map((userId: string) => ({
+          recipientUserId: userId,
+          actorUserId: req.user._id,
+          type: 'project_status_changed' as const,
+          title: 'Project status updated',
+          message: `"${project.name}" changed from ${formatProjectStatusLabel(oldStatus)} to ${formatProjectStatusLabel(newStatus)}.`,
+          projectId: project._id,
+          link: `/projects/${project._id}`,
+        }))
+      );
+    }
 
     res.status(200).json({ message: 'Project updated successfully.', project });
   } catch (error) {
