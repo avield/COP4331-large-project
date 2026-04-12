@@ -52,7 +52,7 @@ const notificationSchema = new Schema<NotificationDocument>(
         'invitation_accepted',
         'task_assigned',
         'task_status_changed',
-        'project_updated',
+        'project_status_changed',
         'join_request_received',
         'join_request_approved',
         'join_request_denied'
