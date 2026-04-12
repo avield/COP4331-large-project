@@ -416,14 +416,14 @@ export const acceptProjectInvitation = async (
       return
     }
 
-    membership.membershipStatus = 'active'
-    await membership.save()
-
     if (!membership.joinedBy) {
-      console.error('Missing joinedBy on membership:', membership._id);
-      return;
+      console.error('Missing joinedBy on membership:', membership._id)
+      res.status(500).json({ message: 'Unable to accept invitation due to invalid membership data.' })
+      return
     }
 
+    membership.membershipStatus = 'active'
+    await membership.save()
     const project = await Project.findById(membership.projectId).select('name');
 
     await createNotification({
