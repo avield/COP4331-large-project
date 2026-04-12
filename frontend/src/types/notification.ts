@@ -7,7 +7,9 @@ export type NotificationType =
   | 'join_request_received'
   | 'join_request_approved'
   | 'join_request_denied'
-  | 'ownership_transferred';
+  | 'ownership_transferred'
+  | 'project_member_joined'
+  | 'project_member_left';
 
 
 export interface Notification {

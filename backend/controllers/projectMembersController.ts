@@ -30,6 +30,44 @@ interface UpdateProjectMemberBody {
 const validMembershipStatuses = ['active', 'pending', 'removed'] as const;
 type ValidMembershipStatus = (typeof validMembershipStatuses)[number];
 
+//Helper to notify other users when a person leaves or joins a project
+const notifyActiveProjectMembers = async ({
+  projectId,
+  actorUserId,
+  type,
+  title,
+  message,
+}: {
+  projectId: string;
+  actorUserId: string;
+  type: 'join_request_approved' | 'join_request_denied' | 'invitation_accepted' | 'ownership_transferred' | 'project_status_changed' | 'project_member_joined' | 'project_member_left';
+  title: string;
+  message: string;
+}): Promise<void> => {
+  const activeMembers = await ProjectMember.find({
+    projectId,
+    membershipStatus: 'active',
+  }).select('userId');
+
+  const recipientUserIds = activeMembers
+    .map((member) => member.userId?.toString())
+    .filter((userId): userId is string => !!userId && userId !== actorUserId);
+
+  if (recipientUserIds.length === 0) return;
+
+  await createNotifications(
+    recipientUserIds.map((recipientUserId) => ({
+      recipientUserId,
+      actorUserId,
+      type,
+      title,
+      message,
+      projectId,
+      link: `/projects/${projectId}`,
+    }))
+  );
+};
+
 // --- GETTERS ---
 
 export const getProjectMembers = async (
@@ -280,16 +318,27 @@ export const updateProjectMember = async (
     
     if (previousStatus === 'pending' && membership.membershipStatus === 'active') {
       const project = await Project.findById(membership.projectId).select('name');
+      const actorName = req.user.profile?.displayName ?? req.user.email;
+      const joinedUser = await User.findById(membership.userId).select('email profile.displayName');
+      const joinedUserName = joinedUser?.profile?.displayName ?? joinedUser?.email ?? 'A new member';
 
       await createNotification({
         recipientUserId: membership.userId,
-        actorUserId: req.user?._id,
+        actorUserId: req.user._id,
         type: 'join_request_approved',
         title: 'Join request approved',
         message: `Your request to join ${project?.name ?? 'the project'} was approved.`,
         projectId: membership.projectId,
         projectMemberId: membership._id,
         link: `/projects/${membership.projectId}`,
+      });
+
+      await notifyActiveProjectMembers({
+        projectId: membership.projectId.toString(),
+        actorUserId: req.user._id.toString(),
+        type: 'project_member_joined',
+        title: 'Member joined project',
+        message: `${joinedUserName} joined ${project?.name ?? 'the project'}.`,
       });
     }
     const updated = await ProjectMember.findById(membership._id).populate('userId', 'email profile.displayName');
@@ -324,7 +373,20 @@ export const removeProjectMember = async (
       return;
     }
 
+    const project = await Project.findById(membership.projectId).select('name');
+    const removedUser = await User.findById(membership.userId).select('email profile.displayName');
+    const removedUserName = removedUser?.profile?.displayName ?? removedUser?.email ?? 'A member';
+
     await ProjectMember.findByIdAndDelete(membershipId);
+
+    await notifyActiveProjectMembers({
+      projectId: membership.projectId.toString(),
+      actorUserId: req.user._id.toString(),
+      type: 'project_status_changed',
+      title: 'Member left project',
+      message: `${removedUserName} was removed from ${project?.name ?? 'the project'}.`,
+    });
+
     res.status(200).json({ message: 'Member removed.' });
   } catch (error) {
     console.error('removeProjectMember error:', error);
@@ -450,6 +512,14 @@ export const acceptProjectInvitation = async (
       link: `/projects/${membership.projectId}`,
     });
 
+    await notifyActiveProjectMembers({
+      projectId: membership.projectId.toString(),
+      actorUserId: req.user._id.toString(),
+      type: 'project_member_joined',
+      title: 'Member joined project',
+      message: `${req.user.profile?.displayName ?? req.user.email} joined ${project?.name ?? 'the project'}.`,
+    });
+
     const updated = await ProjectMember.findById(membership._id)
       .populate('userId', 'email profile.displayName profile.profilePictureUrl')
       .populate('joinedBy', 'email profile.displayName')
@@ -540,9 +610,21 @@ export const leaveProject = async (
     }
 
     if (membership.role !== 'Owner') {
-      await ProjectMember.findByIdAndDelete(membership._id)
-      res.status(200).json({ message: 'You left the project.' })
-      return
+      const project = await Project.findById(projectId).select('name');
+      const actorName = req.user.profile?.displayName ?? req.user.email;
+
+      await ProjectMember.findByIdAndDelete(membership._id);
+
+      await notifyActiveProjectMembers({
+        projectId,
+        actorUserId: req.user._id.toString(),
+        type: 'project_member_left',
+        title: 'Member left project',
+        message: `${actorName} left ${project?.name ?? 'the project'}.`,
+      });
+
+      res.status(200).json({ message: 'You left the project.' });
+      return;
     }
 
     const nextOwner = await ProjectMember.findOne({
@@ -586,6 +668,14 @@ export const leaveProject = async (
       projectId,
       link: `/projects/${projectId}`,
     })
+
+    await notifyActiveProjectMembers({
+      projectId,
+      actorUserId: req.user._id.toString(),
+      type: 'project_member_left',
+      title: 'Member left project',
+      message: `${req.user.profile?.displayName ?? req.user.email} left ${project?.name ?? 'the project'}.`,
+    });
 
     res.status(200).json({
       message: 'Ownership transferred and you left the project.',
