@@ -460,20 +460,20 @@ function ProjectPage() {
 
     return members.find(m => {
       let memberIdString = '';
+      const userIdData = m.userId;
 
-      // Handle the "character array" bug {0: '6', 1: '9'}
-      if (m.userId && typeof m.userId === 'object' && '0' in m.userId) {
-        memberIdString = Object.values(m.userId)
-            .filter(val => typeof val === 'string')
-            .join('');
+      // Reconstruct the ID from the character-mapped object
+      if (userIdData && typeof userIdData === 'object' && '0' in userIdData) {
+        const charMap = userIdData as Record<string, string>;
+        memberIdString = Object.values(charMap).join('');
       }
-      // Handle populated object
-      else if (m.userId && typeof m.userId === 'object') {
-        memberIdString = m.userId._id || (m.userId as any).id || '';
+      // Handle standard populated object (local type override for _id)
+      else if (userIdData && typeof userIdData === 'object') {
+        memberIdString = (userIdData as { _id?: string })._id || '';
       }
-      // Handle raw string
+      // Fallback for raw string
       else {
-        memberIdString = String(m.userId || '');
+        memberIdString = String(userIdData || '');
       }
 
       const isMe = memberIdString === String(currentUserId);
