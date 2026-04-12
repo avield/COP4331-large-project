@@ -460,7 +460,6 @@ function ProjectPage() {
   ), [members, currentUserId])
 
   // Find the specific record for the current user
-  // 1. Find the pending record for the current user
   const myPendingRecord = useMemo(() => {
     if (!currentUserId || !members.length) return null;
 
@@ -474,20 +473,21 @@ function ProjectPage() {
     });
   }, [members, currentUserId]);
 
-// 2. Determine if YOU started it (A Request)
+// Determine if YOU started it (A Request)
   const isMyPendingRequest = useMemo(() => {
-    if (!myPendingRecord) return false;
+    if (!myPendingRecord || !currentUserId) return false;
 
-    // Extract inviter ID safely
-    const inviterId = typeof myPendingRecord.joinedBy === 'object'
-        ? myPendingRecord.joinedBy?._id
+    // 1. Extract the ID from joinedBy (handles both string and populated object)
+    const inviterId = (myPendingRecord.joinedBy && typeof myPendingRecord.joinedBy === 'object')
+        ? myPendingRecord.joinedBy._id
         : myPendingRecord.joinedBy;
 
-    // If the 'joinedBy' (inviter) is ME, then it was a Request I initiated
-    return String(inviterId) === String(currentUserId);
+    // 2. STRICTER COMPARISON: Force both to strings and trim them
+    // This prevents issues where one is an ObjectId and one is a String
+    return String(inviterId).trim() === String(currentUserId).trim();
   }, [myPendingRecord, currentUserId]);
 
-// 3. Determine if someone ELSE started it (An Invitation)
+// Determine if someone ELSE started it (An Invitation)
   const isPendingInviteToMe = useMemo(() =>
           !!myPendingRecord && !isMyPendingRequest,
       [myPendingRecord, isMyPendingRequest]
