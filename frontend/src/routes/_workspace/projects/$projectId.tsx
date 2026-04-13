@@ -1708,8 +1708,8 @@ const handleDeleteProject = async () => {
           {myMembership && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  Leave Project
+                <Button variant="destructive" disabled={isLeavingProject}>
+                  {isLeavingProject ? 'Leaving...' : 'Leave Project'}
                 </Button>
               </AlertDialogTrigger>
 
@@ -1730,10 +1730,16 @@ const handleDeleteProject = async () => {
                       e.preventDefault()
                       void handleLeaveProject()
                     }}
+                    disabled={isLeavingProject}
                     className="bg-destructive text-destructive-foreground"
                   >
-                    Leave Project
+                    {isLeavingProject ? 'Leaving...' : 'Leave Project'}
                   </AlertDialogAction>
+                  {leaveProjectError && (
+                    <p className="text-sm text-destructive">
+                      {leaveProjectError}
+                    </p>
+                  )}
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
