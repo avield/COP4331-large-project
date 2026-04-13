@@ -76,7 +76,7 @@ const getRefreshCookieOptions = (): CookieOptions => {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
-    path: '/api/auth/refresh',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000
   };
 };
@@ -467,16 +467,9 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
     }
 
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-
-    user.refreshTokenHash = hashToken(newRefreshToken);
-    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await user.save();
-
-    setRefreshTokenCookie(res, newRefreshToken);
 
     res.status(200).json({
-      accessToken: newAccessToken
+      accessToken: newAccessToken,
     });
   } catch (error) {
     console.error(error);
