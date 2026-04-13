@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { UserContributionAreaChart, type ContributionTask } from '@/components/UserContributionAreaChart'
+import { Card } from '@/components/ui/card'
 
 // INTERFACES
 interface Project {
@@ -50,8 +52,14 @@ interface PendingInvite {
     };
 }
 
+interface LoaderResult {
+    user: UserProfileData;
+    tasks: ContributionTask[];
+}
+
 export const Route = createFileRoute('/_workspace/users/$userId')({
-    loader: async ({ params }) => {
+    // Added the explicit return type here
+    loader: async ({ params }): Promise<LoaderResult | null> => {
         const auth = useAuthStore.getState();
         const currentUser = auth.user;
 
@@ -60,9 +68,18 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
         }
 
         try {
-            const { data } = await api.get<UserProfileData>(`/users/${params.userId}`);
-            return data;
-        } catch {
+            const [userRes, tasksRes] = await Promise.all([
+                api.get<UserProfileData>(`/users/${params.userId}`),
+                api.get<ContributionTask[]>(`/tasks/contributions/user/${params.userId}`)
+                    .catch(() => ({ data: [] }))
+            ]);
+
+            return {
+                user: userRes.data,
+                tasks: tasksRes.data || [],
+            };
+        } catch (err) {
+            console.error("Failed to load user profile:", err);
             return null;
         }
     },
@@ -156,7 +173,8 @@ function UserProfilePage() {
         return <div className="max-w-4xl mx-auto p-6 text-center">User not found</div>
     }
 
-    const { user, projects } = data
+    const { user: userData, tasks } = data
+    const { user, projects } = userData
 
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-10">
@@ -284,6 +302,17 @@ function UserProfilePage() {
                                 </Button>
                             </div>
                         )}
+                    </section>
+                    <section className="pt-6 border-t space-y-4">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                            Activity History
+                        </h2>
+                        <Card className="border border-border/50 bg-card/30 shadow-none overflow-hidden">
+                            <UserContributionAreaChart
+                                tasks={tasks}
+                                displayName={user.displayName}
+                            />
+                        </Card>
                     </section>
                 </div>
 
