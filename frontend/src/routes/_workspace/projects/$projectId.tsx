@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter, Link } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
 import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
 import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2, ChevronDown } from 'lucide-react'
@@ -517,7 +517,7 @@ function ProjectPage() {
       (m) => m.membershipStatus === 'active' && m.userId?._id === currentUserId
   ), [members, currentUserId])
 
-  // 1. Find the pending record that belongs to YOU
+  // Find the pending record that belongs to YOU
   const myPendingRecord = useMemo(() => {
     if (!currentUserId || !members.length) return null;
 
@@ -532,24 +532,23 @@ function ProjectPage() {
     });
   }, [members, currentUserId]);
 
-// 2. Check if YOU were the one who initiated the record
+// Check if YOU were the one who initiated the record
   const isMyPendingRequest = useMemo(() => {
     if (!myPendingRecord) return false;
 
-    // 1. Extract the ID from the joinedBy field
+    // Extract the ID from the joinedBy field
     // It could be a string, or an object with _id (because of .populate)
     const inviterId = typeof myPendingRecord.joinedBy === 'object'
         ? myPendingRecord.joinedBy?._id
         : myPendingRecord.joinedBy;
 
-    // 2. Force both to strings and compare
+    // Force both to strings and compare
     // If this is TRUE, the UI shows "Cancel Request"
     // If this is FALSE, the UI shows "Accept/Reject Invitation"
     return String(inviterId) === String(currentUserId);
   }, [myPendingRecord, currentUserId]);
 
   const isPendingInviteToMe = useMemo(() => {
-    // If there's a pending record but I didn't start it, someone else invited me
     return !!myPendingRecord && !isMyPendingRequest;
   }, [myPendingRecord, isMyPendingRequest]);
 
@@ -2483,55 +2482,66 @@ const handleDeleteProject = async () => {
 
             <div className="space-y-3">
               {members.length > 0 ? (
-                members.map((member: ApiMember) => {
-                  const displayName =
-                    member.userId?.profile?.displayName ??
-                    member.userId?.displayName ??
-                    'Unknown User'
-                  const email = member.userId?.email ?? 'No email'
+                  members.map((member: ApiMember) => {
+                    // Safety check: skip if userId is missing
+                    if (!member.userId) return null;
 
-                  const isMe = member.userId?._id === user?.id
-                  const rawPath = isMe
-                    ? user?.profile?.profilePictureUrl
-                    : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl)
+                    const displayName =
+                        member.userId?.profile?.displayName ??
+                        member.userId?.displayName ??
+                        'Unknown User'
+                    const email = member.userId?.email ?? 'No email'
 
-                  const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000'
+                    const isMe = member.userId?._id === currentUserId
+                    const rawPath = isMe
+                        ? user?.profile?.profilePictureUrl
+                        : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl)
 
-                  const finalAvatarUrl = rawPath
-                    ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
-                    : undefined
+                    const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000'
 
-                  return (
-                    <div
-                      key={member._id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <NetworkAvatar
-                          displayName={displayName}
-                          profilePictureUrl={finalAvatarUrl}
-                          size="sm"
-                        />
+                    const finalAvatarUrl = rawPath
+                        ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+                        : undefined
 
-                        <div>
-                          <div className="text-sm font-medium">{displayName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {email}
-                          </div>
+                    return (
+                        <div key={member._id} className="flex items-center justify-between gap-3">
+                          {/* Wrap the Avatar and Name in a Link */}
+                          <Link
+                              to="/users/$userId"
+                              params={{ userId: member.userId._id }}
+                              className="flex items-center gap-3 group transition-opacity hover:opacity-80"
+                          >
+                            <div className="flex items-center gap-3">
+                              <NetworkAvatar
+                                  displayName={displayName}
+                                  profilePictureUrl={finalAvatarUrl}
+                                  size="sm"
+                                  className="group-hover:ring-2 group-hover:ring-primary/20 transition-all"
+                              />
+
+                              <div>
+                                <div className="text-sm font-medium group-hover:text-primary transition-colors">
+                                  {displayName}
+                                  {isMe && <span className="ml-2 text-[10px] text-muted-foreground">(You)</span>}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {email}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Badge variant="outline">
+                            {member.role ?? 'Member'}
+                          </Badge>
                         </div>
-                      </div>
-
-                      <Badge variant="outline">
-                        {member.role ?? 'Member'}
-                      </Badge>
-                    </div>
-                  )
-                })
+                    )
+                  })
               ) : (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="size-4" />
-                  No members available.
-                </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Users className="size-4" />
+                    No members available.
+                  </div>
               )}
             </div>
           </CollapsibleCardSection>
