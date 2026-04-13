@@ -561,6 +561,29 @@ export const deleteTask = async (
   }
 };
 
+// Used to get task information for user and profile pages
+export const getMyTaskContributions = async (
+    req: AuthenticatedRequest,
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+
+    const contributions = await Task.find({
+      assignedToUserIds: req.user._id,
+      status: 'done',
+      completedAt: { $ne: null }
+    })
+        .select('completedAt status title')
+        .sort({ completedAt: 1 });
+
+    res.status(200).json(contributions);
+  } catch (error) {
+    console.error('getMyTaskContributions error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 export const getTasksTodo = async (
   request: AuthenticatedRequest,
   response: Response,

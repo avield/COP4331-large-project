@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 
-// 1. Import the Chart and its Interface
+// Import the Chart and its Interface
 import { UserContributionAreaChart, type ContributionTask } from '@/components/UserContributionAreaChart'
 import * as React from "react";
 
@@ -45,16 +45,14 @@ interface UpdateProfileResponse {
   profile: UserProfile
 }
 
-// 2. Updated Loader to fetch Tasks
+// Updated Loader to fetch Tasks
 export const Route = createFileRoute('/_workspace/profile')({
   loader: async (): Promise<{ profile: UserProfile; email: string; tasks: ContributionTask[] }> => {
     try {
-      // 1. Your original working profile fetch
       const [profileRes, meRes, tasksRes] = await Promise.all([
         api.get<UserProfile>('/profile/me'),
         api.get<AuthMe>('/auth/me'),
-        // 2. Adding tasks fetch without breaking the others
-        api.get<ContributionTask[]>('/tasks/user/me/completed').catch(() => ({ data: [] }))
+        api.get<ContributionTask[]>('/tasks/contributions/me').catch(() => ({ data: [] }))
       ])
 
       return {
@@ -63,12 +61,13 @@ export const Route = createFileRoute('/_workspace/profile')({
         tasks: tasksRes.data || [],
       }
     } catch (err) {
-      console.error("Loader failed, reverting to default:", err)
+      // Reverts to working defaults if the main profile fetch fails
+      console.error("Profile loader error:", err);
       return {
         profile: { displayName: 'User', aboutMe: '', preferredRoles: [], school: '', profilePictureUrl: '' },
         email: '',
         tasks: [],
-      }
+      };
     }
   },
   component: ProfilePage,
