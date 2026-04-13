@@ -49,17 +49,21 @@ interface UpdateProfileResponse {
 export const Route = createFileRoute('/_workspace/profile')({
   loader: async (): Promise<{ profile: UserProfile; email: string; tasks: ContributionTask[] }> => {
     try {
+      // 1. Your original working profile fetch
       const [profileRes, meRes, tasksRes] = await Promise.all([
         api.get<UserProfile>('/profile/me'),
         api.get<AuthMe>('/auth/me'),
-        api.get<ContributionTask[]>('/tasks/user/me/completed'), // Adjust endpoint as needed
+        // 2. Adding tasks fetch without breaking the others
+        api.get<ContributionTask[]>('/tasks/user/me/completed').catch(() => ({ data: [] }))
       ])
+
       return {
         profile: profileRes.data,
         email: meRes.data.user.email,
         tasks: tasksRes.data || [],
       }
-    } catch {
+    } catch (err) {
+      console.error("Loader failed, reverting to default:", err)
       return {
         profile: { displayName: 'User', aboutMe: '', preferredRoles: [], school: '', profilePictureUrl: '' },
         email: '',
