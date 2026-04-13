@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useMemo, useState, useEffect } from 'react'
 import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2 } from 'lucide-react'
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2, ChevronDown } from 'lucide-react'
 import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
@@ -191,9 +191,7 @@ function mapPriority(p: string): Task['priority'] {
   return 'Medium'
 }
 
-function normalizeAssignedUsers(
-    users?: (string | ApiUserSummary)[]
-) {
+function normalizeAssignedUsers( users?: (string | ApiUserSummary)[]) {
   const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
 
   return (users ?? [])
@@ -224,6 +222,50 @@ function normalizeAssignedUsers(
         }
       })
       .filter((user) => user._id)
+}
+
+function CollapsibleCardSection({
+  title,
+  description,
+  isOpen,
+  onToggle,
+  actions,
+  children,
+  contentClassName = '',
+}: {
+  title: string
+  description?: string
+  isOpen: boolean
+  onToggle: () => void
+  actions?: React.ReactNode
+  children: React.ReactNode
+  contentClassName?: string
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        >
+          <ChevronDown
+            className={`mt-1 size-4 shrink-0 text-muted-foreground transition-transform ${
+              isOpen ? 'rotate-0' : '-rotate-90'
+            }`}
+          />
+          <div className="min-w-0">
+            <CardTitle>{title}</CardTitle>
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
+        </button>
+
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </CardHeader>
+
+      {isOpen ? <CardContent className={contentClassName}>{children}</CardContent> : null}
+    </Card>
+  )
 }
 
 function buildBoardData(apiData: ApiResponse): BoardData {
@@ -399,6 +441,22 @@ function ProjectPage() {
   const [isDeletingTask, setIsDeletingTask] = useState(false)
   const [taskDeleteError, setTaskDeleteError] = useState('')
   const isPrivateProject = editForm.visibility === 'private'
+  
+  //UI States for collapsible cards
+  const [openSections, setOpenSections] = useState({
+    projectProgress: true,
+    goals: true,
+    joinSettings: true,
+    lookingFor: true,
+    members: true,
+  })
+
+  const toggleSection = (key: keyof typeof openSections) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
 
   //Member management UI States
   const [isManageMembersSheetOpen, setIsManageMembersSheetOpen] = useState(false)
@@ -2104,336 +2162,336 @@ const handleDeleteProject = async () => {
             </CardContent>
 
             {/* PROGRESS BAR */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Completion</CardTitle>
-                <CardDescription>
+            <Separator />
+
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <div className="text-base font-semibold">Project Completion</div>
+                <div className="text-sm text-muted-foreground">
                   Overall progress across all project tasks
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span>{projectTaskStats.done} of {projectTaskStats.total} tasks done</span>
-                  <span>{projectTaskStats.percentComplete}%</span>
                 </div>
+              </div>
 
-                <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${projectTaskStats.percentComplete}%` }}
-                  />
-                </div>
+              <div className="flex items-center justify-between text-sm">
+                <span>{projectTaskStats.done} of {projectTaskStats.total} tasks done</span>
+                <span>{projectTaskStats.percentComplete}%</span>
+              </div>
 
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span>To Do: {projectTaskStats.todo}</span>
-                  <span>In Progress: {projectTaskStats.inProgress}</span>
-                  <span>Blocked: {projectTaskStats.blocked}</span>
-                  <span>Done: {projectTaskStats.done}</span>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${projectTaskStats.percentComplete}%` }}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>To Do: {projectTaskStats.todo}</span>
+                <span>In Progress: {projectTaskStats.inProgress}</span>
+                <span>Blocked: {projectTaskStats.blocked}</span>
+                <span>Done: {projectTaskStats.done}</span>
+              </div>
+            </CardContent>
           </Card>
 
           {/* GOAL RADIAL CHART */}
-          <ProjectProgressAreaChart tasks={Object.values(data.tasks)} />
+          <CollapsibleCardSection
+            title="Project Progress"
+            description="Task progress over time."
+            isOpen={openSections.projectProgress}
+            onToggle={() => toggleSection('projectProgress')}
+          >
+            <ProjectProgressAreaChart tasks={Object.values(data.tasks)} />
+          </CollapsibleCardSection>
 
           {(goals.length > 0 || canEditProject) && (
-            <Card>
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle>Goals</CardTitle>
-                  <CardDescription>
-                    Progress toward project goals.
-                  </CardDescription>
+            <CollapsibleCardSection
+              title="Goals"
+              description="Progress toward project goals."
+              isOpen={openSections.goals}
+              onToggle={() => toggleSection('goals')}
+              actions={
+                <div className="flex items-center gap-2">
+                  {isReorderingGoals && (
+                    <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" />
+                      Saving goal order...
+                    </div>
+                  )}
+
+                  {canEditProject && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedGoal(null)
+                        setGoalSheetMode('create')
+                        setGoalError('')
+                        setGoalForm({
+                          title: '',
+                          description: '',
+                        })
+                        setIsGoalSheetOpen(true)
+                      }}
+                    >
+                      Add Goal
+                    </Button>
+                  )}
                 </div>
+              }
+              contentClassName="space-y-6"
+            >
+              {goalProgress.length > 0 && (
+                <div className="w-full overflow-hidden">
+                  <GoalsOverviewChart data={goalChartData} />
+                </div>
+              )}
 
-                {isReorderingGoals && (
-                  <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" />
-                    Saving goal order...
-                  </div>
-                )}
-
-
-                {canEditProject && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSelectedGoal(null)
-                      setGoalSheetMode('create')
-                      setGoalError('')
-                      setGoalForm({
-                        title: '',
-                        description: '',
-                      })
-                      setIsGoalSheetOpen(true)
-                    }}
-                  >
-                    Add Goal
-                  </Button>
-                )}
-              </CardHeader>
-
-              <CardContent className="space-y-6">
-                {goalProgress.length > 0 && (
-                  <div className="w-full overflow-hidden">
-                    <GoalsOverviewChart data={goalChartData}/>
-                  </div>
-                )}
-
-                {/* GOALS STATUS AND LIST */}
-                {goalProgress.length > 0 ? (
-                  <DragDropContext onDragEnd={handleGoalDragEnd}>
-                    <CardDescription>
-                      Drag goals to reorder the rings from the center outward.
-                    </CardDescription>
-                    <div className="max-h-105 overflow-y-auto pr-2">
-                      <Droppable droppableId="goals-droppable">
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className="space-y-3"
-                          >
-                            {goalProgress.map((goal, index) => (
-                              <Draggable key={goal._id} draggableId={goal._id} index={index}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    className={`rounded-lg border p-4 transition-shadow ${
-                                      snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
-                                    }`}
-                                  >
-                                    <div className="mb-2 flex items-start justify-between gap-3">
-                                      <div className="flex items-start gap-3">
-                                        <div
-                                          {...provided.dragHandleProps}
-                                          className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
-                                        >
-                                          <GripVertical className="size-4" />
-                                        </div>
-
-                                        <div>
-                                          <div className="text-sm font-medium">{goal.title}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            {goal.total > 0
-                                              ? `${goal.done}/${goal.total} tasks complete`
-                                              : 'No tasks assigned yet'}
-                                          </div>
-                                        </div>
+              {goalProgress.length > 0 ? (
+                <DragDropContext onDragEnd={handleGoalDragEnd}>
+                  <CardDescription>
+                    Drag goals to reorder the rings from the center outward.
+                  </CardDescription>
+                  <div className="max-h-105 overflow-y-auto pr-2">
+                    <Droppable droppableId="goals-droppable">
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className="space-y-3"
+                        >
+                          {goalProgress.map((goal, index) => (
+                            <Draggable key={goal._id} draggableId={goal._id} index={index}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`rounded-lg border p-4 transition-shadow ${
+                                    snapshot.isDragging ? 'shadow-lg ring-1 ring-primary/20' : ''
+                                  }`}
+                                >
+                                  <div className="mb-2 flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3">
+                                      <div
+                                        {...provided.dragHandleProps}
+                                        className="mt-0.5 cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                                      >
+                                        <GripVertical className="size-4" />
                                       </div>
 
-                                      <div className="flex flex-wrap gap-2">
-                                        {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
-                                        {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
-                                        {canEditProject && (
-                                          <>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => {
-                                                setSelectedGoal(goal)
-                                                setGoalSheetMode('edit')
-                                                setGoalError('')
-                                                setGoalForm({
-                                                  title: goal.title,
-                                                  description: goal.description ?? '',
-                                                })
-                                                setIsGoalSheetOpen(true)
-                                              }}
-                                            >
-                                              Edit
-                                            </Button>
-
-                                            <Button
-                                              variant="destructive"
-                                              size="sm"
-                                              onClick={() => {
-                                                setSelectedGoal(goal)
-                                                setIsGoalDeleteDialogOpen(true)
-                                              }}
-                                            >
-                                              Delete
-                                            </Button>
-                                          </>
-                                        )}
+                                      <div>
+                                        <div className="text-sm font-medium">{goal.title}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {goal.total > 0
+                                            ? `${goal.done}/${goal.total} tasks complete`
+                                            : 'No tasks assigned yet'}
+                                        </div>
                                       </div>
                                     </div>
 
-                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                      <span>{goal.percentComplete}% complete</span>
-                                      <span>
-                                        Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
-                                      </span>
+                                    <div className="flex flex-wrap gap-2">
+                                      {goal.hasInProgress && <Badge variant="secondary">In Progress</Badge>}
+                                      {goal.hasBlocked && <Badge variant="destructive">Blocked</Badge>}
+                                      {canEditProject && (
+                                        <>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedGoal(goal)
+                                              setGoalSheetMode('edit')
+                                              setGoalError('')
+                                              setGoalForm({
+                                                title: goal.title,
+                                                description: goal.description ?? '',
+                                              })
+                                              setIsGoalSheetOpen(true)
+                                            }}
+                                          >
+                                            Edit
+                                          </Button>
+
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedGoal(goal)
+                                              setIsGoalDeleteDialogOpen(true)
+                                            }}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
-                                )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </div>
-                  </DragDropContext>
-                ) : (
-                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                    No goals yet. Create a goal to start tracking progress across related tasks.
-                  </div>
-                )}
 
-                {ungroupedTaskCount > 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Tasks without a goal: {ungroupedTaskCount}
+                                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{goal.percentComplete}% complete</span>
+                                    <span>
+                                      Todo {goal.todo} · In Progress {goal.inProgress} · Blocked {goal.blocked} · Done {goal.done}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </DragDropContext>
+              ) : (
+                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                  No goals yet. Create a goal to start tracking progress across related tasks.
+                </div>
+              )}
+
+              {ungroupedTaskCount > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Tasks without a goal: {ungroupedTaskCount}
+                </div>
+              )}
+            </CollapsibleCardSection>
           )}
 
         </div>
 
         {/* JOIN SETTINGS */}
         <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Join Settings</CardTitle>
-              <CardDescription>
-                How new members can join this project.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-start gap-2">
-                <Settings className="mt-0.5 size-4 text-muted-foreground" />
-                <div>
-                  {project.settings?.inviteOnly ? 'Invite only.' 
-                    : project.settings?.requireApprovalToJoin
-                      ? 'Users can request to join and wait for approval.'
-                      : 'Users can join immediately.'}
-                </div>
+          <CollapsibleCardSection
+            title="Join Settings"
+            description="How new members can join this project."
+            isOpen={openSections.joinSettings}
+            onToggle={() => toggleSection('joinSettings')}
+            contentClassName="space-y-3 text-sm"
+          >
+            <div className="flex items-start gap-2">
+              <Settings className="mt-0.5 size-4 text-muted-foreground" />
+              <div>
+                {project.settings?.inviteOnly
+                  ? 'Invite only.'
+                  : project.settings?.requireApprovalToJoin
+                    ? 'Users can request to join and wait for approval.'
+                    : 'Users can join immediately.'}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CollapsibleCardSection>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Looking For</CardTitle>
-              <CardDescription>
-                Roles the project is currently recruiting for.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {(project.lookingForRoles ?? []).length > 0 ? (
-                  project.lookingForRoles?.map((role) => (
-                    <Badge key={role} variant="outline">
-                      {role}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">
-                    No roles listed.
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <CollapsibleCardSection
+            title="Looking For"
+            description="Roles the project is currently recruiting for."
+            isOpen={openSections.lookingFor}
+            onToggle={() => toggleSection('lookingFor')}
+          >
+            <div className="flex flex-wrap gap-2">
+              {(project.lookingForRoles ?? []).length > 0 ? (
+                project.lookingForRoles?.map((role) => (
+                  <Badge key={role} variant="outline">
+                    {role}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  No roles listed.
+                </span>
+              )}
+            </div>
+          </CollapsibleCardSection>
 
           {/* MEMBERS CARD */}
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Members</CardTitle>
-                <CardDescription>
-                  Current project members and roles.
-                </CardDescription>
-              </div>
-
-              {canManageMembers && (
+          <CollapsibleCardSection
+            title="Members"
+            description="Current project members and roles."
+            isOpen={openSections.members}
+            onToggle={() => toggleSection('members')}
+            actions={
+              canManageMembers ? (
                 <Button
                   size="sm"
                   onClick={() => setIsManageMembersSheetOpen(true)}
                 >
                   Manage Members
                 </Button>
+              ) : null
+            }
+            contentClassName="min-w-0 max-h-105 space-y-4 overflow-y-auto pr-2"
+          >
+            <AvatarGroup>
+              {memberPreview.map((member) => {
+                const userSummary = member.userId
+                const displayName =
+                  userSummary?.profile?.displayName ?? userSummary?.displayName ?? 'User'
+
+                return (
+                  <NetworkAvatar
+                    key={member._id}
+                    profilePictureUrl={userSummary?.profilePictureUrl ?? undefined}
+                    displayName={displayName}
+                    size="sm"
+                  />
+                )
+              })}
+              {members.length > 5 && (
+                <AvatarGroupCount>+{members.length - 5}</AvatarGroupCount>
               )}
-            </CardHeader>
-            <CardContent className="min-w-0 max-h-105 space-y-4 overflow-y-auto pr-2">
-              <AvatarGroup>
-                {memberPreview.map((member) => {
-                  const userSummary = member.userId;
-                  const displayName = userSummary?.profile?.displayName ?? userSummary?.displayName ?? 'User';
+            </AvatarGroup>
+
+            <Separator />
+
+            <div className="space-y-3">
+              {members.length > 0 ? (
+                members.map((member: ApiMember) => {
+                  const displayName =
+                    member.userId?.profile?.displayName ??
+                    member.userId?.displayName ??
+                    'Unknown User'
+                  const email = member.userId?.email ?? 'No email'
+
+                  const isMe = member.userId?._id === user?.id
+                  const rawPath = isMe
+                    ? user?.profile?.profilePictureUrl
+                    : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl)
+
+                  const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000'
+
+                  const finalAvatarUrl = rawPath
+                    ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
+                    : undefined
 
                   return (
-                      <NetworkAvatar
-                          key={member._id}
-                          profilePictureUrl={userSummary?.profilePictureUrl ?? undefined}
+                    <div
+                      key={member._id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <NetworkAvatar
                           displayName={displayName}
+                          profilePictureUrl={finalAvatarUrl}
                           size="sm"
-                      />
-                  );
-                })}
-                {members.length > 5 && (
-                    <AvatarGroupCount>+{members.length - 5}</AvatarGroupCount>
-                )}
-              </AvatarGroup>
+                        />
 
-              <Separator />
-
-              <div className="space-y-3">
-                {members.length > 0 ? (
-                    members.map((member: ApiMember) => {
-                      const displayName = member.userId?.profile?.displayName ??
-                          member.userId?.displayName ?? 'Unknown User';
-                      const email = member.userId?.email ?? 'No email';
-
-                      const isMe = member.userId?._id === user?.id
-                      const rawPath = isMe
-                          ? user?.profile?.profilePictureUrl
-                          : (member.userId?.profile?.profilePictureUrl || member.userId?.profilePictureUrl);
-
-                      const API_BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:5000';
-
-                      const finalAvatarUrl = rawPath
-                          ? (rawPath.startsWith('http') ? rawPath : `${API_BASE_URL}${rawPath}`)
-                          : undefined;
-
-                      return (
-                          <div
-                              key={member._id}
-                              className="flex items-center justify-between gap-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              <NetworkAvatar
-                                  displayName={displayName}
-                                  profilePictureUrl={finalAvatarUrl}
-                                  size="sm"
-                              />
-
-                              <div>
-                                <div className="text-sm font-medium">{displayName}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {email}
-                                </div>
-                              </div>
-                            </div>
-
-                            <Badge variant="outline">
-                              {member.role ?? 'Member'}
-                            </Badge>
+                        <div>
+                          <div className="text-sm font-medium">{displayName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {email}
                           </div>
-                      ); // Ensure this semicolon is here
-                    }) // Ensure this closing paren matches .map(
-                ) : (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="size-4" />
-                      No members available.
+                        </div>
+                      </div>
+
+                      <Badge variant="outline">
+                        {member.role ?? 'Member'}
+                      </Badge>
                     </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  )
+                })
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="size-4" />
+                  No members available.
+                </div>
+              )}
+            </div>
+          </CollapsibleCardSection>
         </div>
       </div>
 
@@ -2657,7 +2715,7 @@ const handleDeleteProject = async () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete goal{selectedGoal ? ` "${selectedGoal.title}"` : ''}?
+              Delete goal {selectedGoal ? ` "${selectedGoal.title}"` : ''}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               Choose whether to keep tasks and remove their goal assignment, or delete the
@@ -3603,45 +3661,6 @@ const handleDeleteProject = async () => {
           </>
         </SheetContent>
       </Sheet>
-
-      {/* GOAL DELETE DIALOG */}
-      <AlertDialog open={isGoalDeleteDialogOpen} onOpenChange={setIsGoalDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Goal: {selectedGoal?.title}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              How would you like to handle the tasks associated with this goal? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel onClick={() => {
-              setIsGoalDeleteDialogOpen(false);
-              setSelectedGoal(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-
-            <Button
-                variant="secondary"
-                disabled={isDeletingGoal}
-                onClick={() => handleDeleteGoal('unassign')}
-            >
-              {isDeletingGoal && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Unassign Tasks
-            </Button>
-
-            <Button
-                variant="destructive"
-                disabled={isDeletingGoal}
-                onClick={() => handleDeleteGoal('delete')}
-            >
-              {isDeletingGoal && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Delete Goal & Tasks
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
