@@ -18,7 +18,7 @@ interface UserContributionAreaChartProps {
 export function UserContributionAreaChart({ tasks, displayName }: UserContributionAreaChartProps) {
     const [timeRange, setTimeRange] = useState("90d")
 
-    // 1. Process data to count completions per day
+    // Process data to count completions per day
     const chartData = useMemo(() => {
         const counts: Record<string, number> = {}
 
@@ -39,7 +39,7 @@ export function UserContributionAreaChart({ tasks, displayName }: UserContributi
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     }, [tasks])
 
-    // 2. Filter data based on selected time range
+    // Filter data based on selected time range
     const filteredData = useMemo(() => {
         const now = new Date()
         let daysToSubtract = 90
@@ -84,7 +84,8 @@ export function UserContributionAreaChart({ tasks, displayName }: UserContributi
                         config={{
                             completed: {
                                 label: "Tasks Completed",
-                                color: "hsl(var(--chart-1))",
+                                // Using Emerald-500 for the config
+                                color: "#10b981",
                             },
                         }}
                         className="aspect-auto h-62.5 w-full"
@@ -93,25 +94,28 @@ export function UserContributionAreaChart({ tasks, displayName }: UserContributi
                             <AreaChart data={filteredData}>
                                 <defs>
                                     <linearGradient id="fillCompleted" x1="0" y1="0" x2="0" y2="1">
+                                        {/* Hardcoding the green here ensures it works regardless of CSS var settings */}
                                         <stop
                                             offset="5%"
-                                            stopColor="var(--color-completed)"
-                                            stopOpacity={0.8}
+                                            stopColor="#10b981"
+                                            stopOpacity={0.4}
                                         />
                                         <stop
                                             offset="95%"
-                                            stopColor="var(--color-completed)"
-                                            stopOpacity={0.1}
+                                            stopColor="#10b981"
+                                            stopOpacity={0}
                                         />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.4} />
+                                {/* Softened grid lines for dark mode */}
+                                <CartesianGrid vertical={false} stroke="#334155" strokeDasharray="3 3" opacity={0.3} />
                                 <XAxis
                                     dataKey="date"
                                     tickLine={false}
                                     axisLine={false}
                                     tickMargin={8}
                                     minTickGap={32}
+                                    tick={{ fill: '#94a3b8', fontSize: 12 }} // Lighter text
                                     tickFormatter={(value) => {
                                         const date = new Date(value)
                                         return date.toLocaleDateString("en-US", {
@@ -125,11 +129,13 @@ export function UserContributionAreaChart({ tasks, displayName }: UserContributi
                                     axisLine={false}
                                     tickMargin={8}
                                     allowDecimals={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 12 }}
                                 />
                                 <ChartTooltip
-                                    cursor={false}
+                                    cursor={{ stroke: '#334155', strokeWidth: 1 }}
                                     content={
                                         <ChartTooltipContent
+                                            className="bg-slate-950 border-emerald-500/50"
                                             labelFormatter={(value) => {
                                                 return new Date(value).toLocaleDateString("en-US", {
                                                     month: "short",
@@ -145,8 +151,9 @@ export function UserContributionAreaChart({ tasks, displayName }: UserContributi
                                     dataKey="completed"
                                     type="monotone"
                                     fill="url(#fillCompleted)"
-                                    stroke="var(--color-completed)"
-                                    strokeWidth={2}
+                                    stroke="#10b981" // Vivid emerald stroke
+                                    strokeWidth={2.5} // Slightly thicker for visibility
+                                    activeDot={{ r: 6, fill: '#10b981', strokeWidth: 0 }}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
