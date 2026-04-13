@@ -17,7 +17,7 @@ const router = express.Router();
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 30,
     message: {message: 'Too many login attempts. Please try again later.'}
 });
 
@@ -41,7 +41,7 @@ const verifyEmailLimiter = rateLimit({
 
 const refreshLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 30,
+    max: 300,
     message: {message: 'Too many refresh attempts. Please try again later.'}
 });
 
