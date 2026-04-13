@@ -61,7 +61,7 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-4">
         
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
           <Input 
             name="email"
             type="email" 
@@ -73,7 +73,7 @@ export default function Login() {
         
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
             <Link 
               to="/forgot-password" 
               className="text-sm font-medium text-muted-foreground hover:text-primary"

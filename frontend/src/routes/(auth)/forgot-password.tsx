@@ -35,7 +35,7 @@ function ForgotPassword() {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
           <Input
             name="email"
             type="email"

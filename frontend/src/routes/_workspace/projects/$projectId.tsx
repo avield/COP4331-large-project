@@ -1704,7 +1704,7 @@ const handleDeleteProject = async () => {
             </Button>
           )}
 
-          {/* PROJECT TASK SHEET */}
+          {/* PROJECT EDIT SHEET */}
           {canEditProject && (
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
               <SheetTrigger asChild>
@@ -1726,7 +1726,7 @@ const handleDeleteProject = async () => {
                   <FieldSet>
                     <FieldGroup>
                       <Field>
-                        <FieldLabel htmlFor="project-name">Project name</FieldLabel>
+                        <FieldLabel htmlFor="project-name">Project name <span className="text-destructive">*</span></FieldLabel>
                         <Input
                           id="project-name"
                           value={editForm.name}
@@ -2629,7 +2629,7 @@ const handleDeleteProject = async () => {
                     <FieldSet>
                       <FieldGroup>
                         <Field>
-                          <FieldLabel htmlFor="goal-title">Goal title</FieldLabel>
+                          <FieldLabel htmlFor="goal-title">Goal title <span className="text-destructive">*</span></FieldLabel>
                           <Input
                             id="goal-title"
                             value={goalForm.title}
@@ -2818,7 +2818,7 @@ const handleDeleteProject = async () => {
                         <FieldSet>
                           <FieldGroup>
                             <Field>
-                              <FieldLabel htmlFor="task-title">Title</FieldLabel>
+                              <FieldLabel htmlFor="task-title">Title <span className="text-destructive">*</span></FieldLabel>
                               <Input
                                 id="task-title"
                                 value={taskForm.title}
@@ -3546,22 +3546,6 @@ const handleDeleteProject = async () => {
                                         }
                                       />
                                       <span>Can complete any task</span>
-                                    </label>
-
-                                    <label className="flex items-center gap-2 text-sm">
-                                      <input
-                                        type="checkbox"
-                                        checked={member.permissions.canModerateChat}
-                                        onChange={() =>
-                                          void handleUpdateMember(member._id, {
-                                            permissions: {
-                                              ...member.permissions,
-                                              canModerateChat: !member.permissions.canModerateChat,
-                                            },
-                                          })
-                                        }
-                                      />
-                                      <span>Can moderate chat</span>
                                     </label>
                                   </div>
 

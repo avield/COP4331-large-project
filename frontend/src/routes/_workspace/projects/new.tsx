@@ -220,7 +220,7 @@ function NewProject() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea id="description" placeholder="Describe the project objectives and scope..." className="min-h-25" required value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
 
