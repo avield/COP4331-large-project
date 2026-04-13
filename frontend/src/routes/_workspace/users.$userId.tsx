@@ -101,7 +101,6 @@ function UserProfilePage() {
     const eligibleProjects = myManageableProjects.filter((p) => {
         if (!p) return false;
 
-        // Treat as open unless it is EXPLICITLY 'closed' (case-insensitive)
         const isClosed = p.recruitingStatus?.toLowerCase() === 'closed';
         const isCompleted = p.status?.toLowerCase() === 'completed';
 
@@ -113,11 +112,15 @@ function UserProfilePage() {
 
     useEffect(() => {
         const fetchInvitationData = async () => {
-            if (!data?.user?.id) return;
+            const userId = data?.user?.user?.id;
+
+            if (!userId) return;
+
             try {
+                setIsLoadingData(true);
                 const [projectsRes, inviteRes] = await Promise.all([
                     api.get<ManageableProject[]>('/projects/manageable'),
-                    api.get<PendingInvite | null>(`/project-members/check-invite/${data.user.id}`)
+                    api.get<PendingInvite | null>(`/project-members/check-invite/${userId}`)
                 ]);
                 setMyManageableProjects(projectsRes.data);
                 setExistingInvite(inviteRes.data);
@@ -127,8 +130,9 @@ function UserProfilePage() {
                 setIsLoadingData(false);
             }
         };
+
         void fetchInvitationData();
-    }, [data?.user?.id])
+    }, [data?.user?.user?.id]);
 
     const handleSendInvite = async () => {
         if (!selectedProjectId || !targetRole || !data) return;
@@ -192,7 +196,21 @@ function UserProfilePage() {
                     </p>
                 </div>
             </header>
-
+            <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
+                        Contribution Activity
+                    </h2>
+                </div>
+                <Card className="border border-border/40 bg-card/20 shadow-sm overflow-hidden">
+                    <div className="p-2 sm:p-4">
+                        <UserContributionAreaChart
+                            tasks={tasks}
+                            displayName={user.displayName}
+                        />
+                    </div>
+                </Card>
+            </section>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Left Sidebar */}
                 <div className="md:col-span-1 space-y-8">
@@ -302,17 +320,6 @@ function UserProfilePage() {
                                 </Button>
                             </div>
                         )}
-                    </section>
-                    <section className="pt-6 border-t space-y-4">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                            Activity History
-                        </h2>
-                        <Card className="border border-border/50 bg-card/30 shadow-none overflow-hidden">
-                            <UserContributionAreaChart
-                                tasks={tasks}
-                                displayName={user.displayName}
-                            />
-                        </Card>
                     </section>
                 </div>
 
