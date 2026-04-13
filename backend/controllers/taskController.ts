@@ -561,7 +561,7 @@ export const deleteTask = async (
   }
 };
 
-// Used to get task information for user and profile pages
+// Used to get task information for the current user in profile page
 export const getMyTaskContributions = async (
     req: AuthenticatedRequest,
     res: Response
@@ -580,6 +580,34 @@ export const getMyTaskContributions = async (
     res.status(200).json(contributions);
   } catch (error) {
     console.error('getMyTaskContributions error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// Used to retrieve task information for a user to be used in user info pages
+export const getUserTaskContributionsById = async (
+    req: AuthenticatedRequest,
+    res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    if (typeof userId !== 'string' || !mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).json({ message: 'Invalid or missing User ID.' });
+      return;
+    }
+
+    const contributions = await Task.find({
+      assignedToUserIds: new mongoose.Types.ObjectId(userId),
+      status: 'done',
+      completedAt: { $ne: null }
+    })
+        .select('completedAt status')
+        .sort({ completedAt: 1 });
+
+    res.status(200).json(contributions);
+  } catch (error) {
+    console.error('getUserTaskContributionsById error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
