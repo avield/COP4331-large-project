@@ -1,56 +1,117 @@
-import axios from 'axios';
-import { useAuthStore } from './authStore';
-import { env } from './env';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import { useAuthStore } from './authStore'
+import { env } from './env'
 
-axios.defaults.withCredentials = true;
+axios.defaults.withCredentials = true
 
 const api = axios.create({
-    baseURL: `${env.BACKEND_URL}`,
-    withCredentials: true
-});
+  baseURL: `${env.BACKEND_URL}`,
+  withCredentials: true,
+})
+
+type RetryableRequest = InternalAxiosRequestConfig & {
+  _retry?: boolean
+}
+
+let refreshPromise: Promise<string> | null = null
+
+function setAuthHeader(
+  config: InternalAxiosRequestConfig,
+  token: string | null
+): InternalAxiosRequestConfig {
+  if (!config.headers) {
+    return config // don't try to assign {}
+  }
+
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`)
+  } else {
+    config.headers.delete('Authorization')
+  }
+
+  return config
+}
+
+async function requestNewAccessToken(): Promise<string> {
+  const response = await axios.post(
+    '/auth/refresh',
+    {},
+    {
+      baseURL: env.BACKEND_URL,
+      withCredentials: true,
+    }
+  )
+
+  const newToken = response.data?.accessToken
+
+  if (!newToken || typeof newToken !== 'string') {
+    throw new Error('Refresh succeeded but no access token was returned.')
+  }
+
+  useAuthStore.getState().setAccessToken(newToken)
+  return newToken
+}
+
+async function getFreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = requestNewAccessToken()
+      .catch((error) => {
+        useAuthStore.getState().clearAuth()
+        throw error
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
+
+// Expose this so the app can silently refresh before expiry.
+export async function refreshAccessTokenSilently(): Promise<string | null> {
+  try {
+    return await getFreshAccessToken()
+  } catch (error) {
+    console.error('Silent refresh failed:', error)
+    return null
+  }
+}
 
 api.interceptors.request.use((config) => {
-    const token = useAuthStore.getState().accessToken;
-
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-});
+  const token = useAuthStore.getState().accessToken
+  return setAuthHeader(config, token)
+})
 
 api.interceptors.response.use(
-    (response) => response, // If we don't get any errors, we return the response as is
-    async (error) => {
-        const originalRequest = error.config;
+  (response) => response,
+  async (error: AxiosError) => {
+    const status = error.response?.status
+    const originalRequest = error.config as RetryableRequest | undefined
 
-        // We use _retry in here to not retry if we get an error even after the refresh token was successfully refreshed
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-
-            try {
-                const response = await axios.post(
-                    `/auth/refresh`,
-                    {},
-                    { 
-                        baseURL: env.BACKEND_URL,
-                        withCredentials: true,
-                    }
-                );
-
-                useAuthStore.getState().setAccessToken(response.data.accessToken);
-
-                return api(originalRequest);
-            } catch (refreshError) {
-                // The refresh token likely expired too, so we log the user out
-                useAuthStore.getState().clearAuth();
-
-                return Promise.reject(refreshError);
-            }
-        }
-        
-        return Promise.reject(error);
+    if (!originalRequest) {
+      return Promise.reject(error)
     }
+
+    // Never try to refresh the refresh request itself.
+    if (originalRequest.url?.includes('/auth/refresh')) {
+      useAuthStore.getState().clearAuth()
+      return Promise.reject(error)
+    }
+
+    if (status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        const newToken = await getFreshAccessToken()
+        setAuthHeader(originalRequest, newToken)
+        return api(originalRequest)
+      } catch (refreshError) {
+        return Promise.reject(refreshError)
+      }
+    }
+
+    return Promise.reject(error)
+  }
 )
 
-export default api;
+export default api
