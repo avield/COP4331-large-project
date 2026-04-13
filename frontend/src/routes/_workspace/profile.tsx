@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter} from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState, useRef } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,8 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Mail, Pencil, User, BookOpen, GraduationCap, X, Check, Loader2, Upload } from 'lucide-react'
 import api from '@/api/axios'
-import {useAuthStore} from "@/api/authStore.ts";
+import axios from 'axios'
+import { useAuthStore } from "@/api/authStore.ts"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 
-// GET /api/users....../profile → raw profile object (not wrapped)
+// 1. Import the Chart and its Interface
+import { UserContributionAreaChart, type ContributionTask } from '@/components/UserContributionAreaChart'
+import * as React from "react";
+
 interface UserProfile {
   displayName: string
   aboutMe: string
@@ -31,33 +35,35 @@ interface UserProfile {
   profilePictureUrl: string
 }
 
-// GET /api/auth/me → { user: { id, email, displayName } }
 interface AuthMe {
   user: { id: string; email: string; displayName: string }
 }
 
-// PUT /api/users....../profile response
 interface UpdateProfileResponse {
   success: boolean
   message: string
   profile: UserProfile
 }
 
+// 2. Updated Loader to fetch Tasks
 export const Route = createFileRoute('/_workspace/profile')({
-  loader: async (): Promise<{ profile: UserProfile; email: string }> => {
+  loader: async (): Promise<{ profile: UserProfile; email: string; tasks: ContributionTask[] }> => {
     try {
-      const [profileRes, meRes] = await Promise.all([
+      const [profileRes, meRes, tasksRes] = await Promise.all([
         api.get<UserProfile>('/profile/me'),
         api.get<AuthMe>('/auth/me'),
+        api.get<ContributionTask[]>('/tasks/user/me/completed'), // Adjust endpoint as needed
       ])
       return {
         profile: profileRes.data,
         email: meRes.data.user.email,
+        tasks: tasksRes.data || [],
       }
     } catch {
       return {
         profile: { displayName: 'User', aboutMe: '', preferredRoles: [], school: '', profilePictureUrl: '' },
         email: '',
+        tasks: [],
       }
     }
   },
@@ -69,26 +75,21 @@ function getInitials(name: string) {
 }
 
 function ProfilePage() {
-  const loaderData = Route.useLoaderData()
-  const [profile, setProfile] = useState<UserProfile>(loaderData.profile)
-  const email = loaderData.email
+  const { profile: initialProfile, email, tasks } = Route.useLoaderData()
+  const [profile, setProfile] = useState<UserProfile>(initialProfile)
 
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<UserProfile>(profile)
-  const [preferredRolesText, setPreferredRolesText] = useState('')
+  const [preferredRolesText, setPreferredRolesText] = useState(profile.preferredRoles.join(', '))
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null)
 
-
-  // States for File Upload and Previews
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
   const [imgCacheBuster, setImgCacheBuster] = useState<number>(Date.now())
-
   const router = useRouter()
 
   function handleEditClick() {
@@ -104,23 +105,17 @@ function ProfilePage() {
     setIsEditing(false)
     setSaveError(null)
     setSelectedFile(null)
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
   }
 
-  // Handle local file selection and create a temporary browser blob URL
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    setSaveError(null) //clears error message when user uploads an image
+    setSaveError(null)
     if (file) {
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
       if(!allowedTypes.includes(file.type)){
-        setSaveError('Invalid file type. Please upload a JPEG, PNG, or WebP image.')
-        e.target.value = '' //Reset so the user can pick again
-        return
-      }
-      if(file.size > 2 * 1024 * 1024){
-        setSaveError('Your image is too large. Please upload a file smaller than 2 MB.')
-        e.target.value = '' //Reset the input so they can try again
+        setSaveError('Invalid file type.')
         return
       }
       setSelectedFile(file)
@@ -132,7 +127,6 @@ function ProfilePage() {
     setIsSaving(true)
     setSaveError(null)
     try {
-      // Create FOrmData to send file and text together
       const data = new FormData()
       data.append('displayName', formData.displayName)
       data.append('aboutMe', formData.aboutMe)
@@ -140,198 +134,116 @@ function ProfilePage() {
 
       const rolesArray = preferredRolesText
           .split(',')
-          .map((r) => r.trim())
+          .map((r: string) => r.trim())
           .filter(Boolean)
 
       data.append('preferredRoles', JSON.stringify(rolesArray))
 
-      // Append raw file if selected, otherwise fallback to the existing URL string
-      if (selectedFile) {
-        data.append('profilePicture', selectedFile)
-      } else {
-        data.append('profilePictureUrl', formData.profilePictureUrl)
-      }
+      if (selectedFile) data.append('profilePicture', selectedFile)
+      else data.append('profilePictureUrl', formData.profilePictureUrl)
 
       const res = await api.put<UpdateProfileResponse>('/profile/update', data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
 
       setProfile(res.data.profile)
-      useAuthStore.getState().refreshProfileImage(res.data.profile.profilePictureUrl);
+      useAuthStore.getState().refreshProfileImage(res.data.profile.profilePictureUrl)
       setIsEditing(false)
-      setSelectedFile(null)
-      setPreviewUrl(null)
-
-      // BUST THE CACHE: Tell the browser it's a new image!
       setImgCacheBuster(Date.now())
-
-      // Force the router to completely syncrhonize the loader data
       await router.invalidate({sync: true})
-
     } catch (err: unknown) {
-      const message =
-          err && typeof err === 'object' && 'response' in err
-              ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-              : undefined
-      setSaveError(message ?? 'Failed to save profile. Please try again.')
+      if (axios.isAxiosError(err)) setSaveError(err.response?.data?.message || 'Save failed')
+      else setSaveError('Error occurred')
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Fallback engine to determine the correct URL source mapping
   const resolveProfileImage = (url: string) => {
     if (!url) return ''
-    // If it's a blob (preview), don't add cache busters or backend URLs
-    if (url.startsWith('blob:')) return url;
+    if (url.startsWith('blob:')) return url
     if (url.startsWith('http')) return `${url}${url.includes('?') ? '&' : '?'}t=${imgCacheBuster}`
-
-    const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
-    const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-
-    return `${cleanBackend}${cleanUrl}?t=${imgCacheBuster}`;
+    const base = import.meta.env.BACKEND_URL || 'http://localhost:5000'
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`
+    return `${base.replace(/\/$/, '')}${cleanUrl}?t=${imgCacheBuster}`
   }
 
-  //Delete account handler
   async function handleDeleteAccount() {
     setIsDeletingAccount(true)
-    setDeleteAccountError(null)
-
     try {
-
-      await api.delete('/users/me')   // deletes account + clears cookie
+      await api.delete('/users/me')
       useAuthStore.getState().clearAuth()
       await router.navigate({ to: '/login' })
     } catch (err: unknown) {
-      const message =
-          err && typeof err === 'object' && 'response' in err
-              ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-              : undefined
-
-      setDeleteAccountError(message ?? 'Failed to delete account. Please try again.')
+      if (axios.isAxiosError(err)) setDeleteAccountError(err.response?.data?.message || 'Error')
     } finally {
       setIsDeletingAccount(false)
     }
   }
 
   return (
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6 pb-12">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">Your personal account information.</p>
         </div>
 
+        {/* Main Profile Card */}
         <Card className="border-border/50 bg-card/50">
           <CardContent className="p-6">
             {isEditing ? (
                 <div className="space-y-4">
+                  {/* Editing UI code */}
                   <div className="flex items-center gap-5">
-                    <div className="relative group shrink-0">
-                      <Avatar size="xl" className="w-32 h-32 text-4xl border-4 border-background shadow-sm">
-                        <AvatarImage
-                            src={previewUrl || resolveProfileImage(formData.profilePictureUrl)}
-                            alt={formData.displayName}
-                        />
-                        <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
-                      </Avatar>
-                      <input
-                          type="file"
-                          ref={fileInputRef}
-                          className="hidden"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          disabled={isSaving}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground mb-1">Editing profile</p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5 cursor-pointer"
-                            onClick={handleCancelClick}
-                            disabled={isSaving}
-                        >
-                          <X className="size-3.5" />Cancel
-                        </Button>
+                    <Avatar size="xl" className="w-32 h-32 border-4 border-background">
+                      <AvatarImage src={previewUrl || resolveProfileImage(formData.profilePictureUrl)} />
+                      <AvatarFallback>{getInitials(formData.displayName)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                      <div className="flex gap-2">
                         <Button
                             size="sm"
-                            className="gap-1.5 cursor-pointer"
                             onClick={handleSaveClick}
                             disabled={isSaving}
+                            className="gap-1.5"
                         >
-                          {isSaving
-                              ? <><Loader2 className="size-3.5 animate-spin" />Saving…</>
-                              : <><Check className="size-3.5" />Save</>
-                          }
+                          {isSaving ? (
+                              <>
+                                <Loader2 className="size-3.5 animate-spin" />
+                                Saving...
+                              </>
+                          ) : (
+                              <>
+                                <Check className="size-3.5" />
+                                Save
+                              </>
+                          )}
                         </Button>
+                        <Button size="sm" variant="outline" onClick={handleCancelClick}><X className="size-3.5" />Cancel</Button>
                       </div>
                     </div>
                   </div>
-
                   {saveError && (
                       <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                         {saveError}
                       </p>
                   )}
-
-                  <div className="grid gap-3">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="displayName">Display Name</Label>
-                      <Input
-                          id="displayName"
-                          value={formData.displayName}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
-                          placeholder="Your name"
-                          disabled={isSaving}
-                      />
-                    </div>
-
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="school">School</Label>
-                      <Input
-                          id="school"
-                          value={formData.school}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, school: e.target.value }))}
-                          placeholder="e.g. UCF"
-                          disabled={isSaving}
-                      />
-                    </div>
-
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="aboutMe">About Me</Label>
-                      <Textarea
-                          id="aboutMe"
-                          value={formData.aboutMe}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, aboutMe: e.target.value }))}
-                          placeholder="A short bio"
-                          disabled={isSaving}
-                      />
-                    </div>
-
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="preferredRoles">Preferred Roles</Label>
-                      <Input
-                          id="preferredRoles"
-                          value={preferredRolesText}
-                          onChange={(e) => setPreferredRolesText(e.target.value)}
-                          placeholder="e.g. Frontend, Backend"
-                          disabled={isSaving}
-                      />
-                      <p className="text-xs text-muted-foreground">Separate roles with commas. These will appear as tags on your public profile.</p>
-                    </div>
-
+                  <div className="grid gap-3 mt-4">
+                    <Label>Display Name</Label>
+                    <Input value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} />
+                    <Label>School</Label>
+                    <Input value={formData.school} onChange={e => setFormData({...formData, school: e.target.value})} />
+                    <Label>About Me</Label>
+                    <Textarea value={formData.aboutMe} onChange={e => setFormData({...formData, aboutMe: e.target.value})} />
+                    <Label>Roles</Label>
+                    <Input value={preferredRolesText} onChange={e => setPreferredRolesText(e.target.value)} />
                     <div className="grid gap-1.5">
                       <Label htmlFor="profilePictureUrl">Profile Picture</Label>
                       <div className="relative">
                         <Input
                             id="profilePictureUrl"
-                            // Show the file name if they picked a file, otherwise show the existing URL
+                            // This shows the file name if they picked a file, otherwise the URL
                             value={selectedFile ? selectedFile.name : formData.profilePictureUrl}
                             placeholder="Click to upload an image..."
                             readOnly
@@ -339,10 +251,11 @@ function ProfilePage() {
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isSaving}
                         />
+                        {/* This uses the Upload icon and clears the error */}
                         <Upload className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Click the box above to select a file from your computer.
+                        Click to select a file from your computer.
                       </p>
                     </div>
                   </div>
@@ -350,55 +263,68 @@ function ProfilePage() {
             ) : (
                 <div className="flex items-center gap-5">
                   <Avatar size="xl" className="w-32 h-32 text-4xl border-4 border-background shadow-sm">
-                    <AvatarImage
-                        src={previewUrl || resolveProfileImage(formData.profilePictureUrl)}
-                        alt={formData.displayName}
-                    />
-                    <AvatarFallback delayMs={600}>{getInitials(formData.displayName)}</AvatarFallback>
+                    <AvatarImage src={resolveProfileImage(profile.profilePictureUrl)} />
+                    <AvatarFallback>{getInitials(profile.displayName)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-xl font-semibold truncate">{profile.displayName}</h2>
                     {email && <p className="text-sm text-muted-foreground truncate">{email}</p>}
                   </div>
-                  <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 gap-1.5 cursor-pointer"
-                      onClick={handleEditClick}
-                  >
-                    <Pencil className="size-3.5" />Edit
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleEditClick}><Pencil className="size-3.5 mr-2" />Edit</Button>
                 </div>
             )}
           </CardContent>
         </Card>
 
+        {/* Account Details */}
         <Card className="border-border/50 bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Account Details</CardTitle>
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase">Details</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border/50">
-              {email && <DetailRow icon={<Mail className="size-4 text-muted-foreground" />} label="Email" value={email} />}
-              {profile.school && <DetailRow icon={<GraduationCap className="size-4 text-muted-foreground" />} label="School" value={profile.school} />}
-              {profile.aboutMe && <DetailRow icon={<User className="size-4 text-muted-foreground" />} label="About" value={profile.aboutMe} />}
-              {profile.preferredRoles?.length > 0 && <DetailRow icon={<BookOpen className="size-4 text-muted-foreground" />} label="Roles" value={profile.preferredRoles.join(', ')} />}
-            </div>
+          <CardContent className="p-0 divide-y divide-border/50">
+            {email && (
+                <DetailRow
+                    icon={<Mail className="size-4 text-muted-foreground" />}
+                    label="Email"
+                    value={email}
+                />
+            )}
+            {profile.aboutMe && (
+                <DetailRow
+                    icon={<User className="size-4 text-muted-foreground" />}
+                    label="About"
+                    value={profile.aboutMe}
+                />
+            )}
+            <DetailRow icon={<GraduationCap className="size-4" />} label="School" value={profile.school || 'Not specified'} />
+            <DetailRow icon={<BookOpen className="size-4" />} label="Roles" value={profile.preferredRoles.join(', ') || 'None'} />
           </CardContent>
+        </Card>
+
+        {/* 3. ADD CHART AT THE BOTTOM */}
+        <Card className="border-border/50 bg-card/50">
+          <UserContributionAreaChart tasks={tasks} displayName={profile.displayName} />
         </Card>
 
         <Separator className="opacity-50" />
 
+        {/* Danger Zone (Logic as provided in your profile.tsx) */}
         <Card className="border-destructive/20 bg-destructive/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-destructive/80 uppercase tracking-wider">Danger Zone</CardTitle>
+            <CardTitle className="text-sm font-semibold text-destructive/80 uppercase tracking-wider">
+              Danger Zone
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">Delete account</p>
-                <p className="text-xs text-muted-foreground">Permanently remove your account and all associated data.</p>
+                <p className="text-xs text-muted-foreground">
+                  Permanently remove your account and all associated data.
+                </p>
               </div>
+
+              {/* This uses all those AlertDialog imports that are currently "unused" */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -416,8 +342,7 @@ function ProfilePage() {
                     <AlertDialogTitle>Delete account?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This permanently deletes your account. If you own projects, ownership will be
-                      transferred to the oldest active member. Projects with no other active members
-                      will be deleted. Tasks assigned to you will be unassigned. This action cannot be undone.
+                      transferred to the oldest active member. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
 
@@ -436,17 +361,15 @@ function ProfilePage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              {deleteAccountError && (
-                  <p className="mt-3 text-xs text-destructive">{deleteAccountError}</p>
-              )}
             </div>
+            {deleteAccountError && (
+                <p className="mt-3 text-xs text-destructive">{deleteAccountError}</p>
+            )}
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button variant="ghost" size="sm" className="text-muted-foreground cursor-pointer" asChild>
-            <Link to="/home">← Back to Home</Link>
-          </Button>
+          <Button variant="ghost" size="sm" asChild><Link to="/home">← Back Home</Link></Button>
         </div>
       </div>
   )
