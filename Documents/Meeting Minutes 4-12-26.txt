@@ -1,0 +1,22 @@
+Team Meeting: 4/12/26 8pm
+
+Present: Aviel, Julio, Tim, Manny
+
+Agenda: Finalize what we plan to do so we don't work up to the deadline. Get Mobile update
+
+Notes:
+- We're using GitHub Issues page for a todo list
+- Bug fixing
+  - Notifications are not obviously clickables, need to make it so
+  - Disappearing Avatar and Edit buttons: JWT Token seems to be messing up
+- Contributions chart is do-able using current API points and adjusting area-chart
+
+- Diagrams:
+  - Update ERD
+  - Activity Diagram
+  - Use Case
+
+- Mobile:
+  - coming along well but project details page still needs to be done and it is large 
+  - Discussed what critical features need to be on the app and what doesn't need to be there. 
+  - Discussed what API points are called on which page in desktop version
