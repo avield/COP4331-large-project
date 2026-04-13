@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
+// INTERFACES
 interface Project {
     _id: string
     name: string
