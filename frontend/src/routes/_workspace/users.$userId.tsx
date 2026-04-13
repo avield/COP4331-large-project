@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
-import { UserContributionAreaChart, type ContributionTask } from '@/components/UserContributionAreaChart'
 
 interface Project {
     _id: string
@@ -33,10 +32,6 @@ interface UserProfileData {
     }
 }
 
-interface UserProfileLoaderResult extends UserProfileData {
-    tasks: ContributionTask[]
-}
-
 interface ManageableProject {
     _id: string;
     name: string;
@@ -55,7 +50,7 @@ interface PendingInvite {
 }
 
 export const Route = createFileRoute('/_workspace/users/$userId')({
-    loader: async ({ params }): Promise<UserProfileLoaderResult | null> => {
+    loader: async ({ params }) => {
         const auth = useAuthStore.getState();
         const currentUser = auth.user;
 
@@ -64,17 +59,9 @@ export const Route = createFileRoute('/_workspace/users/$userId')({
         }
 
         try {
-            const [profileRes, tasksRes] = await Promise.all([
-                api.get<UserProfileData>(`/users/${params.userId}`),
-                api.get<ContributionTask[]>(`/tasks/user/${params.userId}/contributions`)
-            ]);
-
-            return {
-                ...profileRes.data,
-                tasks: tasksRes.data
-            };
-        } catch (error) {
-            console.error("Error loading user profile:", error);
+            const { data } = await api.get<UserProfileData>(`/users/${params.userId}`);
+            return data;
+        } catch {
             return null;
         }
     },
@@ -92,10 +79,14 @@ function UserProfilePage() {
     const [isLoadingData, setIsLoadingData] = useState(true)
     const [isActionLoading, setIsActionLoading] = useState(false)
 
+    // Derived Logic
     const eligibleProjects = myManageableProjects.filter((p) => {
         if (!p) return false;
+
+        // Treat as open unless it is EXPLICITLY 'closed' (case-insensitive)
         const isClosed = p.recruitingStatus?.toLowerCase() === 'closed';
         const isCompleted = p.status?.toLowerCase() === 'completed';
+
         return !isClosed && !isCompleted;
     });
 
@@ -164,7 +155,7 @@ function UserProfilePage() {
         return <div className="max-w-4xl mx-auto p-6 text-center">User not found</div>
     }
 
-    const { user, projects, tasks } = data
+    const { user, projects } = data
 
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-10">
@@ -213,7 +204,7 @@ function UserProfilePage() {
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
                             Project Invitation
                         </h2>
-                        {/* ... (Invitation UI remains the same) */}
+
                         {isLoadingData ? (
                             <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
                                 <Loader2 className="size-3 animate-spin" />
@@ -270,6 +261,7 @@ function UserProfilePage() {
                                         ))}
                                     </select>
                                 </div>
+
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Assigned Role</label>
                                     <Input
@@ -280,6 +272,7 @@ function UserProfilePage() {
                                         disabled={isInviteSectionDisabled || isActionLoading}
                                     />
                                 </div>
+
                                 <Button
                                     className="w-full h-9 text-xs font-bold uppercase tracking-wider"
                                     disabled={isInviteSectionDisabled || !selectedProjectId || !targetRole || isActionLoading}
@@ -290,13 +283,6 @@ function UserProfilePage() {
                                 </Button>
                             </div>
                         )}
-                    </section>
-
-                    {/* NEW: Chart moved to bottom of sidebar */}
-                    <section className="pt-6 border-t">
-                        <div className="rounded-xl border border-border/50 bg-card/50 px-4 py-2 shadow-sm">
-                            <UserContributionAreaChart tasks={tasks} displayName={user.displayName} />
-                        </div>
                     </section>
                 </div>
 
