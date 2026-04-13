@@ -247,15 +247,18 @@ function Home() {
         {/* Invitations Section */}
         <div>
           {invitations.length > 0 && (
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">Invitations</h2>
-                </div>
+              <Card className="border-border/50 bg-card/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Invitations</CardTitle>
+                  <CardDescription>
+                    You have {invitations.length} pending invitation{invitations.length !== 1 ? 's' : ''}
+                  </CardDescription>
+                </CardHeader>
 
-                <div className="grid max-h-75 overflow-y-auto gap-3 md:grid-cols-2">
+                <div className="grid max-h-75 overflow-y-auto gap-3 md:grid-cols-2 pr-1">
                   {invitations.map((invite: Invitation) => (
                       <div key={invite._id} className="relative group">
-                        <Card className="border-border/50 bg-card/50 transition-colors hover:bg-card/80">
+                        <Card className="border-border/50 bg-card/50 transition-colors hover:bg-card/80 m-2">
                           <CardHeader className="p-4 pb-2">
                             <div className="flex justify-between items-start">
                               <CardTitle className="text-base truncate pr-4">{invite.projectId?.name}</CardTitle>
@@ -298,7 +301,7 @@ function Home() {
                       </div>
                   ))}
                 </div>
-              </div>
+              </Card>
           )}
         </div>
 
