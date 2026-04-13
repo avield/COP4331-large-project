@@ -1704,6 +1704,41 @@ const handleDeleteProject = async () => {
             </Button>
           )}
 
+          <div className='flex gap-2'>
+          {myMembership && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  Leave Project
+                </Button>
+              </AlertDialogTrigger>
+
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Leave project?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {myMembership.role === 'Owner'
+                      ? 'You are the owner. Ownership will transfer automatically.'
+                      : 'You will lose access to this project.'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void handleLeaveProject()
+                    }}
+                    className="bg-destructive text-destructive-foreground"
+                  >
+                    Leave Project
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+            <Separator orientation='vertical' />
           {/* PROJECT EDIT SHEET */}
           {canEditProject && (
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
@@ -2110,6 +2145,8 @@ const handleDeleteProject = async () => {
               </SheetContent>
             </Sheet>
           )}
+          </div>
+
         </div>
       </div>
 
@@ -3587,58 +3624,6 @@ const handleDeleteProject = async () => {
                       No members or invitations found.
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* LEAVE PROJECT CARD */}
-              <Card className="border-destructive/20 bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="text-base text-destructive">Leave Project</CardTitle>
-                  <CardDescription>
-                    Remove yourself from this project.
-                    {myMembership?.role === 'Owner'
-                      ? ' Ownership will transfer to the oldest active member automatically.'
-                      : ''}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  {leaveProjectError ? (
-                    <p className="text-sm text-destructive">{leaveProjectError}</p>
-                  ) : null}
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" disabled={isLeavingProject}>
-                        {isLeavingProject ? 'Leaving...' : 'Leave Project'}
-                      </Button>
-                    </AlertDialogTrigger>
-
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Leave project?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {myMembership?.role === 'Owner'
-                            ? 'You are the owner. If another active member exists, ownership will transfer automatically before you leave.'
-                            : 'You will lose access to this project.'}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isLeavingProject}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={(e) => {
-                            e.preventDefault()
-                            void handleLeaveProject()
-                          }}
-                          disabled={isLeavingProject}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {isLeavingProject ? 'Leaving...' : 'Leave Project'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
                 </CardContent>
               </Card>
             </div>
