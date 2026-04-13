@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function UiSidebar() {
   const { data: recentProjects, isLoading } = useRecentProjects();
+  const activeRecentProjects = recentProjects?.filter((project) => project.status !== 'completed') ?? []
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -57,7 +58,7 @@ export default function UiSidebar() {
                         <div className="text-xs text-muted-foreground ml-4">Loading...</div>
                       </SidebarMenuSubItem>
                     ) : (
-                      recentProjects?.map((project) => (
+                      activeRecentProjects.map((project) => (
                         <SidebarMenuSubItem className="mt-4" key={project._id}>
                           <SidebarMenuSubButton asChild>
                             <Link
