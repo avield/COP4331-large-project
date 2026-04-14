@@ -121,13 +121,13 @@ export default function Register() {
               <li className="flex items-center gap-2">
                 {checks.number ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
                 <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One uppercase letter
+                  One number
                 </span>
               </li>
               <li className="flex items-center gap-2">
                 {checks.symbol ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
                 <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One uppercase letter
+                  One symbol
                 </span>
               </li>
             </ul>
