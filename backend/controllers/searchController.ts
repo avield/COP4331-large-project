@@ -97,6 +97,8 @@ export const globalSearch = async (
 
     if (type === 'all' || type === 'users') {
       const usersQuery: FilterQuery<any> = {
+        isEmailVerified: true,
+        status: 'active',
         $or: [
           { 'profile.displayName': searchRegex },
           { email: searchRegex },
