@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import api from '@/api/axios'
 import { isAxiosError } from 'axios'
 import { useState } from 'react'
-import { Check, X } from "lucide-react"
+import { Check, X, Eye, EyeOff } from "lucide-react"
 
 export const Route = createFileRoute('/(auth)/register')({
   component: Register,
@@ -31,6 +31,8 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
   const canSubmit = isValidPassword && passwordsMatch
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const registerMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -86,65 +88,91 @@ export default function Register() {
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
-          <Input
-            name="password"
-            type="password"
-            placeholder="********"
-            className="bg-background"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <div className="text-sm space-y-1 mt-2">
-            <p className="text-muted-foreground">Password must include:</p>
+          <Label htmlFor="password">
+            Password <span className="text-destructive">*</span>
+          </Label>
 
-            <ul className="space-y-1">
-              <li className="flex items-center gap-2">
-                {checks.length ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  At least 8 characters
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                {checks.upper ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One uppercase letter
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                {checks.lower ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One lowercase letter
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                {checks.number ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One number
-                </span>
-              </li>
-              <li className="flex items-center gap-2">
-                {checks.symbol ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
-                  One symbol
-                </span>
-              </li>
-            </ul>
+          <div className="relative">
+            <Input
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="********"
+              className="bg-background pr-10"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
+        </div>
+        <div className="text-sm space-y-1 mt-2">
+          <p className="text-muted-foreground">Password must include:</p>
+
+          <ul className="space-y-1">
+            <li className="flex items-center gap-2">
+              {checks.length ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
+              <span className={checks.length ? "text-green-500" : "text-muted-foreground"}>
+                At least 8 characters
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              {checks.upper ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
+              <span className={checks.upper ? "text-green-500" : "text-muted-foreground"}>
+                One uppercase letter
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              {checks.lower ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
+              <span className={checks.lower ? "text-green-500" : "text-muted-foreground"}>
+                One lowercase letter
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              {checks.number ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
+              <span className={checks.number ? "text-green-500" : "text-muted-foreground"}>
+                One number
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              {checks.symbol ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-muted-foreground" />}
+              <span className={checks.symbol ? "text-green-500" : "text-muted-foreground"}>
+                One symbol
+              </span>
+            </li>
+          </ul>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password <span className="text-destructive">*</span></Label>
-          <Input
-            name="confirmPassword"
-            type="password"
-            placeholder="********"
-            className="bg-background"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
+          <Label htmlFor="confirmPassword">
+            Confirm Password <span className="text-destructive">*</span>
+          </Label>
+
+          <div className="relative">
+            <Input
+              name="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              placeholder="********"
+              className="bg-background pr-10"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           {confirmPassword.length > 0 && (
             <div className="flex items-center gap-2 text-sm mt-2">
               {passwordsMatch ? (
