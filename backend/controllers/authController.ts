@@ -45,6 +45,38 @@ if (!accessTokenSecret || !refreshTokenSecret) {
   throw new Error('ACCESS_TOKEN_SECRET and REFRESH_TOKEN_SECRET must be defined.');
 }
 
+const DEFAULT_REFRESH_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function parseJwtExpiresInToMs(value: string | undefined): number | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  const asNumber = Number(trimmed);
+
+  // jsonwebtoken treats numeric strings as seconds.
+  if (Number.isFinite(asNumber)) {
+    return asNumber * 1000;
+  }
+
+  const match = trimmed.match(/^(\d+)([smhd])$/i);
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000
+  };
+
+  return amount * multipliers[unit];
+}
+
+const refreshTokenMaxAgeMs =
+  parseJwtExpiresInToMs(process.env.REFRESH_TOKEN_EXPIRES_IN) ?? DEFAULT_REFRESH_MAX_AGE_MS;
+
 const generateAccessToken = (user: JwtUserLike): string => {
   return jwt.sign(
     {
@@ -77,7 +109,7 @@ const getRefreshCookieOptions = (): CookieOptions => {
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
     path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: refreshTokenMaxAgeMs
   };
 };
 
@@ -385,7 +417,7 @@ export const loginUser = async (
     const refreshToken = generateRefreshToken(user);
 
     user.refreshTokenHash = hashToken(refreshToken);
-    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    user.refreshTokenExpires = new Date(Date.now() + refreshTokenMaxAgeMs);
     await user.save();
 
     setRefreshTokenCookie(res, refreshToken);
@@ -445,7 +477,9 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    if ((user.tokenVersion ?? 0) !== decoded.tokenVersion) {
+    // Backward compatibility: older refresh tokens may not carry tokenVersion.
+    const decodedTokenVersion = decoded.tokenVersion ?? 0;
+    if ((user.tokenVersion ?? 0) !== decodedTokenVersion) {
       res.status(401).json({ message: 'Refresh token revoked.' });
       return;
     }

@@ -87,8 +87,14 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const status = error.response?.status
     const originalRequest = error.config as RetryableRequest | undefined
+    const currentAccessToken = useAuthStore.getState().accessToken
 
     if (!originalRequest) {
+      return Promise.reject(error)
+    }
+
+    // If there is no access token in memory, a 401 should not trigger refresh loops.
+    if (status === 401 && !currentAccessToken) {
       return Promise.reject(error)
     }
 
