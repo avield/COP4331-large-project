@@ -6,6 +6,12 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/(auth)')({
     beforeLoad: async () => {
+        const { isLoggingOut } = useAuthStore.getState()
+
+        if (isLoggingOut) {
+            return
+        }
+        
         let token = useAuthStore.getState().accessToken;
 
         // Token is not valid, let's try refreshing it to see if it can be made valid

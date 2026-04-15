@@ -27,10 +27,12 @@ type AuthUser = {
 interface AuthState {
   accessToken: string | null
   user: AuthUser | null
+  isLoggingOut: boolean
 
   setAccessToken: (token: string) => void
   setUser: (user: AuthUser | null) => void
   clearAuth: () => void
+  setIsLoggingOut: (value: boolean) => void
 
   // action to refresh the image
   refreshProfileImage: (dbUrl: string | undefined) => void
@@ -41,6 +43,7 @@ export const useAuthStore = create<AuthState>()(
         (set) => ({
             accessToken: null,
             user: null,
+            isLoggingOut: false,
 
             setAccessToken: (token: string) => set({ accessToken: token }),
             setUser: (user: RawBackendUser | null) => {
@@ -66,6 +69,10 @@ export const useAuthStore = create<AuthState>()(
                     set({ user: null });
                 }
             },
+            
+            setIsLoggingOut: (value: boolean) => set({ isLoggingOut: value }),
+            
+            
             clearAuth: () => set({ accessToken: null, user: null }),
 
             // Updates the active user profile immutably to trigger global renders!

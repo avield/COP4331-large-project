@@ -18,13 +18,19 @@ export default function NavbarAvatar() {
   const displayName = user?.profile?.displayName ?? 'User';
 
   const handleLogout = async () => {
+    const authStore = useAuthStore.getState()
+
+    authStore.setIsLoggingOut(true)
+
     try {
       await api.post('/auth/logout')
     } catch {
       // best-effort
+    } finally {
+      authStore.clearAuth()
+      await router.navigate({ to: '/login', replace: true })
+      authStore.setIsLoggingOut(false)
     }
-    clearAuth()
-    await router.navigate({ to: '/login' })
   }
 
   return (
