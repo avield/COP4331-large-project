@@ -11,7 +11,6 @@ import { useTheme } from "@/context/ThemeContext"
 
 export default function NavbarAvatar() {
   const router = useRouter()
-  const clearAuth = useAuthStore((s) => s.clearAuth)
   const { theme, toggleTheme } = useTheme()
   const user = useAuthStore((s) => s.user);
   const avatarUrl = user?.profile?.profilePictureUrl;
