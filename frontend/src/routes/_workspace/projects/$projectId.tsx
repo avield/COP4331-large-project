@@ -3447,8 +3447,9 @@ const handleDeleteProject = async () => {
 
                               <div>
                                 <div className="text-sm font-medium">{displayName}</div>
-                                <div className="text-xs text-muted-foreground">{email}</div>
-                              </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {email.length > 22 ? `${email.slice(0, 22)}...` : email}
+                                </div>                              </div>
                             </div>
 
                             <div className="flex flex-wrap gap-2">
