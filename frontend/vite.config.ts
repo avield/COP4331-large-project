@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vitest/config'
+import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
@@ -30,9 +31,19 @@ export default defineConfig(({ mode }) => {
     definedEnvVariables[`import.meta.env.${key}`] = JSON.stringify(env[key]);
   }
 
-  if (missingEnvVariables.length > 0) {
+  if (missingEnvVariables.length > 0 && mode !== 'test') {
     console.error(`\x1b[31mThe following environmental variables are required but were not found. Please set them in the .env file: ${missingEnvVariables.join(', ')}\x1b[0m`);
     exit(1);
+  }
+
+  if (mode === 'test') {
+    if (!definedEnvVariables['import.meta.env.FRONTEND_URL']) {
+      definedEnvVariables['import.meta.env.FRONTEND_URL'] = JSON.stringify('http://localhost:3000');
+    }
+
+    if (!definedEnvVariables['import.meta.env.BACKEND_URL']) {
+      definedEnvVariables['import.meta.env.BACKEND_URL'] = JSON.stringify('http://localhost:5000');
+    }
   }
 
   return {
@@ -40,7 +51,7 @@ export default defineConfig(({ mode }) => {
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
-        routeFileIgnorePattern: 'components', 
+        routeFileIgnorePattern: 'components|.*\\.(test|spec)\\.(ts|tsx)$',
       }),
       react(),
       tailwindcss(),
@@ -52,5 +63,14 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: definedEnvVariables,
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: './src/test/setup.ts',
+      css: true,
+      restoreMocks: true,
+      clearMocks: true,
+      mockReset: true,
+    },
   };
 })
