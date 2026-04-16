@@ -3448,7 +3448,7 @@ const handleDeleteProject = async () => {
                               <div>
                                 <div className="text-sm font-medium">{displayName}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  {email.length > 22 ? `${email.slice(0, 22)}...` : email}
+                                  {email.length > 17 ? `${email.slice(0, 17)}...` : email}
                                 </div>                              </div>
                             </div>
 
