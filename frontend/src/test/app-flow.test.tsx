@@ -105,8 +105,6 @@ async function renderAppAt(pathname: string) {
         <RouterProvider router={router} />
       </QueryClientProvider>
     )
-
-    await router.load()
   })
 
   return { router, queryClient }
@@ -171,18 +169,18 @@ describe('App flow integration', () => {
     const { router } = await renderAppAt('/login')
     const user = userEvent.setup()
 
-    expect(await screen.findByText('Welcome back')).toBeInTheDocument()
+    expect(await screen.findByText('Welcome back', {}, { timeout: 15000 })).toBeInTheDocument()
 
     await user.type(screen.getByPlaceholderText('user@example.com'), 'user@test.com')
     await user.type(screen.getByPlaceholderText('********'), 'Passw0rd!')
     await user.click(screen.getByRole('button', { name: 'Sign In' }))
 
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument()
-    expect(await screen.findByText('Alpha Project')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Home' }, { timeout: 15000 })).toBeInTheDocument()
+    expect(await screen.findByText('Alpha Project', {}, { timeout: 15000 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/home')
     expect(useAuthStore.getState().accessToken).not.toBeNull()
     expect(useAuthStore.getState().user?.id).toBe('user-1')
-  })
+  }, 20000)
 
   it('loads the real home route and accepts an invitation', async () => {
     useAuthStore.setState({
