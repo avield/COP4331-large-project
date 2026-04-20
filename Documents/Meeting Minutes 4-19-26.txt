@@ -1,0 +1,21 @@
+Team meeting 4/19/26 8pm
+
+Present: Julio, Tim, Luciano, Fabian, Manny, Aviel
+
+Agenda: Who presents what slides and how the demos will be done
+
+Slides:
+Aviel - about the app
+Manny - Tech stack
+Luciano - How things went
+Fabian: Figma and Use Case
+Julio: Gantt chart 
+Tim: Entity Diagram, Activity Diagram
+Aviel: Unit and Integration Tests 
+
+Demonstrations:
+- Julio: API Demo - (login, home?) project details
+
+- Aviel and Tim: App Demo
+  - Register or login mobile, email registration, login as user, create project
+  - Switch to Desktop to show joining, other project details?
