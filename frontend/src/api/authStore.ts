@@ -1,0 +1,109 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+
+/**
+ * Interface for the raw data coming from the backend (Express/MongoDB).
+ * This handles cases where the backend sends _id instead of id.
+ */
+interface RawBackendUser extends Partial<AuthUser> {
+    _id?: string | { toString(): string };
+}
+
+type AuthUser = {
+  id: string
+  email: string
+  profile?: {
+      displayName?: string
+      profilePictureUrl?: string
+      aboutMe?: string
+      preferredRoles?: string[]
+      school?: string
+  }
+  // older code might be looking for this
+  displayName?: string
+}
+
+interface AuthState {
+  accessToken: string | null
+  user: AuthUser | null
+  isLoggingOut: boolean
+
+  setAccessToken: (token: string) => void
+  setUser: (user: AuthUser | null) => void
+  clearAuth: () => void
+  setIsLoggingOut: (value: boolean) => void
+
+  // action to refresh the image
+  refreshProfileImage: (dbUrl: string | undefined) => void
+}
+
+export const useAuthStore = create<AuthState>()(
+    persist(
+        (set) => ({
+            accessToken: null,
+            user: null,
+            isLoggingOut: false,
+
+            setAccessToken: (token: string) => set({ accessToken: token }),
+            setUser: (user: RawBackendUser | null) => {
+                if (user) {
+                    // Extract ID safely: check _id first, then id, fallback to empty string
+                    const rawId = user._id || user.id;
+
+                    // Ensure we handle MongoDB ObjectIds by calling toString()
+                    const normalizedId = typeof rawId === 'object' && rawId !== null
+                        ? rawId.toString()
+                        : String(rawId || '');
+
+                    const normalizedUser: AuthUser = {
+                        // Provide defaults for required fields in AuthUser
+                        id: normalizedId,
+                        email: user.email || '',
+                        profile: user.profile || {},
+                        displayName: user.displayName || user.profile?.displayName,
+                    };
+
+                    set({ user: normalizedUser });
+                } else {
+                    set({ user: null });
+                }
+            },
+            
+            setIsLoggingOut: (value: boolean) => set({ isLoggingOut: value }),
+            
+            
+            clearAuth: () => set({ accessToken: null, user: null }),
+
+            // Updates the active user profile immutably to trigger global renders!
+            refreshProfileImage: (dbUrl) => {
+                if (!dbUrl) return;
+
+                const base = import.meta.env.BACKEND_URL || 'http://localhost:5000';
+                const cleanBackend = base.endsWith('/') ? base.slice(0, -1) : base;
+                const cleanUrl = dbUrl.startsWith('/') ? dbUrl : `/${dbUrl}`;
+
+                // Generate the final cache-busted URL
+                const finalUrl = `${cleanBackend}${cleanUrl}?t=${Date.now()}`;
+
+                set((state) => {
+                    // Guard against state being empty
+                    if (!state.user) return state;
+
+                    return {
+                        user: {
+                            ...state.user,
+                            profile: {
+                                ...state.user.profile,
+                                profilePictureUrl: finalUrl // Put it directly on the user object!
+                            }
+                        }
+                    };
+                });
+            }
+        }),
+        {
+            name: 'user-auth-storage',
+        }
+    )
+)

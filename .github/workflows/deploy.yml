@@ -12,6 +12,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Build frontend
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        run: |
+          npm ci
+          cd frontend
+          npm ci  # Change this from 'npm install' to 'npm ci'
+          npm run build
+
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
@@ -19,25 +38,27 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Upload frontend to server
+        run: |
+          rsync -avz --delete frontend/dist/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ vars.SERVER_PATH }}/frontend/dist/
+
       - name: Deploy on server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
 
             cd "${{ vars.SERVER_PATH }}"
+            
             git fetch origin main
             git reset --hard origin/main
 
-            rm -rf node_modules
-            rm -rf frontend/node_modules
-            rm -rf backend/node_modules
+            # Changed to npm ci for a clean, lockfile-based install
+          npm ci
 
-            npm install
-
-            cd frontend
+            cd backend
+            # Changed to npm ci for a clean, lockfile-based install
+          npm ci
             npm run build
-
-            cd ../backend
-            pm2 restart taskademia-backend || pm2 start server.mjs --name taskademia-backend
+            pm2 restart taskademia-backend --update-env || pm2 start dist/server.js --name taskademia-backend
             pm2 save
           EOF

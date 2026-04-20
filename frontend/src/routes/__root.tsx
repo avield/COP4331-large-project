@@ -1,48 +1,22 @@
 /// <reference types="vite/client" />
-import type { ReactNode } from 'react'
-import {
-  Outlet,
-  createRootRoute,
-  HeadContent,
-  Scripts,
-} from '@tanstack/react-router'
+import { Outlet, createRootRoute } from '@tanstack/react-router'
+import '../index.css';
+import { useSilentTokenRefresh } from '@/hooks/useSilentTokenRefresh'
+import { Toaster } from 'sonner'
+
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      {
-        charSet: 'utf-8',
-      },
-      {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
-      },
-      {
-        title: 'TanStack Start Starter',
-      },
-    ],
-  }),
   component: RootComponent,
 })
 
-function RootComponent() {
-  return (
-    <RootDocument>
-      <Outlet />
-    </RootDocument>
-  )
-}
 
-function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+function RootComponent() {
+  useSilentTokenRefresh()
+  
   return (
-    <html>
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  )
+    <div className="min-h-screen">
+      <Outlet />
+      <Toaster />
+    </div>
+  );
 }

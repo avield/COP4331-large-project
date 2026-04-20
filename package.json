@@ -1,12 +1,26 @@
 {
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
+    "@types/jest": "^30.0.0",
+    "babel-jest": "^30.3.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.1.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9"
   },
   "workspaces": [
     "frontend",
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently -k \"cd frontend && node ../node_modules/vite/bin/vite.js\" \"cd backend && node --watch server.mjs\""
+    "dev": "concurrently -k \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:frontend": "npm run test --workspace frontend",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --coverage"
+  },
+  "dependencies": {
+    "nodemailer": "^8.0.3"
   }
 }

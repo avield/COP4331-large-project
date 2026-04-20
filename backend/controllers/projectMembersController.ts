@@ -1,0 +1,794 @@
+import type { Response } from 'express';
+import { requireUser } from '../types/guards.js';
+import Project from '../models/Project.js';
+import ProjectMember from '../models/ProjectMember.js';
+import User from '../models/User.js';
+import type { AuthenticatedRequest } from '../types/express.js';
+import { createNotification, createNotifications } from '../services/notificationService.js';
+
+interface PermissionsInput {
+  canEditProject: boolean;
+  canManageMembers: boolean;
+  canCreateTasks: boolean;
+  canAssignTasks: boolean;
+  canCompleteAnyTask: boolean;
+  canModerateChat: boolean;
+}
+
+interface AddProjectMemberBody {
+  userId?: string;
+  role?: string;
+  permissions?: PermissionsInput;
+}
+
+interface UpdateProjectMemberBody {
+  role?: string;
+  permissions?: PermissionsInput;
+  membershipStatus?: 'active' | 'pending' | 'removed';
+}
+
+const validMembershipStatuses = ['active', 'pending', 'removed'] as const;
+type ValidMembershipStatus = (typeof validMembershipStatuses)[number];
+
+//Helper to notify other users when a person leaves or joins a project
+const notifyActiveProjectMembers = async ({
+  projectId,
+  actorUserId,
+  type,
+  title,
+  message,
+  excludeUserIds = [],
+}: {
+  projectId: string;
+  actorUserId: string;
+  type:
+    | 'join_request_approved'
+    | 'join_request_denied'
+    | 'invitation_accepted'
+    | 'ownership_transferred'
+    | 'project_status_changed'
+    | 'project_member_joined'
+    | 'project_member_left';
+  title: string;
+  message: string;
+  excludeUserIds?: string[];
+}): Promise<void> => {
+  const excluded = new Set([actorUserId, ...excludeUserIds]);
+
+  const activeMembers = await ProjectMember.find({
+    projectId,
+    membershipStatus: 'active',
+  }).select('userId');
+
+  const recipientUserIds = activeMembers
+    .map((member) => member.userId?.toString())
+    .filter((userId): userId is string => !!userId && !excluded.has(userId));
+
+  if (recipientUserIds.length === 0) return;
+
+  await createNotifications(
+    recipientUserIds.map((recipientUserId) => ({
+      recipientUserId,
+      actorUserId,
+      type,
+      title,
+      message,
+      projectId,
+      link: `/projects/${projectId}`,
+    }))
+  );
+};
+
+// --- GETTERS ---
+
+export const getProjectMembers = async (
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { projectId } = req.params;
+
+    // Standard members list for team viewing
+    const members = await ProjectMember.find({ projectId, membershipStatus: {$in: ['active', 'pending']} })
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .populate('joinedBy', 'displayName email username')
+        .sort({ membershipStatus: -1, createdAt: 1 });
+
+    res.status(200).json(members);
+  } catch (error) {
+    console.error('getProjectMembers error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const getManageableMembers = async (
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    const { projectId } = req.params;
+    // Security: middleware already verified 'canManageMembers' or 'Owner'
+    const members = await ProjectMember.find({
+      projectId,
+      membershipStatus: { $in: ['active', 'pending'] }
+    })
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .sort({ membershipStatus: -1, createdAt: 1 });
+
+    res.status(200).json(members);
+  } catch (error) {
+    console.error('getManageableMembers error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// --- ACTIONS ---
+
+//Changed to behave more like a "Invite Member" function. Might change back
+export const addProjectMember = async (
+    req: AuthenticatedRequest & {
+      params: { projectId: string };
+      body: AddProjectMemberBody;
+    },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { projectId } = req.params;
+    const { userId, role, permissions } = req.body;
+
+    if (!userId) {
+      res.status(400).json({ message: 'userId is required.' });
+      return;
+    }
+
+    const userExists = await User.findById(userId);
+    if (!userExists) {
+      res.status(404).json({ message: 'User not found.' });
+      return;
+    }
+
+    const project = await Project.findById(projectId).select('name');
+    if (!project) {
+      res.status(404).json({ message: 'Project not found.' });
+      return;
+    }
+
+    const existingMembership = await ProjectMember.findOne({ projectId, userId });
+    if (existingMembership) {
+      res.status(400).json({ message: 'User is already in this project.' });
+      return;
+    }
+
+    const member = await ProjectMember.create({
+      projectId,
+      userId,
+      role: typeof role === 'string' && role.trim() ? role.trim() : 'Member',
+      permissions: {
+        canEditProject: !!permissions?.canEditProject,
+        canManageMembers: !!permissions?.canManageMembers,
+        canCreateTasks: permissions?.canCreateTasks ?? true,
+        canAssignTasks: !!permissions?.canAssignTasks,
+        canCompleteAnyTask: !!permissions?.canCompleteAnyTask,
+        canModerateChat: !!permissions?.canModerateChat
+      },
+      //Changed this from active to pending
+      membershipStatus: 'pending',
+      joinedBy: req.user._id
+    });
+    
+    await createNotification({
+      recipientUserId: member.userId,
+      actorUserId: req.user._id,
+      type: 'project_invitation',
+      title: 'New project invitation',
+      message: `You were invited to join ${project.name}.`,
+      projectId: member.projectId,
+      projectMemberId: member._id,
+      link: `/projects/${member.projectId}`,
+    });
+
+    const populatedMember = await ProjectMember.findById(member._id)
+        .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+        .populate('joinedBy', 'displayName email username');
+    
+
+    //Changed the message sent.
+    res.status(201).json({ message: 'Invitation sent.', member: populatedMember });
+  } catch (error) {
+    console.error('addProjectMember error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const requestJoinProject = async (
+    req: AuthenticatedRequest & { params: { projectId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { projectId } = req.params;
+    const userId = req.user._id;
+
+    const project = await Project.findById(projectId);
+
+    if (!project || !project.settings?.allowSelfJoinRequests) {
+      res.status(403).json({ message: 'Joining is disabled.' });
+      return;
+    }
+
+    if (project.recruitingStatus === 'closed') {
+      res.status(403).json({ message: 'Recruitment for this project is currently closed.' });
+      return;
+    }
+
+    const existing = await ProjectMember.findOne({ projectId, userId });
+    if (existing) {
+      res.status(400).json({ message: 'Request already exists.' });
+      return;
+    }
+
+    const needsApproval = project.settings.requireApprovalToJoin ?? true;
+    const status = needsApproval ? 'pending' : 'active';
+
+    const member = await ProjectMember.create({
+      projectId,
+      userId,
+      role: 'Member',
+      membershipStatus: status,
+      joinedBy: userId,
+      permissions: {
+        canEditProject: false,
+        canManageMembers: false,
+        canCreateTasks: !needsApproval,
+        canAssignTasks: false,
+        canCompleteAnyTask: false,
+        canModerateChat: false
+      }
+    });
+
+    if (status === 'pending') {
+      const managers = await ProjectMember.find({
+        projectId,
+        membershipStatus: 'active',
+        $or: [
+          { role: 'Owner' },
+          { 'permissions.canManageMembers': true }
+        ]
+      });
+
+      const managerNotifications = managers
+        .map((manager) => manager.userId)
+        .filter((managerUserId) => managerUserId && managerUserId.toString() !== req.user._id.toString())
+        .map((managerUserId) => ({
+          recipientUserId: managerUserId,
+          actorUserId: req.user._id,
+          type: 'join_request_received' as const,
+          title: 'New join request',
+          message: `${req.user.profile?.displayName ?? req.user.email} requested to join ${project.name}.`,
+          projectId: member.projectId,
+          projectMemberId: member._id,
+          link: `/projects/${projectId}`
+        }));
+
+      await createNotifications(managerNotifications);
+    }
+
+    res.status(201).json({ message: needsApproval ? 'Request sent!' : 'Joined!', status, member });
+  } catch (error) {
+    console.error('requestJoinProject error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const updateProjectMember = async (
+    req: AuthenticatedRequest & {
+      params: { membershipId: string };
+      body: UpdateProjectMemberBody;
+    },
+    res: Response
+): Promise<void> => {
+  try {
+    const { membershipId } = req.params;
+    const { role, permissions, membershipStatus } = req.body;
+
+    const membership = await ProjectMember.findById(membershipId);
+    if (!membership) {
+      res.status(404).json({ message: 'Member not found.' });
+      return;
+    }
+
+    requireUser(req);
+    const previousStatus = membership.membershipStatus;
+
+    // Owner protection is a business rule, keep it here
+    if (membership.role === 'Owner' && role && role !== 'Owner') {
+      res.status(400).json({ message: 'Ownership transfer required to change Owner role.' });
+      return;
+    }
+
+    if (role) membership.role = role.trim();
+
+    if (permissions) {
+      membership.permissions = {
+        canEditProject: permissions.canEditProject ?? membership.permissions?.canEditProject ?? false,
+        canManageMembers: permissions.canManageMembers ?? membership.permissions?.canManageMembers ?? false,
+        canCreateTasks: permissions.canCreateTasks ?? membership.permissions?.canCreateTasks ?? true,
+        canAssignTasks: permissions.canAssignTasks ?? membership.permissions?.canAssignTasks ?? false,
+        canCompleteAnyTask: permissions.canCompleteAnyTask ?? membership.permissions?.canCompleteAnyTask ?? false,
+        canModerateChat: permissions.canModerateChat ?? membership.permissions?.canModerateChat ?? false
+      };
+    }
+
+    if (membershipStatus && validMembershipStatuses.includes(membershipStatus as ValidMembershipStatus)) {
+      membership.membershipStatus = membershipStatus as ValidMembershipStatus;
+    }
+
+    await membership.save();
+    
+    if (previousStatus === 'pending' && membership.membershipStatus === 'active') {
+      const project = await Project.findById(membership.projectId).select('name');
+      const actorName = req.user.profile?.displayName ?? req.user.email;
+      const joinedUser = await User.findById(membership.userId).select('email profile.displayName');
+      const joinedUserName = joinedUser?.profile?.displayName ?? joinedUser?.email ?? 'A new member';
+
+      await createNotification({
+        recipientUserId: membership.userId,
+        actorUserId: req.user._id,
+        type: 'join_request_approved',
+        title: 'Join request approved',
+        message: `Your request to join ${project?.name ?? 'the project'} was approved.`,
+        projectId: membership.projectId,
+        projectMemberId: membership._id,
+        link: `/projects/${membership.projectId}`,
+      });
+
+      await notifyActiveProjectMembers({
+        projectId: membership.projectId.toString(),
+        actorUserId: req.user._id.toString(),
+        type: 'project_member_joined',
+        title: 'Member joined project',
+        message: `${joinedUserName} joined ${project?.name ?? 'the project'}.`,
+        excludeUserIds: [membership.userId.toString()],
+      });
+    }
+    const updated = await ProjectMember.findById(membership._id).populate('userId', 'email profile.displayName');
+
+    res.status(200).json({ message: 'Member updated.', member: updated });
+  } catch (error) {
+    console.error('updateProjectMember error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const removeProjectMember = async (
+    req: AuthenticatedRequest & { params: { membershipId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { membershipId } = req.params;
+    const membership = await ProjectMember.findById(membershipId);
+
+    if (!membership) {
+      res.status(404).json({ message: 'Member not found.' });
+      return;
+    }
+
+    // Special Case: Allow self-removal even without 'Manage' perms
+    const isSelfRemoval = membership.userId.toString() === req.user._id.toString();
+
+    // If not self-removal, checkCanManageMembers middleware handles the security
+    if (membership.role === 'Owner') {
+      res.status(400).json({ message: 'Owner cannot be removed.' });
+      return;
+    }
+
+    const project = await Project.findById(membership.projectId).select('name');
+    const removedUser = await User.findById(membership.userId).select('email profile.displayName');
+    const removedUserName = removedUser?.profile?.displayName ?? removedUser?.email ?? 'A member';
+
+    await ProjectMember.findByIdAndDelete(membershipId);
+
+    await notifyActiveProjectMembers({
+      projectId: membership.projectId.toString(),
+      actorUserId: req.user._id.toString(),
+      type: 'project_status_changed',
+      title: 'Member left project',
+      message: `${removedUserName} was removed from ${project?.name ?? 'the project'}.`,
+    });
+
+    res.status(200).json({ message: 'Member removed.' });
+  } catch (error) {
+    console.error('removeProjectMember error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// GET /api/project-members/check-specific-invite/:targetUserId
+export const getSpecificPendingInvite = async (
+    req: AuthenticatedRequest & { params: { targetUserId: string } },
+    res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+    const { targetUserId } = req.params;
+    const currentUserId = req.user._id;
+
+    // Find if the target user has a pending invite to ANY project
+    // that the current user has permission to manage
+    const invite = await ProjectMember.findOne({
+      userId: targetUserId,
+      membershipStatus: 'pending',
+      joinedBy: currentUserId // This ensures WE are the ones who sent it
+    })
+        .populate('projectId', 'name')
+        .lean();
+
+    res.status(200).json(invite);
+  } catch (error) {
+    console.error('getSpecificPendingInvite error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const denyJoinRequest = async (
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req);
+
+    const { membershipId } = req.params;
+
+    const membership = await ProjectMember.findById(membershipId);
+    if (!membership) {
+      res.status(404).json({ message: 'Request not found.' });
+      return;
+    }
+
+    const project = await Project.findById(membership.projectId).select('name');
+
+    await createNotification({
+      recipientUserId: membership.userId,
+      actorUserId: req.user._id,
+      type: 'join_request_denied',
+      title: 'Join request denied',
+      message: `Your request to join ${project?.name ?? 'the project'} was denied.`,
+      projectId: membership.projectId,
+      projectMemberId: membership._id,
+      link: `/projects/${membership.projectId}`,
+    });
+
+    await ProjectMember.findByIdAndDelete(membershipId);
+
+    res.status(200).json({ message: 'Request denied.' });
+  } catch (error) {
+    console.error('denyJoinRequest error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+//Accepting Invitations
+export const acceptProjectInvitation = async (
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { membershipId } = req.params
+
+    const membership = await ProjectMember.findById(membershipId)
+    if (!membership) {
+      res.status(404).json({ message: 'Invitation not found.' })
+      return
+    }
+
+    // Make sure the person accepting is the actual subject of the record
+    if (membership.userId.toString() !== req.user._id.toString()) {
+      res.status(403).json({ message: 'You can only accept your own invitations.' })
+      return
+    }
+
+    // Make sure they aren't approving a request THEY started
+    if (membership.joinedBy?.toString() === req.user._id.toString()) {
+      res.status(403).json({ message: 'You cannot approve your own join request.' });
+      return;
+    }
+
+    if (membership.membershipStatus !== 'pending') {
+      res.status(400).json({ message: 'This invitation is no longer pending.' })
+      return
+    }
+
+    if (!membership.joinedBy) {
+      console.error('Missing joinedBy on membership:', membership._id)
+      res.status(500).json({ message: 'Unable to accept invitation due to invalid membership data.' })
+      return
+    }
+
+    membership.membershipStatus = 'active'
+    await membership.save()
+    const project = await Project.findById(membership.projectId).select('name');
+
+    await createNotification({
+      recipientUserId: membership.joinedBy,
+      actorUserId: req.user._id,
+      type: 'invitation_accepted',
+      title: 'Invitation accepted',
+      message: `${req.user.profile?.displayName ?? req.user.email} accepted your invitation to ${project?.name ?? 'the project'}.`,
+      projectId: membership.projectId,
+      projectMemberId: membership._id,
+      link: `/projects/${membership.projectId}`,
+    });
+
+    await notifyActiveProjectMembers({
+      projectId: membership.projectId.toString(),
+      actorUserId: req.user._id.toString(),
+      type: 'project_member_joined',
+      title: 'Member joined project',
+      message: `${req.user.profile?.displayName ?? req.user.email} joined ${project?.name ?? 'the project'}.`,
+      excludeUserIds: [membership.joinedBy.toString()],
+    });
+
+    const updated = await ProjectMember.findById(membership._id)
+      .populate('userId', 'email profile.displayName profile.profilePictureUrl')
+      .populate('joinedBy', 'email profile.displayName')
+
+    res.status(200).json({ message: 'Invitation accepted.', member: updated })
+  } catch (error) {
+    console.error('acceptProjectInvitation error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Rejecting invitations
+export const rejectProjectInvitation = async (
+  req: AuthenticatedRequest & { params: { membershipId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { membershipId } = req.params
+
+    const membership = await ProjectMember.findById(membershipId)
+    if (!membership) {
+      res.status(404).json({ message: 'Invitation not found.' })
+      return
+    }
+
+    if (membership.userId.toString() !== req.user._id.toString()) {
+      res.status(403).json({ message: 'You can only reject your own invitations.' })
+      return
+    }
+
+    if (membership.membershipStatus !== 'pending') {
+      res.status(400).json({ message: 'This invitation is no longer pending.' })
+      return
+    }
+
+    await ProjectMember.findByIdAndDelete(membershipId)
+    res.status(200).json({ message: 'Invitation rejected.' })
+  } catch (error) {
+    console.error('rejectProjectInvitation error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Get all pending invitations
+export const getMyProjectInvitations = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const invitations = await ProjectMember.find({
+      userId: req.user._id,
+      membershipStatus: 'pending',
+      joinedBy: { $ne: req.user._id },
+    })
+      .populate('projectId', 'name description visibility recruitingStatus')
+      .populate('joinedBy', 'email profile.displayName profile.profilePictureUrl')
+      .sort({ createdAt: -1 })
+
+    res.status(200).json(invitations)
+  } catch (error) {
+    console.error('getMyProjectInvitations error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Leave a project
+export const leaveProject = async (
+  req: AuthenticatedRequest & { params: { projectId: string } },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { projectId } = req.params
+
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active',
+    })
+
+    if (!membership) {
+      res.status(404).json({ message: 'Active membership not found.' })
+      return
+    }
+
+    if (membership.role !== 'Owner') {
+      const project = await Project.findById(projectId).select('name');
+      const actorName = req.user.profile?.displayName ?? req.user.email;
+
+      await ProjectMember.findByIdAndDelete(membership._id);
+
+      await notifyActiveProjectMembers({
+        projectId,
+        actorUserId: req.user._id.toString(),
+        type: 'project_member_left',
+        title: 'Member left project',
+        message: `${actorName} left ${project?.name ?? 'the project'}.`,
+      });
+
+      res.status(200).json({ message: 'You left the project.' });
+      return;
+    }
+
+    const nextOwner = await ProjectMember.findOne({
+      projectId,
+      membershipStatus: 'active',
+      userId: { $ne: req.user._id },
+    }).sort({ createdAt: 1 })
+
+    if (!nextOwner) {
+      res.status(400).json({
+        message: 'You cannot leave this project because there are no other active members to transfer ownership to.',
+      })
+      return
+    }
+
+    nextOwner.role = 'Owner'
+    nextOwner.permissions = {
+      canEditProject: true,
+      canManageMembers: true,
+      canCreateTasks: true,
+      canAssignTasks: true,
+      canCompleteAnyTask: true,
+      canModerateChat: true,
+    }
+    await nextOwner.save()
+
+    await Project.findByIdAndUpdate(projectId, {
+      createdBy: nextOwner.userId,
+    })
+
+    await ProjectMember.findByIdAndDelete(membership._id)
+
+    const project = await Project.findById(projectId).select('name')
+
+    await createNotification({
+      recipientUserId: nextOwner.userId,
+      actorUserId: req.user._id,
+      type: 'ownership_transferred',
+      title: 'Project ownership transferred',
+      message: `You are now the owner of ${project?.name ?? 'this project'}.`,
+      projectId,
+      link: `/projects/${projectId}`,
+    })
+
+    await notifyActiveProjectMembers({
+      projectId,
+      actorUserId: req.user._id.toString(),
+      type: 'project_member_left',
+      title: 'Member left project',
+      message: `${req.user.profile?.displayName ?? req.user.email} left ${project?.name ?? 'the project'}.`,
+    });
+
+    res.status(200).json({
+      message: 'Ownership transferred and you left the project.',
+      newOwnerUserId: nextOwner.userId,
+    })
+  } catch (error) {
+    console.error('leaveProject error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}
+
+//Transfer Ownership
+export const transferProjectOwnership = async (
+  req: AuthenticatedRequest & {
+    params: { projectId: string }
+    body: { targetMembershipId?: string }
+  },
+  res: Response
+): Promise<void> => {
+  try {
+    requireUser(req)
+
+    const { projectId } = req.params
+    const { targetMembershipId } = req.body
+
+    if (!targetMembershipId) {
+      res.status(400).json({ message: 'targetMembershipId is required.' })
+      return
+    }
+
+    const currentOwner = await ProjectMember.findOne({
+      projectId,
+      userId: req.user._id,
+      membershipStatus: 'active',
+    })
+
+    if (!currentOwner || currentOwner.role !== 'Owner') {
+      res.status(403).json({ message: 'Only the project owner can transfer ownership.' })
+      return
+    }
+
+    const targetMember = await ProjectMember.findById(targetMembershipId)
+
+    if (
+      !targetMember ||
+      targetMember.projectId.toString() !== projectId ||
+      targetMember.membershipStatus !== 'active'
+    ) {
+      res.status(404).json({ message: 'Target member not found.' })
+      return
+    }
+
+    if (targetMember.userId.toString() === req.user._id.toString()) {
+      res.status(400).json({ message: 'You already own this project.' })
+      return
+    }
+
+    currentOwner.role = 'Member'
+    currentOwner.permissions = {
+      canEditProject: false,
+      canManageMembers: false,
+      canCreateTasks: true,
+      canAssignTasks: false,
+      canCompleteAnyTask: false,
+      canModerateChat: false,
+    }
+
+    targetMember.role = 'Owner'
+    targetMember.permissions = {
+      canEditProject: true,
+      canManageMembers: true,
+      canCreateTasks: true,
+      canAssignTasks: true,
+      canCompleteAnyTask: true,
+      canModerateChat: true,
+    }
+
+    await currentOwner.save()
+    await targetMember.save()
+
+    await Project.findByIdAndUpdate(projectId, {
+      createdBy: targetMember.userId,
+    })
+
+    const project = await Project.findById(projectId).select('name')
+
+    await createNotification({
+      recipientUserId: targetMember.userId,
+      actorUserId: req.user._id,
+      type: 'ownership_transferred',
+      title: 'Project ownership transferred',
+      message: `You are now the owner of ${project?.name ?? 'this project'}.`,
+      projectId,
+      link: `/projects/${projectId}`,
+    })
+
+    res.status(200).json({ message: 'Ownership transferred successfully.' })
+  } catch (error) {
+    console.error('transferProjectOwnership error:', error)
+    res.status(500).json({ message: 'Internal server error.' })
+  }
+}

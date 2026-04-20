@@ -1,0 +1,38 @@
+Team Meeting 3/22/26 8pm
+
+Present: Aviel, Julio, Luciano
+
+Agenda: What needs to be done before check in
+
+Goal: working register and log in before Friday
+ - Email verification needed
+
+
+Already done:
+- Database set up
+- APIs
+ - Login
+ - Register
+ - Logout
+ - JWT broken into 2: Access and Refresh tokens
+- Front end
+ - Login
+ - Register
+ - Side bar mostly done
+ - Project page sorta done
+
+
+Needs to be done:
+- ERD
+- APIs
+ - Projects (need to verify it will index correctly based on project name)
+ - Don't need emailtoken model any more
+ - ProjectMember should act as join table, test it once Projects endpoint is created
+- Landing page
+- Link pages together
+
+
+- Notes for front end: when calling login api, you'll receive 2 tokens. Access token in JSON and refreshToken set automatically as HttpOnly cookie
+- All subsequent API calls: send Authorization: Bearer <accessToken>
+
+When access token expires, call POST /api/auth/refresh with credentials
