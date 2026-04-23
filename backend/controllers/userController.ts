@@ -8,6 +8,9 @@ import ProjectMember from '../models/ProjectMember.js';
 import Project from '../models/Project.js';
 import { requireUser } from '../types/guards.js';
 import type { AuthenticatedRequest } from '../types/express.js';
+import path from 'node:path';
+import { UPLOAD_DIR } from './profileController.js';
+import fs from 'fs/promises';
 
 
 interface UserParams {
@@ -119,6 +122,7 @@ export const deleteMyAccount = async (
   try {
     requireUser(req);
     const userId = req.user._id;
+    let user_pic_path = req.user.profile?.profilePictureUrl || null;
 
     await session.withTransaction(async () => {
       // 1) Find every active membership for this user
@@ -189,6 +193,10 @@ export const deleteMyAccount = async (
       await User.deleteOne({ _id: userId }).session(session);
     });
 
+    if (user_pic_path) {
+      await deleteUserPicture(user_pic_path);
+    }
+
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -204,3 +212,26 @@ export const deleteMyAccount = async (
     await session.endSession();
   }
 };
+
+async function deleteUserPicture(oldPath: string) {
+  // Only delete if there's an existing path that isn't empty
+  if (oldPath && oldPath.includes('/public/uploads/')) {
+    try {
+      // Get the filename
+      const filename = path.basename(oldPath);
+
+      // Construct the path
+      // Ensures the OS handles the slashes correctly using path.resolve
+      const fullOldPath = path.join(UPLOAD_DIR, filename);
+
+      // Delete the old file
+      await fs.unlink(fullOldPath);
+      console.log(`Deleted: ${fullOldPath}`);
+    } catch (error: any) {
+      // If the file is already gone, we don't want to crash the update
+      if (error.code !== 'ENOENT') {
+        console.error("Error during file deletion:", error.message);
+      }
+    }
+  }
+}

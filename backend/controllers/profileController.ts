@@ -10,6 +10,7 @@ import multer, {MulterError} from "multer";
 // Helper for __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+export const UPLOAD_DIR = '/var/www/taskademia/backend/public/uploads';
 
 // Extend the type to include Multer file property
 type ProfileUploadRequest = AuthenticatedRequest & {
@@ -75,10 +76,7 @@ export const updateProfile = async (req: ProfileUploadRequest, res: Response): P
     // Clean up logic to remove old image files already uploaded to server
     if (req.file) {
       // Check if the user already has an old profile picture stored in the server
-      const oldPath = user.profile?.profilePictureUrl;
-
-      // Define the absolute base directory for the uploaded images
-      const UPLOAD_DIR = '/var/www/taskademia/backend/public/uploads';
+      const oldPath = user.profile?.profilePictureUrl; 
 
       // Only delete if there's an existing path that isn't empty
       if (oldPath && oldPath.includes('/public/uploads/')) {
