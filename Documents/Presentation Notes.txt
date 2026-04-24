@@ -1,0 +1,104 @@
+Presentation Notes
+
+Aviel - Introduction
+(We say our names, in order of from the desk outwards like last time)
+
+Aviel: What is Taskademia:
+- We sought to solve the problem of how to organize groups to work together. 
+- Groups could organize goals
+- Assign or pick up tasks
+- See who's done what.
+
+Aviel: Core Features:
+- Projects
+  - Public or private, join settings and recruiting status
+- Kanban Task Board
+- Team Management
+  - Self-joining or approve new members
+  - Member permissions (default to create and edit tasks),
+  - Other permissions: manage other members or project details
+- Notifications
+  - tasks or projects change status 
+  - when someone joins, leaves, or requests membership
+- User Profile
+  - profiles offer a way to tell others about yourself and your strengths
+
+Aviel: Authentication System:
+- Split the JWT into 2 components
+  - Access Token you get on login and is verified on protected API routes
+  - Refresh Token makes it easier to come back to the site
+
+Manny: Tech Stack (going to sound like a dense list, try to make combine or skip some?)
+- Front end:
+  - Vite: Front end build tool. Helped development with quick start up, UI changes showed up instantly
+  - Tailwind CSS: Handled most of our styling. Added responsiveness to the UI
+  - TanStack: Helped with routing and organizing the site structure
+  - Shadcn/ui: library of well-designed components
+- Back end:
+  - Node.js + Express: Handles routing, authentication, and communication with front end
+  - JWT: manage secure login sessions and protect the routes and user data
+  - AWS SES: Amazon Web Services, Simple Email Service - used for account verification, password reset. Highly scalable if we wanted to use email notifications
+- Database: 
+  - MongoDB: gave us a lot of flexibility, changed schemas as the project grew
+- DevOps:
+  - GitHub Actions: automated linting and having server pull new commits
+  - PM2: rebooted backend after new commits
+
+Luciano: How Things Went
+- Went Well:
+  - Figma prototype gave us something to work towards
+  - We talked out what features we wanted
+  - By the end of spring break: we had most of backend done, core pages in front end working
+  - AWS Email application went smoothly and got to production status in 24 hours.
+  - Backend started helping front end when a lot was left to do
+  - We pointed each other to good resources (YouTube, shadcn pages) and helped when when we didn't know how to do something
+- Did not go well:
+  - Refresh token would not refresh the access token (took us 2 weeks to find the bug)
+  - We didn't get to implement the live chat that we wanted
+  - Front end required a lot more work than we thought. Project details page and home page kept needing to be revisited to show everything a team would need (like the charts and invites)
+  - As we expanded and updated the features the backend had to change and we needed to update the API documentation a lot more
+
+Fabian: Figma Prototypes & Use Case Diagram
+- Figma prototypes:
+  - Gave us the basic layout to build towards. We kept the sidebar and the clean look.
+  - We wanted to give info at a glance and an easy way to get to projects fast.
+    - Percentages and Status tags on project cards
+    - Project details page would show goals, tasks, and a way to see who does what
+- Use Case Diagram:
+  - Read from left to right
+  - A Visitor comes to the site and can register or sign in
+  - A User can view projects or become a project member or project owner
+  - Project Members can create and edit tasks
+  - Project Owners can create and edit goals and the project details
+
+Julio: Gantt chart
+- Slide 1: First week we discussed what we want to do, what features we wanted, and what we need to learn
+- Slide 2: 
+  - Development started during Spring Break
+  - During weeks 2 and 3 most of the initial APIs were done in backend, Front end got solid landing page, login and registration done, started on home page
+  - Week 4 we expanded the APIs for more functions and front end expanded the home page and project details page to show more information
+  - Week 5: Did the last large features, project invitations and notifications
+- Slide 3
+  - Flutter development done this whole time by Tim
+  - Week 6: Mostly bug fixing, creating the tests, and the documentation
+
+Tim: Entity Diagram & Activity Diagram
+- Entity Diagram:
+  - The main entity is the project, which connects to tasks, goals, and project members. Users interact with projects through memberships. Notifications are tied to different activities.
+- Activity Diagram:
+  - The activity diagram shows how a user moves through taskademia from account creation (on the left) to project creation or joining (center left), to working on tasks (center right), and editing their profile or account password (right)
+
+Aviel: Class Diagram and Unit Tests
+- Class Diagram:
+  - This is a trimmed down class diagram. It shows how the mobile app is organized into three main parts: screens, services, and domain models. The screens handle the user interface. The service layer manages the API calls and token storage. And the domain models represent the app's main data like projects, tasks, and goals.
+- Testing:
+  - Our unit tests do not cover everything. We focused on the main backend controllers for authentication, projects, and tasks, and in the front end unit tests check utilities like JWT parsing, token refresh, and state management. The integration tests cover front and back user flows like registration, logging in and getting to the home page, a user getting and accepting an invitation, and viewing a project to submitting a join request.
+
+Demonstrations:
+Julio: API Demo - (login, maybe home?) project details
+https://app.swaggerhub.com/apis/student-1df-2d7/Taskademia-API/1.0
+
+Live App Demo:
+Tim Registers, Shows email verification works, logs into normal account, shows project, invites Aviel
+Aviel On Mobile:
+  - Accepts project invite, create some tasks, move them around.

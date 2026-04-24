@@ -1,35 +1,69 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRouter,
+} from '@tanstack/react-router'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/api/authStore'
 
 const {
-  loaderDataMock,
-  routerInvalidateMock,
-  apiPostMock,
+  getMock,
+  postMock,
+  deleteMock,
+  putMock,
   toastSuccessMock,
-  authState,
+  toastErrorMock,
 } = vi.hoisted(() => ({
-  loaderDataMock: vi.fn(),
-  routerInvalidateMock: vi.fn(),
-  apiPostMock: vi.fn(),
+  getMock: vi.fn(),
+  postMock: vi.fn(),
+  deleteMock: vi.fn(),
+  putMock: vi.fn(),
   toastSuccessMock: vi.fn(),
-  authState: { user: { id: 'user-1' as string | undefined } },
+  toastErrorMock: vi.fn(),
 }))
+
+function makeAccessToken(payload: Record<string, unknown> = {}) {
+  return `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, ...payload }))}.signature`
+}
 
 vi.mock('@/api/axios', () => ({
   default: {
-    post: apiPostMock,
-    delete: vi.fn(),
-    put: vi.fn(),
-    get: vi.fn(),
+    get: getMock,
+    post: postMock,
+    delete: deleteMock,
+    put: putMock,
   },
 }))
 
+vi.mock('@/hooks/useSilentTokenRefresh', () => ({
+  useSilentTokenRefresh: () => undefined,
+}))
+
+vi.mock('@/components/ui/sidebar', () => ({
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
+vi.mock('@/context/ThemeContext', () => ({
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
 vi.mock('sonner', () => ({
+  Toaster: () => null,
   toast: {
     success: toastSuccessMock,
-    error: vi.fn(),
+    error: toastErrorMock,
   },
+}))
+
+vi.mock('../components/sidebar', () => ({
+  default: () => <div data-testid="workspace-sidebar" />,
+}))
+
+vi.mock('../components/navbar', () => ({
+  default: () => <div data-testid="workspace-navbar" />,
 }))
 
 vi.mock('@hello-pangea/dnd', () => ({
@@ -41,7 +75,7 @@ vi.mock('@hello-pangea/dnd', () => ({
 }))
 
 vi.mock('./components/column', () => ({
-  KanbanColumn: () => <div data-testid="kanban-column" />, 
+  KanbanColumn: () => <div data-testid="kanban-column" />,
 }))
 
 vi.mock('./components/goals-overview-chart', () => ({
@@ -56,131 +90,148 @@ vi.mock('@/components/network-avatar', () => ({
   NetworkAvatar: () => <div data-testid="network-avatar" />,
 }))
 
-vi.mock('@/api/authStore', () => ({
-  useAuthStore: (selector: (state: { user: { id?: string } | null }) => unknown) =>
-    selector(authState),
-}))
+async function renderAppAt(pathname: string) {
+  const { routeTree } = await import('../../../routeTree.gen')
 
-vi.mock('@tanstack/react-router', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-router')>(
-    '@tanstack/react-router'
-  )
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [pathname] }),
+    scrollRestoration: false,
+  })
 
-  return {
-    ...actual,
-    useRouter: () => ({
-      invalidate: routerInvalidateMock,
-      navigate: vi.fn(),
-    }),
-    useNavigate: () => vi.fn(),
-    Link: ({ children, to, ...props }: { children: React.ReactNode; to?: string }) => (
-      <a href={to ?? '#'} {...props}>
-        {children}
-      </a>
-    ),
-  }
-})
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
 
-describe.skip('Project details page', () => {
+  await act(async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    )
+  })
+
+  return { router }
+}
+
+describe('Project details page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.resetModules()
-    routerInvalidateMock.mockResolvedValue(undefined)
-    apiPostMock.mockResolvedValue(undefined)
-    authState.user = { id: 'user-1' }
+    useAuthStore.setState({
+      accessToken: makeAccessToken({ sub: 'user-1' }),
+      user: { id: 'user-1', email: 'user@test.com', profile: {} },
+      isLoggingOut: false,
+    })
+    window.scrollTo = vi.fn()
   })
-
-  async function renderProjectPage() {
-    const mod = await import('./$projectId')
-    ;(mod.Route as any).useLoaderData = loaderDataMock
-    const ProjectPage = (mod.Route as any).options?.component
-    return render(<ProjectPage />)
-  }
 
   it('renders visitor view and allows join request actions', async () => {
-    loaderDataMock.mockReturnValue({
-      isFullDetails: false,
-      project: {
-        _id: 'project-1',
-        name: 'Public Sprint Board',
-        description: 'Public project description',
-        visibility: 'public',
-        recruitingStatus: 'open',
-        lookingForRoles: ['Designer'],
-        settings: {
-          allowSelfJoinRequests: true,
-          requireApprovalToJoin: false,
-          inviteOnly: false,
-        },
-      },
-      tasks: [],
-      members: [],
-      goals: [],
-      permissions: { canJoinProject: true },
+    getMock.mockImplementation(async (url: string) => {
+      if (url === '/projects/project-1/details') {
+        return {
+          data: {
+            isFullDetails: false,
+            project: {
+              _id: 'project-1',
+              name: 'Public Sprint Board',
+              description: 'Public project description',
+              visibility: 'public',
+              recruitingStatus: 'open',
+              lookingForRoles: ['Designer'],
+              settings: {
+                allowSelfJoinRequests: true,
+                requireApprovalToJoin: false,
+                inviteOnly: false,
+              },
+            },
+            tasks: [],
+            members: [],
+            goals: [],
+            permissions: { canJoinProject: true },
+          },
+        }
+      }
+
+      throw new Error(`Unexpected GET ${url}`)
     })
 
-    await renderProjectPage()
+    postMock.mockResolvedValue({ data: { message: 'Joined project successfully!' } })
 
-    expect(screen.getByRole('heading', { name: 'Public Sprint Board' })).toBeInTheDocument()
+    const { router } = await renderAppAt('/projects/project-1')
+    const invalidateSpy = vi.spyOn(router, 'invalidate')
+    const user = userEvent.setup()
+
+    expect(await screen.findByRole('heading', { name: 'Public Sprint Board' })).toBeInTheDocument()
     expect(screen.getByText('Open Access')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Join Project' }))
+    await user.click(screen.getByRole('button', { name: 'Join Project' }))
 
     await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith('/project-members/project/project-1/join')
-      expect(routerInvalidateMock).toHaveBeenCalled()
+      expect(postMock).toHaveBeenCalledWith('/project-members/project/project-1/join')
+      expect(invalidateSpy).toHaveBeenCalled()
       expect(toastSuccessMock).toHaveBeenCalledWith('Joined project successfully!')
     })
-  })
+  }, 15000)
 
   it('renders member view controls when full details are available', async () => {
-    loaderDataMock.mockReturnValue({
-      isFullDetails: true,
-      project: {
-        _id: 'project-1',
-        name: 'Internal Planning Board',
-        description: 'Internal project description',
-        visibility: 'private',
-        recruitingStatus: 'closed',
-        status: 'active',
-        tags: ['frontend'],
-        settings: {
-          allowSelfJoinRequests: false,
-          requireApprovalToJoin: false,
-          inviteOnly: true,
-        },
-      },
-      tasks: [],
-      goals: [],
-      permissions: { canJoinProject: false },
-      members: [
-        {
-          _id: 'member-1',
-          projectId: 'project-1',
-          role: 'Owner',
-          membershipStatus: 'active',
-          userId: {
-            _id: 'user-1',
-            email: 'owner@test.com',
-            profile: { displayName: 'Owner User' },
+    getMock.mockImplementation(async (url: string) => {
+      if (url === '/projects/project-1/details') {
+        return {
+          data: {
+            isFullDetails: true,
+            project: {
+              _id: 'project-1',
+              name: 'Internal Planning Board',
+              description: 'Internal project description',
+              visibility: 'private',
+              recruitingStatus: 'closed',
+              status: 'active',
+              tags: ['frontend'],
+              settings: {
+                allowSelfJoinRequests: false,
+                requireApprovalToJoin: false,
+                inviteOnly: true,
+              },
+            },
+            tasks: [],
+            goals: [],
+            permissions: { canJoinProject: false },
+            members: [
+              {
+                _id: 'member-1',
+                projectId: 'project-1',
+                role: 'Owner',
+                membershipStatus: 'active',
+                userId: {
+                  _id: 'user-1',
+                  email: 'owner@test.com',
+                  profile: { displayName: 'Owner User' },
+                },
+                permissions: {
+                  canEditProject: true,
+                  canManageMembers: true,
+                  canCreateTasks: true,
+                  canAssignTasks: true,
+                  canCompleteAnyTask: true,
+                  canModerateChat: true,
+                },
+              },
+            ],
           },
-          permissions: {
-            canEditProject: true,
-            canManageMembers: true,
-            canCreateTasks: true,
-            canAssignTasks: true,
-            canCompleteAnyTask: true,
-            canModerateChat: true,
-          },
-        },
-      ],
+        }
+      }
+
+      throw new Error(`Unexpected GET ${url}`)
     })
 
-    await renderProjectPage()
+    await renderAppAt('/projects/project-1')
 
-    expect(screen.getByRole('heading', { name: 'Internal Planning Board' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Internal Planning Board' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit Project' })).toBeInTheDocument()
-    expect(screen.getByText('Private')).toBeInTheDocument()
+    expect(screen.getAllByText('Private').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Join Project' })).not.toBeInTheDocument()
   })
 })

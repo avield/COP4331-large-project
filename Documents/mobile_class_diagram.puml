@@ -1,0 +1,152 @@
+@startuml
+title Taskademia Mobile App Class Diagram
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "Screens" {
+  class LandingScreen
+  class LoginScreen
+  class RegisterScreen
+  class HomeScreen
+  class DashboardScreen
+  class ProjectCreateScreen
+  class ProjectsScreen {
+    +projectId : String
+  }
+  class TaskDetailScreen {
+    +taskId : String
+    +projectId : String?
+  }
+  class NotificationsScreen
+  class ProfileScreen {
+    +userId : String?
+  }
+  class SearchScreen
+}
+
+package "Domain Models" {
+  class GlobalSearchResponse {
+    +users : List<dynamic>
+    +projects : List<dynamic>
+    +tasks : List<dynamic>
+  }
+
+  class ProjectGoal {
+    +title : String
+    +description : String
+  }
+
+  class MemberPermissions {
+    +canEditProject : bool
+    +canManageMembers : bool
+    +canCreateTasks : bool
+    +canAssignTasks : bool
+    +canCompleteAnyTask : bool
+    +canModerateChat : bool
+  }
+
+  class InvitedMember {
+    +userId : String
+    +role : String
+    +permissions : MemberPermissions
+  }
+
+  class TaskGoal {
+    +id : String
+    +title : String
+  }
+
+  class ProjectTask {
+    +id : String
+    +title : String
+    +status : String
+    +description : String
+    +priority : String
+    +goal : TaskGoal
+  }
+}
+
+package "Services" {
+  class TaskManagerData {
+    {static} +login(email, password)
+    {static} +register(email, password, displayName)
+    {static} +me()
+    {static} +projects()
+    {static} +projectCreate(...)
+    {static} +projectDetails(projectId)
+    {static} +projectUpdate(...)
+    {static} +projectJoin(projectId)
+    {static} +tasksProject(projectId)
+    {static} +tasksById(taskId)
+    {static} +tasksByIdUpdate(taskId, data)
+    {static} +tasksByIdDelete(taskId)
+    {static} +notifications()
+    {static} +notificationAccept(membershipId)
+    {static} +notificationReject(membershipId)
+    {static} +profile()
+    {static} +profileUpdate(...)
+    {static} +profileDetails(userId)
+    {static} +search(query) : GlobalSearchResponse
+  }
+
+  class TokenService {
+    {static} +saveToken(token)
+    {static} +getToken()
+    {static} +logout()
+  }
+
+  class Debouncer {
+    +milliseconds : int
+    +run(action)
+    +dispose()
+  }
+
+  class UrlUtils {
+    {static} +getFullUrl(path) : String
+  }
+}
+
+HomeScreen *-- DashboardScreen
+HomeScreen *-- NotificationsScreen
+HomeScreen *-- ProfileScreen
+
+ProjectCreateScreen o-- ProjectGoal : creates
+InvitedMember *-- MemberPermissions
+ProjectsScreen ..> ProjectTask : displays
+ProjectTask *-- TaskGoal
+
+LoginScreen ..> TaskManagerData : login()
+LoginScreen ..> TokenService : saveToken()
+RegisterScreen ..> TaskManagerData : register()
+DashboardScreen ..> TaskManagerData : projects()/notifications()/search()
+DashboardScreen ..> Debouncer : throttles search
+ProjectCreateScreen ..> TaskManagerData : projectCreate()/search()
+ProjectCreateScreen ..> Debouncer
+ProjectCreateScreen ..> GlobalSearchResponse
+ProjectsScreen ..> TaskManagerData : projectDetails()/tasksProject()
+ProjectsScreen ..> UrlUtils
+TaskDetailScreen ..> TaskManagerData : tasksById()/update()/delete()
+TaskDetailScreen ..> UrlUtils
+NotificationsScreen ..> TaskManagerData : notifications()/accept()/reject()
+NotificationsScreen ..> UrlUtils
+ProfileScreen ..> TaskManagerData : profile()/profileUpdate()/profileDetails()
+ProfileScreen ..> TokenService : logout()
+ProfileScreen ..> UrlUtils
+SearchScreen ..> TaskManagerData : search()
+SearchScreen ..> Debouncer
+SearchScreen ..> GlobalSearchResponse
+LandingScreen ..> LoginScreen
+LandingScreen ..> RegisterScreen
+
+note bottom of TaskManagerData
+  Central API client for auth,
+  projects, tasks, notifications,
+  profiles, and global search.
+end note
+
+@enduml
