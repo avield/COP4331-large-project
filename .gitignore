@@ -26,3 +26,15 @@ dist-ssr
 
 # Unit Test Coverage
 coverage/*
+
+# Flutter / Dart
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub/
+mobile/build/
+
+# Flutter platform-local files
+mobile/android/local.properties
+mobile/ios_build_log.txt
