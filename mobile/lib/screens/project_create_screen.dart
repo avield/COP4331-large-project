@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../utils/get_api.dart';
 import '../utils/debouncer.dart';
+import '../utils/url_utils.dart';
 import 'package:taskademia/routes/routes.dart';
 
 class ProjectCreateScreen extends StatefulWidget {
@@ -76,11 +77,17 @@ class MemberPermissions {
 
 class InvitedMember {
   String userId;
+  String displayName;
+  String email;
+  String? profilePictureUrl;
   String role;
   MemberPermissions permissions;
 
   InvitedMember({
     required this.userId,
+    required this.displayName,
+    required this.email,
+    this.profilePictureUrl,
     this.role = "Member",
     required this.permissions,
   });
@@ -103,9 +110,18 @@ class _ProjectCreateMainPageState extends State<ProjectCreateMainPage> {
   final TextEditingController _projectDescriptionController = TextEditingController();
   final TextEditingController _projectPrivacyController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
+  final TextEditingController _memberSearchController = TextEditingController();
   String _isoDateForDb = '';
   final List<ProjectGoal> goals = [];
+  final List<InvitedMember> invitedMembers = [];
+  List<dynamic> _memberSearchResults = [];
+  bool _isSearchingMembers = false;
   int _selectedIndex = 2;
+
+  String _initialForName(String value) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
+  }
 
   @override
   void initState() {
@@ -117,6 +133,7 @@ class _ProjectCreateMainPageState extends State<ProjectCreateMainPage> {
     _debouncer.dispose();
     _searchController.dispose();
     _searchNotifier.dispose();
+    _memberSearchController.dispose();
     super.dispose();
   }
 
@@ -394,6 +411,140 @@ class _ProjectCreateMainPageState extends State<ProjectCreateMainPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text("Invite Members", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const Text("Search for users to add now. You can adjust permissions later.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _memberSearchController,
+                    style: const TextStyle(color: Colors.white),
+                    onChanged: _searchMembers,
+                    decoration: InputDecoration(
+                      hintText: "Search by name, email, or school",
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                      prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                      suffixIcon: _isSearchingMembers
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: inputBorderColor), borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.blue), borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  if (_memberSearchResults.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF262626),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: inputBorderColor),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _memberSearchResults.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: inputBorderColor),
+                        itemBuilder: (context, index) {
+                          final user = _memberSearchResults[index];
+                          final profile = user["profile"] ?? {};
+                          final displayName = profile["displayName"] ?? user["displayName"] ?? user["email"] ?? "User";
+                          final imageUrl = profile["profilePictureUrl"] ?? user["profilePictureUrl"];
+                          final email = user["email"] ?? "";
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.blue.shade100,
+                              backgroundImage: UrlUtils.getFullUrl(imageUrl).isNotEmpty
+                                  ? NetworkImage(UrlUtils.getFullUrl(imageUrl))
+                                  : null,
+                              child: UrlUtils.getFullUrl(imageUrl).isEmpty
+                                  ? Text(_initialForName(displayName.toString()), style: const TextStyle(color: Colors.blue))
+                                  : null,
+                            ),
+                            title: Text(displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            subtitle: Text(email, style: const TextStyle(color: Colors.white60)),
+                            trailing: TextButton(
+                              onPressed: () => _addInvitedMember(user),
+                              child: const Text("Add"),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (invitedMembers.isEmpty)
+                    const Text("No members invited yet.", style: TextStyle(color: Colors.grey))
+                  else
+                    ...invitedMembers.map((member) => Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF262626),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: inputBorderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.blue.shade100,
+                            backgroundImage: member.profilePictureUrl != null && UrlUtils.getFullUrl(member.profilePictureUrl).isNotEmpty
+                                ? NetworkImage(UrlUtils.getFullUrl(member.profilePictureUrl!))
+                                : null,
+                            child: member.profilePictureUrl == null || UrlUtils.getFullUrl(member.profilePictureUrl).isEmpty
+                                ? Text(_initialForName(member.displayName), style: const TextStyle(color: Colors.blue))
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(member.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                Text(member.email, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: member.role,
+                            dropdownColor: const Color(0xFF262626),
+                            style: const TextStyle(color: Colors.white),
+                            underline: const SizedBox.shrink(),
+                            items: const [
+                              DropdownMenuItem(value: "Member", child: Text("Member")),
+                              DropdownMenuItem(value: "Admin", child: Text("Admin")),
+                            ],
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() => member.role = value);
+                            },
+                          ),
+                          IconButton(
+                            onPressed: () => setState(() => invitedMembers.remove(member)),
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10)]
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   const Text("Project Goals", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                   const Text("Define key objectives. Each goal becomes an initial task on the board.", style: TextStyle(color: Colors.grey, fontSize: 13)),
                   const SizedBox(height: 16),
@@ -505,20 +656,31 @@ class _ProjectCreateMainPageState extends State<ProjectCreateMainPage> {
       return;
     }
 
+    if (_projectDescriptionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Project description is required")));
+      return;
+    }
+
     List<Map<String, dynamic>> goalListAsMaps = goals.map((goal) => goal.toJson()).toList();
+    List<Map<String, dynamic>> invitedMemberMaps =
+        invitedMembers.map((member) => member.toJson()).toList();
     try {
       String response = await TaskManagerData.projectCreate(
         _projectNameController.text,
         _projectDescriptionController.text,
         _projectPrivacyController.text.isEmpty ? "private" : _projectPrivacyController.text,
         _isoDateForDb,
-        goalListAsMaps
+        goalListAsMaps,
+        invitedMemberMaps,
       );
       var jsonObject = json.decode(response);
 
-      if (jsonObject["_id"] != null) {
+      final project = jsonObject["project"] ?? jsonObject;
+      final projectId = (project["_id"] ?? project["id"])?.toString();
+
+      if (projectId != null && projectId.isNotEmpty) {
         if (!mounted) return;
-        Navigator.pushReplacementNamed(context, Routes.projectsScreen, arguments: jsonObject["_id"]);
+        Navigator.pushReplacementNamed(context, Routes.projectsScreen, arguments: projectId);
       } else {
         throw Exception("Failed to parse project ID from response");
       }
@@ -547,5 +709,65 @@ class _ProjectCreateMainPageState extends State<ProjectCreateMainPage> {
         _isoDateForDb = picked.toUtc().toIso8601String();
       });
     }
+  }
+
+  void _searchMembers(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.length < 2) {
+      setState(() {
+        _memberSearchResults = [];
+        _isSearchingMembers = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearchingMembers = true);
+    _debouncer.run(() async {
+      try {
+        final results = await TaskManagerData.search(trimmed);
+        final users = results.users.where((user) {
+          final userId = (user["id"] ?? user["_id"])?.toString();
+          return userId != null &&
+              !invitedMembers.any((member) => member.userId == userId);
+        }).toList();
+
+        if (!mounted) return;
+        setState(() {
+          _memberSearchResults = users;
+          _isSearchingMembers = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _memberSearchResults = [];
+          _isSearchingMembers = false;
+        });
+      }
+    });
+  }
+
+  void _addInvitedMember(dynamic user) {
+    final userId = (user["id"] ?? user["_id"])?.toString();
+    if (userId == null || userId.isEmpty) return;
+
+    final profile = user["profile"] ?? {};
+    final displayName = (profile["displayName"] ?? user["displayName"] ?? user["email"] ?? "User").toString();
+    final email = (user["email"] ?? "").toString();
+    final profilePictureUrl = (profile["profilePictureUrl"] ?? user["profilePictureUrl"])?.toString();
+
+    setState(() {
+      invitedMembers.add(
+        InvitedMember(
+          userId: userId,
+          displayName: displayName,
+          email: email,
+          profilePictureUrl: profilePictureUrl,
+          permissions: MemberPermissions(),
+        ),
+      );
+      _memberSearchController.clear();
+      _memberSearchResults = [];
+    });
   }
 }

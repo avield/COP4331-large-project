@@ -10,8 +10,10 @@ import 'package:taskademia/screens/task_detail_screen.dart';
 import 'package:taskademia/screens/notifications_screen.dart';
 import 'package:taskademia/screens/profile_screen.dart';
 import 'package:taskademia/screens/search_screen.dart';
+import 'package:taskademia/screens/splash_screen.dart';
 
 class Routes {
+  static const String splashScreen = '/splash';
   static const String landingScreen = '/';
   static const String loginScreen = '/login';
   static const String registerScreen = '/register';
@@ -27,6 +29,8 @@ class Routes {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case splashScreen:
+        return MaterialPageRoute(builder: (_) => const SplashScreen());
       case landingScreen:
         return MaterialPageRoute(builder: (_) => const LandingScreen());
       case loginScreen:

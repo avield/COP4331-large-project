@@ -85,7 +85,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
           themeMode: themeManager.themeMode,
-          initialRoute: Routes.landingScreen,
+          initialRoute: Routes.splashScreen,
           onGenerateRoute: Routes.generateRoute,
         );
       },

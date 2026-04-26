@@ -35,6 +35,19 @@ class TaskGoal {
   final String title;
   TaskGoal({required this.id, required this.title});
   factory TaskGoal.fromJson(Map<String, dynamic> json) => TaskGoal(id: json['_id'] ?? '', title: json['title'] ?? '');
+
+  factory TaskGoal.fromDynamic(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return TaskGoal.fromJson(value);
+    }
+    if (value is Map) {
+      return TaskGoal.fromJson(Map<String, dynamic>.from(value));
+    }
+    if (value == null) {
+      return TaskGoal(id: '', title: 'No Goal');
+    }
+    return TaskGoal(id: value.toString(), title: 'Associated Goal');
+  }
 }
 
 class ProjectTask {
@@ -62,7 +75,7 @@ class ProjectTask {
     status: json['status'] ?? 'todo',
     description: json['description'] ?? '',
     priority: json['priority'] ?? 'low',
-    goal: json['goalId'] != null ? TaskGoal.fromJson(json['goalId']) : TaskGoal(id: '', title: 'No Goal'),
+    goal: TaskGoal.fromDynamic(json['goalId']),
     rawJson: json,
   );
 }
@@ -78,6 +91,9 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
   String projectName = '', projectPrivacy = '', projectRecruiting = '', projectStatus = '';
   String description = '';
   String projectDueDate = '', projectVisibility = '';
+  List<String> projectTags = [];
+  List<String> lookingForRoles = [];
+  Map<String, dynamic> joinSettings = {};
   int taskToDo = 0, taskInProgress = 0, taskBlocked = 0, taskDone = 0, taskTotal = 0;
   List<Map<String, dynamic>> membersList = [];
   List<ProjectTask> todo = [], inProgress = [], review = [], done = [];
@@ -87,6 +103,108 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  String _normalizeTaskStatus(dynamic status) {
+    final normalized = (status ?? 'todo').toString().toLowerCase();
+    switch (normalized) {
+      case 'in-progress':
+        return 'in_progress';
+      case 'review':
+        return 'blocked';
+      default:
+        return normalized;
+    }
+  }
+
+  Widget _buildAvatarImage({
+    required String displayName,
+    String? imageUrl,
+    required double radius,
+    Color? backgroundColor,
+    Color? textColor,
+    FontWeight? fontWeight,
+    double? fontSize,
+  }) {
+    final resolvedUrl = UrlUtils.getFullUrl(imageUrl);
+    final fallbackText = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: backgroundColor,
+      child: ClipOval(
+        child: resolvedUrl.isNotEmpty
+            ? Image.network(
+                resolvedUrl,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Text(
+                    fallbackText,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: fontSize,
+                      fontWeight: fontWeight,
+                    ),
+                  ),
+                ),
+              )
+            : Center(
+                child: Text(
+                  fallbackText,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: fontSize,
+                    fontWeight: fontWeight,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  void _applyTaskData(List<dynamic> rawTasks) {
+    final tasks = rawTasks
+        .whereType<Map<String, dynamic>>()
+        .map((item) => ProjectTask.fromJson({
+              ...item,
+              'status': _normalizeTaskStatus(item['status']),
+            }))
+        .toList();
+
+    todo = tasks.where((t) => t.status == 'todo').toList();
+    inProgress = tasks.where((t) => t.status == 'in_progress').toList();
+    review = tasks.where((t) => t.status == 'blocked').toList();
+    done = tasks.where((t) => t.status == 'done').toList();
+
+    taskTotal = tasks.length;
+    taskToDo = todo.length;
+    taskInProgress = inProgress.length;
+    taskBlocked = review.length;
+    taskDone = done.length;
+  }
+
+  String _memberDisplayName(dynamic user) {
+    if (user is Map) {
+      final profile = user["profile"];
+      if (profile is Map && profile["displayName"] != null) {
+        return profile["displayName"].toString();
+      }
+      return (user["displayName"] ?? user["email"] ?? "User").toString();
+    }
+    return "User";
+  }
+
+  String? _memberProfilePictureUrl(dynamic user) {
+    if (user is Map) {
+      final profile = user["profile"];
+      if (profile is Map && profile["profilePictureUrl"] != null) {
+        return profile["profilePictureUrl"]?.toString();
+      }
+      return user["profilePictureUrl"]?.toString();
+    }
+    return null;
   }
 
   Future<void> _loadData() async {
@@ -113,7 +231,8 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
       if (!mounted) return;
       
       final projectObj = jsonObject["project"] ?? {};
-      final List<dynamic> members = jsonObject["members"] ?? [];
+      final List<dynamic> detailMembers = jsonObject["members"] ?? [];
+      final List<dynamic> projectTasks = jsonObject["tasks"] ?? [];
       
       // 3. Determine Membership and Role
       bool memberFound = false;
@@ -121,7 +240,7 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
       bool isAdmin = false;
 
       // Check Members list for ID and Role
-      for (var m in members) {
+      for (var m in detailMembers) {
         final mUser = m["userId"];
         String? mId;
         if (mUser is Map) {
@@ -160,6 +279,25 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
         }
       }
 
+      List<Map<String, dynamic>> resolvedMembers = List<Map<String, dynamic>>.from(detailMembers);
+
+      if (memberFound) {
+        try {
+          final membersResponse = isAdmin
+              ? await TaskManagerData.projectMembersManage(projectId)
+              : await TaskManagerData.projectMembers(projectId);
+          final fetchedMembers = json.decode(membersResponse);
+          if (fetchedMembers is List) {
+            resolvedMembers = fetchedMembers
+                .whereType<Map>()
+                .map((member) => Map<String, dynamic>.from(member))
+                .toList();
+          }
+        } catch (_) {
+          // Fall back to the members included in project details if the secondary fetch fails.
+        }
+      }
+
       setState(() {
         projectName = projectObj["name"] ?? 'Unnamed Project';
         description = projectObj["description"] ?? '';
@@ -168,14 +306,13 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
         projectStatus = projectObj["status"] ?? '';
         projectDueDate = projectObj["dueDate"]?.toString().split("T")[0] ?? 'No Date';
         projectVisibility = projectPrivacy;
+        projectTags = List<String>.from(projectObj["tags"] ?? []);
+        lookingForRoles = List<String>.from(projectObj["lookingForRoles"] ?? []);
+        joinSettings = Map<String, dynamic>.from(projectObj["settings"] ?? {});
         
-        membersList = List<Map<String, dynamic>>.from(members);
+        membersList = resolvedMembers;
         goalsList = List<Map<String, dynamic>>.from(jsonObject["goals"] ?? []);
-        taskTotal = jsonObject["stats"]?["totalTasks"] ?? 0;
-        taskToDo = jsonObject["stats"]?["todo"] ?? 0;
-        taskInProgress = jsonObject["stats"]?["in_progress"] ?? 0;
-        taskBlocked = jsonObject["stats"]?["blocked"] ?? 0;
-        taskDone = jsonObject["stats"]?["done"] ?? 0;
+        _applyTaskData(projectTasks);
         
         _isMember = memberFound;
         _canEdit = canEdit;
@@ -193,11 +330,7 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
       List<dynamic> jsonList = json.decode(response);
       if (!mounted) return;
       setState(() {
-        List<ProjectTask> tasks = jsonList.map((item) => ProjectTask.fromJson(item)).toList();
-        todo = tasks.where((t) => t.status == 'todo').toList();
-        inProgress = tasks.where((t) => t.status == 'in-progress').toList();
-        review = tasks.where((t) => t.status == 'review').toList();
-        done = tasks.where((t) => t.status == 'done').toList();
+        _applyTaskData(jsonList);
       });
     } catch (e) {
       if (mounted) setState(() => errorMessage = e.toString());
@@ -242,10 +375,11 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
               icon: const Icon(LucideIcons.plus, size: 20),
               onPressed: () => _showAddTaskDialog("todo"),
             ),
-          IconButton(
-            icon: const Icon(LucideIcons.settings, size: 20),
-            onPressed: () {},
-          ),
+          if (_canEdit)
+            IconButton(
+              icon: const Icon(LucideIcons.settings, size: 20),
+              onPressed: _showProjectSettingsSheet,
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -253,6 +387,7 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildProgressCard(isDark, progress, remainingTasks),
+            _buildProjectOverviewCard(isDark),
             _buildQuickStats(isDark),
             _buildMembersSection(isDark),
             _buildGoalsSection(isDark),
@@ -267,8 +402,8 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildKanbanColumn("To Do", todo, isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade100, Colors.grey, "todo"),
-                  _buildKanbanColumn("In Progress", inProgress, isDark ? const Color(0xFF1A1A1A) : Colors.blue.shade50, Colors.blue, "in-progress"),
-                  _buildKanbanColumn("Review", review, isDark ? const Color(0xFF1A1A1A) : Colors.orange.shade50, Colors.orange, "review"),
+                  _buildKanbanColumn("In Progress", inProgress, isDark ? const Color(0xFF1A1A1A) : Colors.blue.shade50, Colors.blue, "in_progress"),
+                  _buildKanbanColumn("Blocked", review, isDark ? const Color(0xFF1A1A1A) : Colors.orange.shade50, Colors.orange, "blocked"),
                   _buildKanbanColumn("Done", done, isDark ? const Color(0xFF1A1A1A) : Colors.green.shade50, Colors.green, "done"),
                 ],
               ),
@@ -321,8 +456,8 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                 itemCount: membersList.length > 8 ? 8 : membersList.length,
                 itemBuilder: (context, index) {
                   final member = membersList[index]["userId"];
-                  final String? imageUrl = (member is Map) ? member["profilePictureUrl"] : null;
-                  final String displayName = (member is Map) ? (member["displayName"] ?? member["email"] ?? "?") : "?";
+                  final String? imageUrl = _memberProfilePictureUrl(member);
+                  final String displayName = _memberDisplayName(member);
                   
                   return Align(
                     widthFactor: 0.7,
@@ -331,15 +466,14 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                       child: CircleAvatar(
                         radius: 20,
                         backgroundColor: isDark ? const Color(0xFF262626) : Colors.white,
-                        child: CircleAvatar(
+                        child: _buildAvatarImage(
+                          displayName: displayName,
+                          imageUrl: imageUrl,
                           radius: 18,
                           backgroundColor: isDark ? Colors.blue.withOpacity(0.2) : Colors.blue.shade50,
-                          backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
-                              ? NetworkImage(UrlUtils.getFullUrl(imageUrl))
-                              : null,
-                          child: (imageUrl == null || imageUrl.isEmpty)
-                              ? Text(displayName[0].toUpperCase(), style: TextStyle(color: Colors.blue.shade700, fontSize: 14, fontWeight: FontWeight.bold))
-                              : null,
+                          textColor: Colors.blue.shade700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -359,10 +493,11 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.6,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -386,26 +521,38 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                   final user = memberData["userId"];
                   final String role = memberData["role"] ?? "member";
                   final String membershipId = memberData["_id"]?.toString() ?? "";
+                  final String membershipStatus =
+                      (memberData["membershipStatus"] ?? "active").toString().toLowerCase();
+                  final bool isPending = membershipStatus == 'pending';
                   
-                  final String name = (user is Map) ? (user["displayName"] ?? "User") : "User";
+                  final String name = _memberDisplayName(user);
                   final String email = (user is Map) ? (user["email"] ?? "") : "";
-                  final String? imageUrl = (user is Map) ? user["profilePictureUrl"] : null;
+                  final String? imageUrl = _memberProfilePictureUrl(user);
                   final String mUserId = (user is Map) ? (user["_id"] ?? user["id"]).toString() : user.toString();
+                  final joinedBy = memberData["joinedBy"];
+                  final String joinedById = joinedBy is Map
+                      ? (joinedBy["_id"] ?? joinedBy["id"] ?? "").toString()
+                      : (joinedBy?.toString() ?? "");
+                  final bool isJoinRequest = isPending && joinedById == mUserId;
+                  final String memberSubtitle = isPending
+                      ? (isJoinRequest ? "Pending join request" : "Pending invitation")
+                      : email;
 
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    leading: CircleAvatar(
+                    leading: _buildAvatarImage(
+                      displayName: name,
+                      imageUrl: imageUrl,
                       radius: 22,
                       backgroundColor: Colors.blue.shade50,
-                      backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
-                          ? NetworkImage(UrlUtils.getFullUrl(imageUrl))
-                          : null,
-                      child: (imageUrl == null || imageUrl.isEmpty)
-                          ? Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))
-                          : null,
+                      textColor: Colors.blue,
+                      fontWeight: FontWeight.bold,
                     ),
                     title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(email, style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54)),
+                    subtitle: Text(
+                      memberSubtitle,
+                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -418,6 +565,24 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                           child: Text(
                             role.toUpperCase(),
                             style: TextStyle(color: _getRoleColor(role), fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isPending
+                                ? Colors.amber.withOpacity(0.14)
+                                : Colors.green.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            isPending ? "PENDING" : "ACTIVE",
+                            style: TextStyle(
+                              color: isPending ? Colors.amber.shade800 : Colors.green.shade700,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         if (_isAdmin && mUserId != currentUserId && role.toLowerCase() != 'owner')
@@ -546,7 +711,7 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
                       itemBuilder: (context, index) {
                         final user = searchResults[index];
                         final String uId = (user["_id"] ?? user["id"]).toString();
-                        final String name = user["displayName"] ?? "User";
+                        final String name = _memberDisplayName(user);
                         final String email = user["email"] ?? "";
                         
                         // Check if already a member
@@ -685,12 +850,13 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Container(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            top: 20,
+            top: 24,
             left: 20,
             right: 20,
           ),
@@ -969,6 +1135,353 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
           _buildStatItem("Done", taskDone.toString(), LucideIcons.circleCheck, Colors.green),
           _buildStatItem("Goals", goalsList.length.toString(), LucideIcons.target, Colors.orange),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProjectOverviewCard(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text("Project Overview", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              if (_canEdit)
+                TextButton.icon(
+                  onPressed: _showProjectSettingsSheet,
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                  icon: const Icon(LucideIcons.settings, size: 14),
+                  label: const Text("Edit"),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description.isNotEmpty ? description : "No project description yet.",
+            style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, height: 1.5),
+          ),
+          if (projectTags.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: projectTags
+                  .map((tag) => _buildOverviewPill(tag, isDark ? Colors.white10 : Colors.grey.shade100, null))
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildOverviewStat("Due Date", projectDueDate == 'No Date' ? "Not set" : projectDueDate, LucideIcons.calendar, isDark),
+              _buildOverviewStat("Visibility", projectVisibility.isEmpty ? "Unknown" : _toDisplayLabel(projectVisibility), LucideIcons.globe, isDark),
+              _buildOverviewStat("Recruiting", _toRecruitingLabel(projectRecruiting), LucideIcons.briefcase, isDark),
+              _buildOverviewStat("Project Status", _toDisplayLabel(projectStatus), LucideIcons.flag, isDark),
+            ],
+          ),
+          if (lookingForRoles.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Text("Looking For", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: lookingForRoles
+                  .map((role) => _buildOverviewPill(role, Colors.blue.withOpacity(0.12), Colors.blue))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewStat(String label, String value, IconData icon, bool isDark) {
+    return Container(
+      width: 155,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.03) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: Colors.blue.shade400),
+          const SizedBox(height: 10),
+          Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewPill(String label, Color backgroundColor, Color? foregroundColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foregroundColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  String _toDisplayLabel(String value) {
+    if (value.isEmpty) return "Unknown";
+    return value
+        .split('_')
+        .map((part) => part.isEmpty ? part : "${part[0].toUpperCase()}${part.substring(1)}")
+        .join(' ');
+  }
+
+  String _toRecruitingLabel(String value) {
+    switch (value) {
+      case 'open':
+        return "Open to new members";
+      case 'closed':
+        return "Closed to new members";
+      default:
+        return _toDisplayLabel(value);
+    }
+  }
+
+  void _showProjectSettingsSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameController = TextEditingController(text: projectName);
+    final descriptionController = TextEditingController(text: description);
+    final dueDateController = TextEditingController(
+      text: projectDueDate == 'No Date' ? '' : projectDueDate,
+    );
+    final tagsController = TextEditingController(text: projectTags.join(', '));
+    final rolesController = TextEditingController(text: lookingForRoles.join(', '));
+
+    String visibility = projectVisibility.isEmpty ? 'public' : projectVisibility;
+    String recruitingStatus = projectRecruiting.isEmpty ? 'open' : projectRecruiting;
+    String status = projectStatus.isEmpty ? 'active' : projectStatus;
+    bool inviteOnly = joinSettings["inviteOnly"] == true;
+    bool requireApprovalToJoin = joinSettings["requireApprovalToJoin"] == true;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Edit Project", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: "Project Name",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: "Description",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: dueDateController,
+                  decoration: InputDecoration(
+                    labelText: "Due Date",
+                    hintText: "YYYY-MM-DD",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  value: visibility,
+                  decoration: InputDecoration(
+                    labelText: "Visibility",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                    DropdownMenuItem(value: 'private', child: Text('Private')),
+                  ],
+                  onChanged: (value) => setModalState(() => visibility = value ?? visibility),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  value: recruitingStatus,
+                  decoration: InputDecoration(
+                    labelText: "Recruiting",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'open', child: Text('Open')),
+                    DropdownMenuItem(value: 'closed', child: Text('Closed')),
+                  ],
+                  onChanged: (value) => setModalState(() => recruitingStatus = value ?? recruitingStatus),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: InputDecoration(
+                    labelText: "Project Status",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'planning', child: Text('Planning')),
+                    DropdownMenuItem(value: 'active', child: Text('Active')),
+                    DropdownMenuItem(value: 'on_hold', child: Text('On Hold')),
+                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  ],
+                  onChanged: (value) => setModalState(() => status = value ?? status),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: tagsController,
+                  decoration: InputDecoration(
+                    labelText: "Tags",
+                    hintText: "Comma separated",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: rolesController,
+                  decoration: InputDecoration(
+                    labelText: "Looking For Roles",
+                    hintText: "Comma separated",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SwitchListTile.adaptive(
+                  value: inviteOnly,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text("Invite Only"),
+                  subtitle: const Text("Only invited users can join directly."),
+                  onChanged: (value) => setModalState(() => inviteOnly = value),
+                ),
+                SwitchListTile.adaptive(
+                  value: requireApprovalToJoin,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text("Require Approval"),
+                  subtitle: const Text("Join requests must be approved."),
+                  onChanged: inviteOnly ? null : (value) => setModalState(() => requireApprovalToJoin = value),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final parsedTags = tagsController.text
+                          .split(',')
+                          .map((value) => value.trim())
+                          .where((value) => value.isNotEmpty)
+                          .toList();
+                      final parsedRoles = rolesController.text
+                          .split(',')
+                          .map((value) => value.trim())
+                          .where((value) => value.isNotEmpty)
+                          .toList();
+
+                      final settings = inviteOnly
+                          ? {
+                              "inviteOnly": true,
+                              "allowSelfJoinRequests": false,
+                              "requireApprovalToJoin": false,
+                            }
+                          : {
+                              "inviteOnly": false,
+                              "allowSelfJoinRequests": true,
+                              "requireApprovalToJoin": requireApprovalToJoin,
+                            };
+
+                      try {
+                        await TaskManagerData.projectUpdate(
+                          widget.projectId,
+                          nameController.text.trim(),
+                          descriptionController.text.trim(),
+                          visibility,
+                          dueDateController.text.trim(),
+                          recruitingStatus,
+                          status,
+                          parsedTags,
+                          parsedRoles,
+                          settings,
+                        );
+
+                        if (!mounted) return;
+                        Navigator.pop(context);
+                        await _initProject(widget.projectId);
+                        if (_isMember) {
+                          await _initTasks(widget.projectId);
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Failed to update project: $e")),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text("Save Changes", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1256,35 +1769,43 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
   }
 
   Future<void> _moveTask(ProjectTask task, String newStatus) async {
+    final normalizedNewStatus = _normalizeTaskStatus(newStatus);
+
     // 1. Optimistic Update
     setState(() {
       // Remove from old list
       if (task.status == 'todo') todo.removeWhere((t) => t.id == task.id);
-      if (task.status == 'in-progress') inProgress.removeWhere((t) => t.id == task.id);
-      if (task.status == 'review') review.removeWhere((t) => t.id == task.id);
+      if (task.status == 'in_progress') inProgress.removeWhere((t) => t.id == task.id);
+      if (task.status == 'blocked') review.removeWhere((t) => t.id == task.id);
       if (task.status == 'done') done.removeWhere((t) => t.id == task.id);
 
       // Create updated task
       final updatedTask = ProjectTask(
         id: task.id,
         title: task.title,
-        status: newStatus,
+        status: normalizedNewStatus,
         description: task.description,
         priority: task.priority,
         goal: task.goal,
-        rawJson: {...task.rawJson, "status": newStatus},
+        rawJson: {...task.rawJson, "status": normalizedNewStatus},
       );
 
       // Add to new list
-      if (newStatus == 'todo') todo.add(updatedTask);
-      if (newStatus == 'in-progress') inProgress.add(updatedTask);
-      if (newStatus == 'review') review.add(updatedTask);
-      if (newStatus == 'done') done.add(updatedTask);
+      if (normalizedNewStatus == 'todo') todo.add(updatedTask);
+      if (normalizedNewStatus == 'in_progress') inProgress.add(updatedTask);
+      if (normalizedNewStatus == 'blocked') review.add(updatedTask);
+      if (normalizedNewStatus == 'done') done.add(updatedTask);
+
+      taskTotal = todo.length + inProgress.length + review.length + done.length;
+      taskToDo = todo.length;
+      taskInProgress = inProgress.length;
+      taskBlocked = review.length;
+      taskDone = done.length;
     });
 
     try {
       // 2. API Call
-      await TaskManagerData.tasksByIdUpdate(task.id, {"status": newStatus});
+      await TaskManagerData.tasksByIdUpdate(task.id, {"status": normalizedNewStatus});
     } catch (e) {
       // 3. Rollback if failed (Optional, but good practice)
       _initTasks(widget.projectId);
@@ -1305,12 +1826,13 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Container(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            top: 20,
+            top: 24,
             left: 20,
             right: 20,
           ),

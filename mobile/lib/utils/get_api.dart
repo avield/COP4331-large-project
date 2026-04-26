@@ -156,6 +156,30 @@ class TaskManagerData {
     }
   }
 
+  static Future<String> deleteAccount() async {
+    final url = Uri.parse('https://taskademia.app/api/users/me/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.delete(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Delete account failed: $e");
+    }
+  }
+
   static Future<String> forgotPassword(String email) async {
     final url = Uri.parse('https://taskademia.app/api/auth/forgot-password/');
 
@@ -230,8 +254,13 @@ class TaskManagerData {
     }
   }
 
-  static Future<String> projectCreate(String name, String description,
-      String visibility, String dueDate, List<Map<String, dynamic>> goals) async {
+  static Future<String> projectCreate(
+      String name,
+      String description,
+      String visibility,
+      String dueDate,
+      List<Map<String, dynamic>> goals,
+      List<Map<String, dynamic>> invitedMembers) async {
     final url = Uri.parse('https://taskademia.app/api/projects/create/');
     String? token = await TokenService.getToken();
 
@@ -249,6 +278,7 @@ class TaskManagerData {
           "visibility": visibility,
           "dueDate": dueDate,
           "goals": goals,
+          "invitedMembers": invitedMembers,
         }),
       );
 
@@ -287,9 +317,18 @@ class TaskManagerData {
     }
   }
 
-  static Future<String> projectUpdate(String projectId, String name,
-      String description, String visibility, String dueDate, List<String> tags,
-      List<String> lookingForRoles, List<Map<String, dynamic>> settings) async {
+  static Future<String> projectUpdate(
+    String projectId,
+    String name,
+    String description,
+    String visibility,
+    String dueDate,
+    String recruitingStatus,
+    String status,
+    List<String> tags,
+    List<String> lookingForRoles,
+    Map<String, dynamic> settings,
+  ) async {
     final url = Uri.parse('https://taskademia.app/api/projects/$projectId/');
     String? token = await TokenService.getToken();
 
@@ -306,6 +345,8 @@ class TaskManagerData {
           "description": description,
           "visibility": visibility,
           "dueDate": dueDate,
+          "recruitingStatus": recruitingStatus,
+          "status": status,
           "tags": tags,
           "lookingForRoles": lookingForRoles,
           "settings": settings,
@@ -708,7 +749,7 @@ class TaskManagerData {
   }
 
   static Future<String> notifications() async {
-    final url = Uri.parse('https://taskademia.app/api/project-members/me/invitations/');
+    final url = Uri.parse('https://taskademia.app/api/notifications/');
     String? token = await TokenService.getToken();
 
     try {
@@ -728,6 +769,102 @@ class TaskManagerData {
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception("Failed to fetch notifications: $e");
+    }
+  }
+
+  static Future<String> projectInvitations() async {
+    final url = Uri.parse('https://taskademia.app/api/project-members/me/invitations/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Failed to fetch invitations: $e");
+    }
+  }
+
+  static Future<String> notificationMarkAllRead() async {
+    final url = Uri.parse('https://taskademia.app/api/notifications/read-all/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.patch(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Failed to mark all notifications read: $e");
+    }
+  }
+
+  static Future<String> notificationDelete(String notificationId) async {
+    final url = Uri.parse('https://taskademia.app/api/notifications/$notificationId/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.delete(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Failed to delete notification: $e");
+    }
+  }
+
+  static Future<String> notificationClearAll() async {
+    final url = Uri.parse('https://taskademia.app/api/notifications/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.delete(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Failed to clear notifications: $e");
     }
   }
 
@@ -865,12 +1002,11 @@ class TaskManagerData {
     String? token = await TokenService.getToken();
 
     try {
-      final response = await http.post(
+      final response = await http.get(
         url,
         headers: {
           "Accept": "application/json",
           "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
         },
       );
 

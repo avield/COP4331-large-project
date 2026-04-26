@@ -59,9 +59,10 @@ class _RegisterMainPageState extends State<RegisterMainPage> {
           _emailController.text.trim(),
           _passwordController.text,
           _nameController.text.trim());
-      var jsonObject = json.decode(response);
+      final jsonObject = json.decode(response);
+      final user = jsonObject["user"];
 
-      if (jsonObject["id"] != null) {
+      if (user != null && user["id"] != null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Account created! Please sign in.")),

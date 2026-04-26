@@ -79,23 +79,23 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
 
       if (!mounted) return;
       setState(() {
-        // Handle potential differences in JSON structure between 'me' and 'other'
         final data = _isOwnProfile ? jsonObject : (jsonObject['user'] ?? jsonObject);
+        final profile = data['profile'] ?? data;
         
-        displayName = data["displayName"] ?? '';
+        displayName = profile["displayName"] ?? data["displayName"] ?? '';
         email = data["email"] ?? '';
-        school = data["school"] ?? '';
-        aboutMe = data["aboutMe"] ?? '';
+        school = profile["school"] ?? data["school"] ?? '';
+        aboutMe = profile["aboutMe"] ?? data["aboutMe"] ?? '';
         
         // Handle preferredRoles safely (could be List or String)
-        var roles = data["preferredRoles"];
+        var roles = profile["preferredRoles"] ?? data["preferredRoles"];
         if (roles is List) {
           preferredRoles = roles.join(", ");
         } else {
           preferredRoles = roles ?? '';
         }
 
-        profilePictureUrl = data["profilePictureUrl"] ?? '';
+        profilePictureUrl = profile["profilePictureUrl"] ?? data["profilePictureUrl"] ?? '';
         
         _nameController.text = displayName;
         _schoolController.text = school;
@@ -139,14 +139,16 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
         _imageFile?.path,
       );
       var jsonObject = json.decode(response);
+      final profile = jsonObject["profile"] ?? jsonObject;
 
       if (!mounted) return;
       setState(() {
-        displayName = jsonObject["displayName"] ?? '';
-        school = jsonObject["school"] ?? '';
-        aboutMe = jsonObject["aboutMe"] ?? '';
-        preferredRoles = jsonObject["preferredRoles"] ?? '';
-        profilePictureUrl = jsonObject["profilePictureUrl"] ?? '';
+        displayName = profile["displayName"] ?? displayName;
+        school = profile["school"] ?? school;
+        aboutMe = profile["aboutMe"] ?? aboutMe;
+        final updatedRoles = profile["preferredRoles"];
+        preferredRoles = updatedRoles is List ? updatedRoles.join(", ") : (updatedRoles ?? preferredRoles);
+        profilePictureUrl = profile["profilePictureUrl"] ?? profilePictureUrl;
         _isEditing = false;
         _imageFile = null;
         _isLoading = false;
@@ -164,19 +166,47 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
   void _handleLogout() async {
     await TokenService.logout();
     if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, Routes.landingScreen, (route) => false);
+    Navigator.of(context, rootNavigator: true)
+        .pushNamedAndRemoveUntil(Routes.landingScreen, (route) => false);
   }
 
-  ImageProvider? _getProfileImage() {
-    if (_imageFile != null) return FileImage(_imageFile!);
-    String fullUrl = UrlUtils.getFullUrl(profilePictureUrl);
-    if (fullUrl.isEmpty) return null;
-    return NetworkImage(fullUrl);
+  Widget _buildProfileAvatar(bool isDark) {
+    if (_imageFile != null) {
+      return CircleAvatar(
+        radius: 60,
+        backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.blue.shade100,
+        backgroundImage: FileImage(_imageFile!),
+      );
+    }
+
+    final fullUrl = UrlUtils.getFullUrl(profilePictureUrl);
+    final fallbackIcon = Icon(
+      LucideIcons.user,
+      size: 60,
+      color: isDark ? Colors.white70 : Colors.blue.shade700,
+    );
+
+    return CircleAvatar(
+      radius: 60,
+      backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.blue.shade100,
+      child: ClipOval(
+        child: fullUrl.isNotEmpty
+            ? Image.network(
+                fullUrl,
+                width: 120,
+                height: 120,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallbackIcon,
+              )
+            : fallbackIcon,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canGoBack = Navigator.of(context).canPop();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -184,10 +214,13 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         title: Text("Profile", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: canGoBack
+            ? IconButton(
+                icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black),
+                onPressed: () => Navigator.maybePop(context),
+              )
+            : null,
         actions: [
           if (_isOwnProfile && !_isEditing)
             IconButton(
@@ -231,14 +264,7 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
         children: [
           Stack(
             children: [
-              CircleAvatar(
-                radius: 60,
-                backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.blue.shade100,
-                backgroundImage: _getProfileImage(),
-                child: (_getProfileImage() == null)
-                    ? Icon(LucideIcons.user, size: 60, color: isDark ? Colors.white70 : Colors.blue.shade700)
-                    : null,
-              ),
+              _buildProfileAvatar(isDark),
               if (_isEditing)
                 Positioned(
                   bottom: 0,
@@ -463,6 +489,16 @@ class _ProfileMainPageState extends State<ProfileMainPage> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
+              try {
+                await TaskManagerData.deleteAccount();
+                await TokenService.logout();
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true)
+                    .pushNamedAndRemoveUntil(Routes.landingScreen, (route) => false);
+              } catch (e) {
+                if (!mounted) return;
+                setState(() => errorMessage = e.toString().replaceAll("Exception: ", ""));
+              }
             },
             child: const Text("Delete Everything", style: TextStyle(color: Colors.red)),
           ),

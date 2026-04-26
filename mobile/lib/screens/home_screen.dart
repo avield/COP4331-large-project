@@ -19,6 +19,54 @@ class _HomeScreenState extends State<HomeScreen> {
   String displayName = '';
   String profilePictureUrl = '';
 
+  Widget _buildNavAvatar(bool isDark) {
+    final fallbackText = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+
+    return Container(
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black12,
+          width: 1.5,
+        ),
+      ),
+      child: CircleAvatar(
+        radius: 11,
+        backgroundColor: isDark ? const Color(0xFF262626) : Colors.blue.shade50,
+        child: ClipOval(
+          child: profilePictureUrl.isNotEmpty
+              ? Image.network(
+                  profilePictureUrl,
+                  width: 22,
+                  height: 22,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Center(
+                    child: Text(
+                      fallbackText,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.blue.shade300 : Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    fallbackText,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.blue.shade300 : Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -32,11 +80,14 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // API 'me' response typically has profile info inside 'user' or directly
       var data = jsonObject['user'] ?? jsonObject;
+      var profile = data['profile'] ?? data;
       
       if (!mounted) return;
       setState(() {
-        displayName = data["displayName"] ?? '';
-        profilePictureUrl = UrlUtils.getFullUrl(data["profilePictureUrl"]);
+        displayName = profile["displayName"] ?? data["displayName"] ?? '';
+        profilePictureUrl = UrlUtils.getFullUrl(
+          profile["profilePictureUrl"] ?? data["profilePictureUrl"],
+        );
       });
     } catch (e) {
       debugPrint("Error initializing Home: $e");
@@ -76,33 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
         PersistentTabConfig(
           screen: const ProfileScreen(),
           item: ItemConfig(
-            icon: Container(
-              padding: const EdgeInsets.all(1),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? Colors.white10 : Colors.black12,
-                  width: 1.5,
-                ),
-              ),
-              child: CircleAvatar(
-                radius: 11,
-                backgroundColor: isDark ? const Color(0xFF262626) : Colors.blue.shade50,
-                backgroundImage: profilePictureUrl.isNotEmpty 
-                    ? NetworkImage(profilePictureUrl) 
-                    : null,
-                child: (profilePictureUrl.isEmpty)
-                    ? Text(
-                        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                        style: TextStyle(
-                          fontSize: 9, 
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.blue.shade300 : Colors.blue.shade700
-                        ),
-                      )
-                    : null,
-              ),
-            ),
+            icon: _buildNavAvatar(isDark),
             activeForegroundColor: activeColor,
             inactiveForegroundColor: inactiveColor,
             title: "Me",

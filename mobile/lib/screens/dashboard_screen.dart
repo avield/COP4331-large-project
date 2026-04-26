@@ -399,7 +399,7 @@ class _DashboardMainPageState extends State<DashboardMainPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Project Progress", style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
+          const Text("Completion Rate across all projects", style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -732,15 +732,26 @@ class _DashboardMainPageState extends State<DashboardMainPage> {
 
   Future<void> _initNotifications() async {
     try {
-      String response = await TaskManagerData.notifications();
-      List<dynamic> jsonList = json.decode(response);
+      String response = await TaskManagerData.projectInvitations();
+      final decoded = json.decode(response);
+      final List<dynamic> jsonList = decoded is List
+          ? decoded
+          : List<dynamic>.from(decoded["invitations"] ?? []);
       if (!mounted) return;
       setState(() {
-        notifications = jsonList.map((n) => {
-          "id": n["_id"].toString(),
-          "owner": n["joinedBy"]?["profile"]?["displayName"] ?? n["joinedBy"]?["email"] ?? "Someone",
-          "projectName": n["projectId"]?["name"] ?? "a project",
-        }).toList();
+        notifications = jsonList
+            .where((n) =>
+                n is Map<String, dynamic> &&
+                n["_id"] != null &&
+                n["projectId"] != null)
+            .map((n) => {
+                  "id": n["_id"].toString(),
+                  "owner": n["joinedBy"]?["profile"]?["displayName"] ??
+                      n["joinedBy"]?["email"] ??
+                      "Someone",
+                  "projectName": n["projectId"]?["name"] ?? "a project",
+                })
+            .toList();
       });
     } catch (e) {
       if (mounted) setState(() => errorMessage = e.toString().replaceAll("Exception: ", ""));
