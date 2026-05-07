@@ -354,9 +354,7 @@ function getUserDisplayName(user?: ApiUserSummary | null) {
 }
 
 function getBackendOrigin() {
-  return (import.meta.env.BACKEND_URL || 'http://localhost:5000')
-    .replace(/\/$/, '')
-    .replace(/\/api$/, '')
+  return (import.meta.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '')
 }
 
 function getProjectChatSocketUrl(projectId: string, token: string) {

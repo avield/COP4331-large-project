@@ -43,7 +43,7 @@ function broadcastToProject(projectId: string, payload: unknown) {
 }
 
 function getProjectIdFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/ws\/projects\/([^/]+)\/chat$/);
+  const match = pathname.match(/^\/(?:api\/)?ws\/projects\/([^/]+)\/chat$/);
   return match?.[1] ?? null;
 }
 
