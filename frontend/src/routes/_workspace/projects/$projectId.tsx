@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useRouter, Link } from '@tanstack/react-router'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2, ChevronDown } from 'lucide-react'
+import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2, ChevronDown, Send, AtSign, WifiOff } from 'lucide-react'
 import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
 import api from '@/api/axios'
@@ -174,6 +174,16 @@ interface ApiGoal {
   updatedAt?: string
 }
 
+interface ApiChatMessage {
+  _id: string
+  projectId: string
+  senderId: ApiUserSummary
+  content: string
+  mentionedUserIds?: ApiUserSummary[]
+  createdAt: string
+  updatedAt?: string
+}
+
 interface ApiResponse {
   project: ApiProject
   members?: ApiMember[]
@@ -333,6 +343,26 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString()
 }
 
+function getUserDisplayName(user?: ApiUserSummary | null) {
+  return (
+    user?.profile?.displayName ??
+    user?.displayName ??
+    user?.username ??
+    user?.email ??
+    'Unknown User'
+  )
+}
+
+function getBackendOrigin() {
+  return (import.meta.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '')
+}
+
+function getProjectChatSocketUrl(projectId: string, token: string) {
+  const backendOrigin = getBackendOrigin()
+  const wsOrigin = backendOrigin.replace(/^http/i, 'ws')
+  return `${wsOrigin}/ws/projects/${projectId}/chat?token=${encodeURIComponent(token)}`
+}
+
 function columnIdToStatus(columnId: string): ApiTask['status'] {
   switch (columnId) {
     case 'col-1':
@@ -351,6 +381,7 @@ function columnIdToStatus(columnId: string): ApiTask['status'] {
 function ProjectPage() {
   // Core Auth & Router
   const user = useAuthStore((state) => state.user)
+  const accessToken = useAuthStore((state) => state.accessToken)
   const currentUserId = user?.id ?? ((user as unknown as {_id?: string} | null)?._id)
   const navigate = useNavigate()
   const router = useRouter()
@@ -449,6 +480,7 @@ function ProjectPage() {
     joinSettings: true,
     lookingFor: true,
     members: true,
+    chat: true,
   })
 
   const toggleSection = (key: keyof typeof openSections) => {
@@ -555,6 +587,145 @@ function ProjectPage() {
   const canEditProject = myMembership?.permissions?.canEditProject ?? false
   const canJoinProject = !!loaderData.permissions?.canJoinProject
   const canManageMembers = myMembership?.role === 'Owner' || myMembership?.permissions?.canManageMembers === true
+
+  // Project chat
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  const chatSocketRef = useRef<WebSocket | null>(null)
+  const [chatMessages, setChatMessages] = useState<ApiChatMessage[]>([])
+  const [chatDraft, setChatDraft] = useState('')
+  const [selectedMentionIds, setSelectedMentionIds] = useState<string[]>([])
+  const [chatStatus, setChatStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [isLoadingChat, setIsLoadingChat] = useState(false)
+
+  const mentionableMembers = useMemo(() => {
+    return members
+      .filter((member) => member.membershipStatus === 'active' && member.userId)
+      .map((member) => {
+        const memberUser = member.userId!
+        return {
+          id: memberUser._id,
+          label: getUserDisplayName(memberUser),
+          email: memberUser.email ?? '',
+          profilePictureUrl: memberUser.profilePictureUrl ?? memberUser.profile?.profilePictureUrl ?? undefined,
+        }
+      })
+  }, [members])
+
+  const activeMentionQuery = useMemo(() => {
+    const match = chatDraft.match(/(^|\s)@([^\s@]*)$/)
+    return match?.[2]?.toLowerCase() ?? null
+  }, [chatDraft])
+
+  const mentionSuggestions = useMemo(() => {
+    if (activeMentionQuery === null) return []
+
+    return mentionableMembers
+      .filter((member) => {
+        const haystack = `${member.label} ${member.email}`.toLowerCase()
+        return haystack.includes(activeMentionQuery)
+      })
+      .slice(0, 6)
+  }, [activeMentionQuery, mentionableMembers])
+
+  const addChatMessage = useCallback((message: ApiChatMessage) => {
+    setChatMessages((prev) => {
+      if (prev.some((existing) => existing._id === message._id)) return prev
+      return [...prev, message]
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!project?._id || !isFullDetails) return
+
+    const loadChatMessages = async () => {
+      try {
+        setIsLoadingChat(true)
+        const res = await api.get(`/projects/${project._id}/chat/messages`)
+        setChatMessages(res.data ?? [])
+      } catch (error) {
+        console.error('Failed to load project chat:', error)
+        toast.error('Failed to load project chat.')
+      } finally {
+        setIsLoadingChat(false)
+      }
+    }
+
+    void loadChatMessages()
+  }, [project?._id, isFullDetails])
+
+  useEffect(() => {
+    if (!project?._id || !isFullDetails || !accessToken) {
+      setChatStatus('disconnected')
+      return
+    }
+
+    setChatStatus('connecting')
+    const socket = new WebSocket(getProjectChatSocketUrl(project._id, accessToken))
+    chatSocketRef.current = socket
+
+    socket.onopen = () => setChatStatus('connected')
+    socket.onclose = () => setChatStatus('disconnected')
+    socket.onerror = () => setChatStatus('disconnected')
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data)
+        if (payload.type === 'chat:message' && payload.message) {
+          addChatMessage(payload.message)
+        }
+
+        if (payload.type === 'chat:error' && payload.message) {
+          toast.error(payload.message)
+        }
+      } catch (error) {
+        console.error('Invalid chat socket payload:', error)
+      }
+    }
+
+    return () => {
+      socket.close()
+      if (chatSocketRef.current === socket) {
+        chatSocketRef.current = null
+      }
+    }
+  }, [project?._id, isFullDetails, accessToken, addChatMessage])
+
+  useEffect(() => {
+    chatScrollRef.current?.scrollTo({
+      top: chatScrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
+  }, [chatMessages])
+
+  const handleSelectMention = (member: { id: string; label: string }) => {
+    setChatDraft((prev) => prev.replace(/(^|\s)@([^\s@]*)$/, `$1@${member.label} `))
+    setSelectedMentionIds((prev) => (prev.includes(member.id) ? prev : [...prev, member.id]))
+  }
+
+  const getMentionIdsFromDraft = () => {
+    const inferredIds = mentionableMembers
+      .filter((member) => chatDraft.toLowerCase().includes(`@${member.label.toLowerCase()}`))
+      .map((member) => member.id)
+
+    return Array.from(new Set([...selectedMentionIds, ...inferredIds]))
+  }
+
+  const handleSendChatMessage = () => {
+    const trimmed = chatDraft.trim()
+    const socket = chatSocketRef.current
+
+    if (!trimmed || !socket || socket.readyState !== WebSocket.OPEN) return
+
+    socket.send(
+      JSON.stringify({
+        type: 'chat:message',
+        content: trimmed,
+        mentionedUserIds: getMentionIdsFromDraft(),
+      })
+    )
+
+    setChatDraft('')
+    setSelectedMentionIds([])
+  }
 
   // Find your membership status
   const myRequest = useMemo(() =>
@@ -2543,6 +2714,154 @@ const handleDeleteProject = async () => {
                     No members available.
                   </div>
               )}
+            </div>
+          </CollapsibleCardSection>
+
+          <CollapsibleCardSection
+            title="Project Chat"
+            description="Live room for this project."
+            isOpen={openSections.chat}
+            onToggle={() => toggleSection('chat')}
+            actions={
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {chatStatus === 'connected' ? (
+                  <>
+                    <span className="size-2 rounded-full bg-green-500" />
+                    Live
+                  </>
+                ) : chatStatus === 'connecting' ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" />
+                    Connecting
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="size-3" />
+                    Offline
+                  </>
+                )}
+              </div>
+            }
+            contentClassName="space-y-4"
+          >
+            <div
+              ref={chatScrollRef}
+              className="flex h-80 flex-col gap-3 overflow-y-auto rounded-md border bg-muted/20 p-3"
+            >
+              {isLoadingChat ? (
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading chat...
+                </div>
+              ) : chatMessages.length > 0 ? (
+                chatMessages.map((message) => {
+                  const senderName = getUserDisplayName(message.senderId)
+                  const isMine = message.senderId?._id === currentUserId
+                  const senderAvatarPath =
+                    message.senderId?.profile?.profilePictureUrl ??
+                    message.senderId?.profilePictureUrl
+                  const senderAvatarUrl = senderAvatarPath
+                    ? senderAvatarPath.startsWith('http')
+                      ? senderAvatarPath
+                      : `${API_BASE_URL}${senderAvatarPath.startsWith('/') ? senderAvatarPath : `/${senderAvatarPath}`}`
+                    : undefined
+
+                  return (
+                    <div
+                      key={message._id}
+                      className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {!isMine && (
+                        <NetworkAvatar
+                          displayName={senderName}
+                          profilePictureUrl={senderAvatarUrl}
+                          size="sm"
+                        />
+                      )}
+
+                      <div
+                        className={`max-w-[82%] rounded-lg px-3 py-2 text-sm ${
+                          isMine
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-background shadow-xs'
+                        }`}
+                      >
+                        <div className={`mb-1 flex items-center gap-2 text-[11px] ${
+                          isMine ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                        }`}>
+                          <span className="font-medium">{isMine ? 'You' : senderName}</span>
+                          <span>
+                            {message.createdAt
+                              ? new Date(message.createdAt).toLocaleTimeString([], {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })
+                              : ''}
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                  <AtSign className="size-5" />
+                  No messages yet.
+                </div>
+              )}
+            </div>
+
+            <div className="relative space-y-2">
+              {mentionSuggestions.length > 0 && (
+                <div className="absolute bottom-full z-20 mb-2 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+                  {mentionSuggestions.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => handleSelectMention(member)}
+                    >
+                      <NetworkAvatar
+                        displayName={member.label}
+                        profilePictureUrl={member.profilePictureUrl}
+                        size="sm"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{member.label}</span>
+                        {member.email ? (
+                          <span className="block truncate text-xs text-muted-foreground">{member.email}</span>
+                        ) : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Textarea
+                value={chatDraft}
+                onChange={(e) => setChatDraft(e.target.value)}
+                placeholder="Message the project..."
+                className="min-h-20 resize-none pr-12"
+                maxLength={2000}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendChatMessage()
+                  }
+                }}
+              />
+
+              <Button
+                type="button"
+                size="icon"
+                className="absolute bottom-2 right-2 size-8"
+                onClick={handleSendChatMessage}
+                disabled={!chatDraft.trim() || chatStatus !== 'connected'}
+                aria-label="Send chat message"
+              >
+                <Send className="size-4" />
+              </Button>
             </div>
           </CollapsibleCardSection>
         </div>

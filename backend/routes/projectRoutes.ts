@@ -11,6 +11,7 @@ import {
     getProjectDetails,
     getManageableProjects
 } from '../controllers/projectController.js';
+import { getProjectChatMessages } from '../controllers/projectChatController.js';
 import {
     requestJoinProject,
     getManageableMembers,
@@ -31,6 +32,7 @@ router.post('/create', protect, projectCreateLimiter, createProject);
 router.get('/', protect, getMyProjects);
 router.get('/manageable', protect, getManageableProjects);
 router.get('/:projectId/details', protect, getProjectDetails);
+router.get('/:projectId/chat/messages', protect, getProjectChatMessages);
 router.get('/:projectId', protect, getProjectById);
 router.put('/:projectId', protect, updateProject);
 router.delete('/:projectId', protect, deleteProject);

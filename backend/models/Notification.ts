@@ -11,7 +11,8 @@ export type NotificationType =
   | 'join_request_denied'
   | 'ownership_transferred'
   | 'project_member_joined'
-  | 'project_member_left';
+  | 'project_member_left'
+  | 'project_chat_mention';
 
 export interface NotificationDocument {
   recipientUserId: Types.ObjectId;
@@ -62,6 +63,7 @@ const notificationSchema = new Schema<NotificationDocument>(
         'ownership_transferred',
         'project_member_joined',
         'project_member_left',
+        'project_chat_mention',
       ],
       required: true,
       index: true,

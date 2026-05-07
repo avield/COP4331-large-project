@@ -28,6 +28,10 @@ const goalModel: any = {
   insertMany: jest.fn(),
 };
 
+const projectChatMessageModel: any = {
+  deleteMany: jest.fn(),
+};
+
 const createNotificationsMock: any = jest.fn();
 
 const mockSession: any = {
@@ -52,6 +56,10 @@ jest.unstable_mockModule('../backend/models/Task.js', () => ({
 
 jest.unstable_mockModule('../backend/models/Goal.js', () => ({
   default: goalModel,
+}));
+
+jest.unstable_mockModule('../backend/models/ProjectChatMessage.js', () => ({
+  default: projectChatMessageModel,
 }));
 
 jest.unstable_mockModule('mongoose', () => ({
@@ -346,6 +354,7 @@ describe('Project Controller', () => {
 
     expect(taskModel.deleteMany).toHaveBeenCalledWith({ projectId: 'project123' });
     expect(goalModel.deleteMany).toHaveBeenCalledWith({ projectId: 'project123' });
+    expect(projectChatMessageModel.deleteMany).toHaveBeenCalledWith({ projectId: 'project123' });
     expect(projectMemberModel.deleteMany).toHaveBeenCalledWith({ projectId: 'project123' });
     expect(projectModel.findByIdAndDelete).toHaveBeenCalledWith('project123');
     expect(res.status).toHaveBeenCalledWith(200);

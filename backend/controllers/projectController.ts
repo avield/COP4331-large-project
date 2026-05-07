@@ -6,6 +6,7 @@ import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import ProjectMember from '../models/ProjectMember.js';
 import Goal from '../models/Goal.js';
+import ProjectChatMessage from '../models/ProjectChatMessage.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { createNotifications } from '../services/notificationService.js';
 
@@ -592,6 +593,7 @@ export const deleteProject = async (
 
     await Task.deleteMany({ projectId });
     await Goal.deleteMany({ projectId });
+    await ProjectChatMessage.deleteMany({ projectId });
     await ProjectMember.deleteMany({ projectId });
     await Project.findByIdAndDelete(projectId);
 

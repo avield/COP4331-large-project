@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import cors, { type CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
@@ -17,6 +18,7 @@ import { exit } from 'node:process';
 import path from 'path'; // for dealing with profile images
 import { fileURLToPath } from 'url';
 import notificationRoutes from './routes/notificationRoutes.js';
+import { setupProjectChatWebSocket } from './services/projectChatSocket.js';
 
 // using absolute paths for dealing with bugs due to ES modules when running server from different directory
 // This was added for dealing with profile image files (next two lines)
@@ -86,7 +88,10 @@ app.use('/public/uploads', express.static(path.join(__dirname, 'public', 'upload
 
 const PORT: number = Number(process.env.PORT) || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = http.createServer(app);
+setupProjectChatWebSocket(server);
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
 
