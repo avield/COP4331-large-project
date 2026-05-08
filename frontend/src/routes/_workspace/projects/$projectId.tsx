@@ -4,7 +4,7 @@ import { DragDropContext, type DropResult, Droppable, Draggable } from "@hello-p
 import { CalendarDays, Lock, Globe, Users, Settings, Pencil, UserPlus, Loader2, Check, GripVertical, Trash2, ChevronDown, Send, AtSign, WifiOff } from 'lucide-react'
 import { KanbanColumn, type Column } from './components/column'
 import type { Task } from './components/task'
-import api from '@/api/axios'
+import api, { refreshAccessTokenSilently } from '@/api/axios'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
@@ -354,13 +354,25 @@ function getUserDisplayName(user?: ApiUserSummary | null) {
 }
 
 function getBackendOrigin() {
-  return (import.meta.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '')
+  return (
+    import.meta.env.WS_BACKEND_URL ||
+    import.meta.env.BACKEND_URL ||
+    'http://localhost:5000'
+  ).replace(/\/$/, '')
 }
 
-function getProjectChatSocketUrl(projectId: string, token: string) {
+function getProjectChatSocketUrls(projectId: string, token: string) {
   const backendOrigin = getBackendOrigin()
-  const wsOrigin = backendOrigin.replace(/^http/i, 'ws')
-  return `${wsOrigin}/ws/projects/${projectId}/chat?token=${encodeURIComponent(token)}`
+  const wsBase = backendOrigin.replace(/^http/i, 'ws').replace(/\/$/, '')
+  const wsBaseWithoutApi = wsBase.replace(/\/api$/, '')
+
+  const encodedToken = encodeURIComponent(token)
+  const candidates = [
+    `${wsBaseWithoutApi}/ws/projects/${projectId}/chat?token=${encodedToken}`,
+    `${wsBaseWithoutApi}/api/ws/projects/${projectId}/chat?token=${encodedToken}`,
+  ]
+
+  return Array.from(new Set(candidates))
 }
 
 function columnIdToStatus(columnId: string): ApiTask['status'] {
@@ -654,35 +666,164 @@ function ProjectPage() {
   }, [project?._id, isFullDetails])
 
   useEffect(() => {
-    if (!project?._id || !isFullDetails || !accessToken) {
+    if (!project?._id || !isFullDetails) {
       setChatStatus('disconnected')
       return
     }
 
-    setChatStatus('connecting')
-    const socket = new WebSocket(getProjectChatSocketUrl(project._id, accessToken))
-    chatSocketRef.current = socket
+    let isActive = true
+    let socket: WebSocket | null = null
 
-    socket.onopen = () => setChatStatus('connected')
-    socket.onclose = () => setChatStatus('disconnected')
-    socket.onerror = () => setChatStatus('disconnected')
-    socket.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data)
-        if (payload.type === 'chat:message' && payload.message) {
-          addChatMessage(payload.message)
-        }
-
-        if (payload.type === 'chat:error' && payload.message) {
-          toast.error(payload.message)
-        }
-      } catch (error) {
-        console.error('Invalid chat socket payload:', error)
-      }
+    const logChatSocket = (message: string, data?: Record<string, unknown>) => {
+      console.info('[ProjectChat]', message, {
+        projectId: project._id,
+        ...data,
+      })
     }
 
+    const warnChatSocket = (message: string, data?: Record<string, unknown>) => {
+      console.warn('[ProjectChat]', message, {
+        projectId: project._id,
+        ...data,
+      })
+    }
+
+    const connect = (token: string, hasRefreshedToken: boolean) => {
+      const socketUrls = getProjectChatSocketUrls(project._id, token)
+      logChatSocket('Starting connection sequence', {
+        urlCount: socketUrls.length,
+        hasRefreshedToken,
+      })
+
+      const connectAtIndex = (urlIndex: number) => {
+        if (!isActive) return
+
+        const currentUrl = socketUrls[urlIndex]
+        logChatSocket('Connecting', {
+          urlIndex,
+          url: currentUrl,
+          hasRefreshedToken,
+        })
+
+        const ws = new WebSocket(currentUrl)
+        socket = ws
+        chatSocketRef.current = ws
+
+        ws.onopen = () => {
+          if (!isActive) return
+          logChatSocket('Connected', {
+            urlIndex,
+            url: currentUrl,
+          })
+          setChatStatus('connected')
+        }
+
+        ws.onerror = (event) => {
+          if (!isActive) return
+          warnChatSocket('Socket error event', {
+            urlIndex,
+            url: currentUrl,
+            eventType: event.type,
+          })
+          setChatStatus('disconnected')
+        }
+
+        ws.onclose = async (event) => {
+          if (!isActive) return
+
+          warnChatSocket('Socket closed', {
+            urlIndex,
+            url: currentUrl,
+            code: event.code,
+            reason: event.reason || '(empty)',
+            wasClean: event.wasClean,
+            hasRefreshedToken,
+          })
+
+          const hasAnotherUrlToTry = urlIndex + 1 < socketUrls.length
+          if (hasAnotherUrlToTry) {
+            logChatSocket('Trying next socket URL fallback', {
+              nextUrlIndex: urlIndex + 1,
+            })
+            setChatStatus('connecting')
+            connectAtIndex(urlIndex + 1)
+            return
+          }
+
+          if (!hasRefreshedToken) {
+            logChatSocket('Refreshing token after socket close')
+            const refreshedToken = await refreshAccessTokenSilently()
+
+            if (!isActive) return
+
+            if (refreshedToken) {
+              logChatSocket('Token refresh succeeded; retrying socket')
+              setChatStatus('connecting')
+              connect(refreshedToken, true)
+              return
+            }
+
+            warnChatSocket('Token refresh failed; no further retries')
+          }
+
+          warnChatSocket('All socket connection attempts exhausted')
+          setChatStatus('disconnected')
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (payload.type === 'chat:message' && payload.message) {
+              addChatMessage(payload.message)
+            }
+
+            if (payload.type === 'chat:error' && payload.message) {
+              warnChatSocket('Received server chat:error payload', {
+                message: payload.message,
+              })
+              toast.error(payload.message)
+            }
+          } catch (error) {
+            warnChatSocket('Invalid chat socket payload', {
+              rawLength: typeof event.data === 'string' ? event.data.length : undefined,
+              error: error instanceof Error ? error.message : 'Unknown parse error',
+            })
+          }
+        }
+      }
+
+      connectAtIndex(0)
+    }
+
+    const initializeSocket = async () => {
+      setChatStatus('connecting')
+
+      let token = accessToken
+      if (!token) {
+        logChatSocket('No access token in store; attempting silent refresh before connect')
+        token = await refreshAccessTokenSilently()
+      }
+
+      if (!isActive) return
+
+      if (!token) {
+        warnChatSocket('No token available; cannot establish socket')
+        setChatStatus('disconnected')
+        return
+      }
+
+      connect(token, false)
+    }
+
+    void initializeSocket()
+
     return () => {
-      socket.close()
+      isActive = false
+
+      if (socket) {
+        socket.close()
+      }
+
       if (chatSocketRef.current === socket) {
         chatSocketRef.current = null
       }

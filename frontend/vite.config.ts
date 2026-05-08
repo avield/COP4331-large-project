@@ -12,6 +12,10 @@ const REQUIRED_ENVS = [
   'BACKEND_URL'
 ];
 
+const OPTIONAL_ENVS = [
+  'WS_BACKEND_URL'
+];
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const rootEnv = loadEnv(mode, path.resolve(process.cwd(), '..'), '');
@@ -29,6 +33,12 @@ export default defineConfig(({ mode }) => {
     
     // Add it to the define object dynamically
     definedEnvVariables[`import.meta.env.${key}`] = JSON.stringify(env[key]);
+  }
+
+  for (const key of OPTIONAL_ENVS) {
+    if (env[key]) {
+      definedEnvVariables[`import.meta.env.${key}`] = JSON.stringify(env[key]);
+    }
   }
 
   if (missingEnvVariables.length > 0 && mode !== 'test') {

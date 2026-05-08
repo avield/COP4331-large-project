@@ -52,11 +52,15 @@ async function requestNewAccessToken(): Promise<string> {
   return newToken
 }
 
-async function getFreshAccessToken(): Promise<string> {
+async function getFreshAccessToken(options?: { clearOnFailure?: boolean }): Promise<string> {
+  const clearOnFailure = options?.clearOnFailure ?? true
+
   if (!refreshPromise) {
     refreshPromise = requestNewAccessToken()
       .catch((error) => {
-        useAuthStore.getState().clearAuth()
+        if (clearOnFailure) {
+          useAuthStore.getState().clearAuth()
+        }
         throw error
       })
       .finally(() => {
@@ -70,7 +74,7 @@ async function getFreshAccessToken(): Promise<string> {
 // Expose this so the app can silently refresh before expiry.
 export async function refreshAccessTokenSilently(): Promise<string | null> {
   try {
-    return await getFreshAccessToken()
+    return await getFreshAccessToken({ clearOnFailure: false })
   } catch (error) {
     console.error('Silent refresh failed:', error)
     return null
