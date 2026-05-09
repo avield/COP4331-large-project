@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../utils/get_api.dart';
 import '../utils/url_utils.dart';
 import '../routes/routes.dart';
+import 'project_chat_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   final String projectId;
@@ -370,6 +371,10 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.messagesSquare, size: 20),
+            onPressed: _openProjectChat,
+          ),
           if (_canEdit)
             IconButton(
               icon: const Icon(LucideIcons.plus, size: 20),
@@ -410,6 +415,20 @@ class _ProjectsMainPageState extends State<ProjectsMainPage> {
             ),
             const SizedBox(height: 40),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _openProjectChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProjectChatScreen(
+          projectId: widget.projectId,
+          projectName: projectName,
+          currentUserId: currentUserId,
+          members: membersList,
         ),
       ),
     );

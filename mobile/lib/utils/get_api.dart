@@ -412,6 +412,31 @@ class TaskManagerData {
     }
   }
 
+
+  static Future<String> projectChatMessages(String projectId) async {
+    final url = Uri.parse('https://taskademia.app/api/projects/$projectId/chat/messages/');
+    String? token = await TokenService.getToken();
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        throw Exception(_extractErrorMessage(response));
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception("Failed to fetch project chat: $e");
+    }
+  }
+
   static Future<String> projectJoin(String projectId) async {
     final url = Uri.parse('https://taskademia.app/api/projects/$projectId/join/');
     String? token = await TokenService.getToken();
